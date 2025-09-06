@@ -25,7 +25,8 @@ import {
   Divider,
   useTheme,
   useMediaQuery,
-  Fab
+  Fab,
+  Chip
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -172,32 +173,58 @@ const DashboardPage = () => {
 
   // Drawer content
   const DrawerContent = () => (
-    <Box>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Toolbar>
-        <Box display="flex" alignItems="center" gap={2}>
-          <StoreIcon color="primary" />
-          <Typography variant="h6" noWrap component="div">
-            {getDisplayName()}
-          </Typography>
+        <Box display="flex" alignItems="center" gap={2} width="100%">
+          <StoreIcon sx={{ color: themeColors.primary }} />
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography 
+              variant="h6" 
+              noWrap 
+              sx={{ 
+                fontSize: '1rem', 
+                fontWeight: 600,
+                lineHeight: 1.2
+              }}
+            >
+              {getDisplayName()}
+            </Typography>
+            <Typography 
+              variant="caption" 
+              color="text.secondary"
+              sx={{ 
+                display: 'block',
+                lineHeight: 1
+              }}
+            >
+              Management
+            </Typography>
+          </Box>
         </Box>
       </Toolbar>
       <Divider />
-      
-      <List>
+
+      <List sx={{ mt: 1, flex: 1 }}>
         {navigationItems.map((item) => {
           if (item.adminOnly && !canManageEmployees()) {
             return null;
           }
-          
+
           const Icon = item.icon;
           return (
-            <ListItem key={item.label} disablePadding>
+            <ListItem key={item.label} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
                 selected={item.active}
-                onClick={() => navigate(item.path)}
+                onClick={() => {
+                  navigate(item.path);
+                  if (isMobile) setMobileOpen(false);
+                }}
                 sx={{
+                  mx: 1,
+                  borderRadius: 2,
                   '&.Mui-selected': {
                     backgroundColor: `${themeColors.primary}15`,
+                    border: `1px solid ${themeColors.primary}30`,
                     '& .MuiListItemIcon-root': {
                       color: themeColors.primary,
                     },
@@ -205,18 +232,64 @@ const DashboardPage = () => {
                       color: themeColors.primary,
                       fontWeight: 600,
                     },
+                  },
+                  '&:hover': {
+                    backgroundColor: `${themeColors.primary}08`,
+                  },
+                  '&.Mui-selected:hover': {
+                    backgroundColor: `${themeColors.primary}20`,
                   }
                 }}
               >
-                <ListItemIcon>
+                <ListItemIcon sx={{ minWidth: 40 }}>
                   <Icon />
                 </ListItemIcon>
-                <ListItemText primary={item.label} />
+                <ListItemText 
+                  primary={item.label}
+                  primaryTypographyProps={{
+                    fontSize: '0.875rem',
+                    fontWeight: item.active ? 600 : 500
+                  }}
+                />
               </ListItemButton>
             </ListItem>
           );
         })}
       </List>
+
+      {/* User Info in Drawer */}
+      <Box sx={{ p: 2 }}>
+        <Divider sx={{ mb: 2 }} />
+        <Box display="flex" alignItems="center" gap={2}>
+          <Avatar 
+            sx={{ 
+              width: 32, 
+              height: 32, 
+              bgcolor: themeColors.primary,
+              fontSize: '0.875rem'
+            }}
+          >
+            {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+          </Avatar>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="body2" noWrap fontWeight={600}>
+              {user?.name}
+            </Typography>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Chip
+                label={user?.role}
+                size="small"
+                variant="outlined"
+                sx={{ 
+                  fontSize: '0.75rem', 
+                  height: 20,
+                  '& .MuiChip-label': { px: 1 }
+                }}
+              />
+            </Box>
+          </Box>
+        </Box>
+      </Box>
     </Box>
   );
 

@@ -230,7 +230,7 @@ const CustomerList = () => {
 
   const handleActionMenuClose = () => {
     setActionMenuAnchor(null);
-    setSelectedCustomer(null);
+    // setSelectedCustomer(null);
   };
 
   // Handle delete
