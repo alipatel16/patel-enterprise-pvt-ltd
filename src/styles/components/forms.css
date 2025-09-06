@@ -1,0 +1,700 @@
+/**
+ * Forms CSS
+ * Styles for form components and form layouts
+ */
+
+/* Form Container */
+.form-container {
+  padding: 1rem;
+}
+
+@media (min-width: 600px) {
+  .form-container {
+    padding: 2rem;
+  }
+}
+
+/* Form Section */
+.form-section {
+  margin-bottom: 2rem;
+}
+
+.form-section:last-child {
+  margin-bottom: 0;
+}
+
+.form-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.form-section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Form Grid */
+.form-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 600px) {
+  .form-grid {
+    gap: 1.5rem;
+  }
+  
+  .form-grid-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .form-grid-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+@media (max-width: 599px) {
+  .form-grid-2,
+  .form-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Form Field Wrapper */
+.form-field {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.form-field-required .MuiInputLabel-root::after {
+  content: ' *';
+  color: #f44336;
+}
+
+/* Form Field Groups */
+.form-field-group {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+@media (max-width: 599px) {
+  .form-field-group {
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
+
+.form-field-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Custom Input Styles */
+.custom-input {
+  width: 100%;
+}
+
+.custom-input .MuiOutlinedInput-root {
+  border-radius: 8px;
+  transition: box-shadow 0.2s ease-in-out;
+}
+
+.custom-input .MuiOutlinedInput-root:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.custom-input .MuiOutlinedInput-root.Mui-focused {
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+}
+
+/* Search Field Styles */
+.search-field {
+  position: relative;
+}
+
+.search-field .MuiOutlinedInput-root {
+  border-radius: 24px;
+  padding-left: 1rem;
+}
+
+.search-field .MuiInputAdornment-root {
+  margin-left: 0;
+}
+
+/* File Upload Field */
+.file-upload-field {
+  border: 2px dashed #e0e0e0;
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  background-color: #fafafa;
+}
+
+.file-upload-field:hover,
+.file-upload-field.dragover {
+  border-color: #1976d2;
+  background-color: rgba(25, 118, 210, 0.04);
+}
+
+.file-upload-field input[type="file"] {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.file-upload-text {
+  color: #666;
+  font-size: 0.875rem;
+}
+
+.file-upload-text-primary {
+  color: #1976d2;
+  font-weight: 600;
+}
+
+/* Autocomplete Custom Styles */
+.autocomplete-field .MuiAutocomplete-paper {
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e0e0e0;
+}
+
+.autocomplete-field .MuiAutocomplete-option {
+  padding: 0.75rem 1rem;
+}
+
+.autocomplete-field .MuiAutocomplete-option:hover {
+  background-color: rgba(25, 118, 210, 0.04);
+}
+
+/* Form Actions */
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+  margin-top: 2rem;
+}
+
+@media (max-width: 599px) {
+  .form-actions {
+    flex-direction: column-reverse;
+    gap: 0.75rem;
+  }
+  
+  .form-actions .MuiButton-root {
+    width: 100%;
+  }
+}
+
+/* Stepper Form */
+.stepper-form {
+  padding: 1rem;
+}
+
+@media (min-width: 600px) {
+  .stepper-form {
+    padding: 2rem;
+  }
+}
+
+.stepper-content {
+  padding: 2rem 0;
+  min-height: 300px;
+}
+
+@media (max-width: 599px) {
+  .stepper-content {
+    padding: 1rem 0;
+    min-height: 250px;
+  }
+}
+
+.stepper-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+@media (max-width: 599px) {
+  .stepper-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
+
+/* Form Validation Styles */
+.form-error {
+  color: #f44336;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.form-success {
+  color: #4caf50;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.form-warning {
+  color: #ff9800;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Field Error State */
+.field-error .MuiOutlinedInput-root {
+  border-color: #f44336 !important;
+}
+
+.field-error .MuiInputLabel-root {
+  color: #f44336 !important;
+}
+
+/* Field Success State */
+.field-success .MuiOutlinedInput-root {
+  border-color: #4caf50 !important;
+}
+
+/* Form Loading State */
+.form-loading {
+  position: relative;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.form-loading::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  z-index: 1000;
+}
+
+/* Switch and Checkbox Styles */
+.form-switch {
+  margin: 0.5rem 0;
+}
+
+.form-checkbox {
+  margin: 0.25rem 0;
+}
+
+.form-radio-group {
+  margin: 0.5rem 0;
+}
+
+/* Date Picker Styles */
+.date-picker-field .MuiOutlinedInput-root {
+  cursor: pointer;
+}
+
+.date-picker-field .MuiIconButton-root {
+  padding: 0.5rem;
+}
+
+/* Multi-Select Styles */
+.multi-select-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.multi-select-chips .MuiChip-root {
+  height: 24px;
+  font-size: 0.75rem;
+}
+
+/* Form Card Styles */
+.form-card {
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+}
+
+.form-card-header {
+  padding: 1.5rem 1.5rem 0;
+  background: linear-gradient(135deg, #f5f5f5 0%, #fafafa 100%);
+}
+
+.form-card-content {
+  padding: 1.5rem;
+}
+
+@media (max-width: 599px) {
+  .form-card-header,
+  .form-card-content {
+    padding: 1rem;
+  }
+}
+
+/* Responsive Form Layouts */
+.form-responsive {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 600px) {
+  .form-responsive {
+    gap: 1.5rem;
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .form-responsive-full {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 960px) {
+  .form-responsive-3col {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* Form Animations */
+.form-slide-in {
+  animation: slideInUp 0.3s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.form-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Custom Button Styles */
+.form-button-primary {
+  min-width: 120px;
+  height: 40px;
+  border-radius: 8px;
+  font-weight: 600;
+  text-transform: none;
+}
+
+.form-button-secondary {
+  min-width: 100px;
+  height: 40px;
+  border-radius: 8px;
+  font-weight: 500;
+  text-transform: none;
+}
+
+/* Mobile Optimizations */
+@media (max-width: 599px) {
+  .form-mobile-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .form-mobile-full {
+    width: 100% !important;
+  }
+  
+  /* Increase touch targets on mobile */
+  .form-mobile-target {
+    min-height: 48px;
+  }
+  
+  /* Adjust padding for mobile */
+  .form-mobile-padding {
+    padding: 0.75rem !important;
+  }
+}
+
+/* Form Helpers */
+.form-helper-text {
+  font-size: 0.75rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+
+.form-helper-success {
+  color: #4caf50;
+}
+
+.form-helper-warning {
+  color: #ff9800;
+}
+
+.form-helper-error {
+  color: #f44336;
+}
+
+/* Advanced Form Features */
+.form-collapsible-section {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.form-collapsible-header {
+  padding: 1rem;
+  background-color: #f9f9f9;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.form-collapsible-content {
+  padding: 0 1rem 1rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.form-collapsible-content.collapsed {
+  display: none;
+}
+
+/* Form Tooltips */
+.form-tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: help;
+}
+
+/* Auto-save Indicator */
+.form-auto-save {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 0.75rem;
+  color: #4caf50;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.form-auto-save.saving {
+  color: #ff9800;
+}
+
+.form-auto-save.error {
+  color: #f44336;
+}
+
+/* Form Progress Indicator */
+.form-progress {
+  margin-bottom: 2rem;
+}
+
+.form-progress-bar {
+  height: 4px;
+  border-radius: 2px;
+  background-color: #e0e0e0;
+  overflow: hidden;
+}
+
+.form-progress-fill {
+  height: 100%;
+  background-color: #1976d2;
+  transition: width 0.3s ease;
+}
+
+/* Accessibility Enhancements */
+.form-screen-reader-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* Focus Styles */
+.form-focus-visible:focus-visible {
+  outline: 2px solid #1976d2;
+  outline-offset: 2px;
+}
+
+/* Custom Material-UI Form Overrides */
+.MuiFormControl-root {
+  margin-bottom: 0 !important;
+}
+
+.MuiFormHelperText-root {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.MuiInputLabel-shrink {
+  transform: translate(14px, -9px) scale(0.75) !important;
+}
+
+.MuiOutlinedInput-input {
+  padding: 12px 14px;
+}
+
+.MuiSelect-select {
+  padding: 12px 14px !important;
+}
+
+/* Compact Form Variant */
+.form-compact .MuiOutlinedInput-input {
+  padding: 8px 12px;
+}
+
+.form-compact .MuiFormControl-root {
+  margin-bottom: 0.5rem;
+}
+
+.form-compact .form-actions {
+  padding-top: 1rem;
+  margin-top: 1rem;
+}
+
+/* Dense Form Layout */
+.form-dense {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.form-dense .form-field {
+  margin-bottom: 0.75rem;
+}
+
+/* Form Card Layout */
+.form-card-layout {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 960px) {
+  .form-card-layout {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.form-main-content {
+  order: 1;
+}
+
+.form-sidebar-content {
+  order: 2;
+}
+
+@media (max-width: 959px) {
+  .form-main-content {
+    order: 2;
+  }
+  
+  .form-sidebar-content {
+    order: 1;
+  }
+}
+
+/* Form Sticky Footer */
+.form-sticky-footer {
+  position: sticky;
+  bottom: 0;
+  background: white;
+  padding: 1rem;
+  border-top: 1px solid #e0e0e0;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+}
+
+/* Dark Mode Support (for future implementation) */
+@media (prefers-color-scheme: dark) {
+  .form-section-header {
+    border-bottom-color: #424242;
+  }
+  
+  .form-section-title {
+    color: #ffffff;
+  }
+  
+  .file-upload-field {
+    background-color: #303030;
+    border-color: #424242;
+  }
+  
+  .form-sticky-footer {
+    background: #303030;
+    border-top-color: #424242;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .form-actions,
+  .form-auto-save,
+  .form-sticky-footer {
+    display: none !important;
+  }
+  
+  .form-container {
+    padding: 0;
+  }
+  
+  .form-card {
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .form-field-error .MuiOutlinedInput-root {
+    border-width: 2px !important;
+  }
+  
+  .form-button-primary {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .form-slide-in,
+  .form-fade-in {
+    animation: none;
+  }
+  
+  .custom-input .MuiOutlinedInput-root,
+  .file-upload-field {
+    transition: none;
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "rules": {
+    "electronics": {
+      "customers": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$customerId": {
+          ".validate": "newData.hasChildren(['name', 'phone', 'address', 'customerType', 'category'])"
+        }
+      },
+      "employees": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'admin'",
+        "$employeeId": {
+          ".validate": "newData.hasChildren(['name', 'employeeId', 'phone', 'role', 'department', 'dateOfJoining'])"
+        }
+      },
+      "sales": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$saleId": {
+          ".validate": "newData.hasChildren(['saleDate', 'customerId', 'customerName', 'items', 'salesPersonId', 'salesPersonName'])"
+        }
+      }
+    },
+    "furniture": {
+      "customers": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$customerId": {
+          ".validate": "newData.hasChildren(['name', 'phone', 'address', 'customerType', 'category'])"
+        }
+      },
+      "employees": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'admin'",
+        "$employeeId": {
+          ".validate": "newData.hasChildren(['name', 'employeeId', 'phone', 'role', 'department', 'dateOfJoining'])"
+        }
+      },
+      "sales": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$saleId": {
+          ".validate": "newData.hasChildren(['saleDate', 'customerId', 'customerName', 'items', 'salesPersonId', 'salesPersonName'])"
+        }
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid",
+        ".validate": "newData.hasChildren(['email', 'name', 'role', 'userType']) && newData.child('role').val().matches(/^(admin|employee)$/) && newData.child('userType').val().matches(/^(electronics|furniture)$/)"
+      }
+    }
+  }
+}
