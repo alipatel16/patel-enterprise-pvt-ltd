@@ -174,7 +174,7 @@ export const EmployeeProvider = ({ children }) => {
   const { userType } = useUserType();
   const { user } = useAuth();
 
-  // Load employees
+  // Load employees - REMOVED LIMITS
   const loadEmployees = useCallback(async (options = {}) => {
     if (!userType) {
       dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: 'User type not available' });
@@ -184,19 +184,22 @@ export const EmployeeProvider = ({ children }) => {
     try {
       dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
 
+      // Remove limit and offset from query options to get all employees
       const queryOptions = {
-        limit: 10,
-        offset: (state.pagination.currentPage - 1) * 10,
         ...state.filters,
         ...options
       };
+      
+      // Remove limit and offset properties if they exist
+      delete queryOptions.limit;
+      delete queryOptions.offset;
 
       const response = await employeeService.getEmployees(userType, queryOptions);
       dispatch({ type: EMPLOYEE_ACTIONS.SET_EMPLOYEES, payload: response });
     } catch (error) {
       dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
     }
-  }, [userType, state.filters, state.pagination.currentPage]);
+  }, [userType, state.filters]);
 
   // Search employees
   const searchEmployees = useCallback(async (searchTerm) => {
@@ -323,7 +326,7 @@ export const EmployeeProvider = ({ children }) => {
   }, [userType]);
 
   // Get employee suggestions for autocomplete
-  const getEmployeeSuggestions = useCallback(async (searchTerm, limit = 5) => {
+  const getEmployeeSuggestions = useCallback(async (searchTerm, limit = 10) => {
     if (!userType || !searchTerm.trim()) {
       return [];
     }
@@ -384,31 +387,6 @@ export const EmployeeProvider = ({ children }) => {
     dispatch({ type: EMPLOYEE_ACTIONS.SET_CURRENT_EMPLOYEE, payload: employee });
   }, []);
 
-  // Pagination helpers
-  const nextPage = useCallback(() => {
-    if (state.pagination.hasMore) {
-      loadEmployees({ 
-        offset: state.pagination.currentPage * 10 
-      });
-    }
-  }, [state.pagination, loadEmployees]);
-
-  const prevPage = useCallback(() => {
-    if (state.pagination.currentPage > 1) {
-      loadEmployees({ 
-        offset: (state.pagination.currentPage - 2) * 10 
-      });
-    }
-  }, [state.pagination, loadEmployees]);
-
-  const goToPage = useCallback((page) => {
-    if (page >= 1 && page <= state.pagination.totalPages) {
-      loadEmployees({ 
-        offset: (page - 1) * 10 
-      });
-    }
-  }, [state.pagination, loadEmployees]);
-
   // Context value
   const value = {
     // State
@@ -433,9 +411,6 @@ export const EmployeeProvider = ({ children }) => {
     
     // Filters and pagination
     setFilters,
-    nextPage,
-    prevPage,
-    goToPage,
     
     // Utilities
     clearError,

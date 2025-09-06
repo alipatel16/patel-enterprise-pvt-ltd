@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   TextField,
   InputAdornment,
@@ -20,6 +20,15 @@ import {
   FilterList as FilterIcon,
   Sort as SortIcon
 } from '@mui/icons-material';
+
+// Debounce utility function
+const debounce = (func, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func.apply(null, args), delay);
+  };
+};
 
 /**
  * SearchBar component with search, filter and sort capabilities
@@ -54,16 +63,16 @@ const SearchBar = ({
   onSortChange,
   showFilters = false,
   showSort = false,
-  debounceMs = 300
+  debounceMs = 500
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
-  const [searchValue, setSearchValue] = useState(value);
   const [filterAnchorEl, setFilterAnchorEl] = useState(null);
   const [sortAnchorEl, setSortAnchorEl] = useState(null);
+  const inputRef = useRef(null);
 
-  // Debounced search
+  // Create debounced search function
   const debouncedSearch = useCallback(
     debounce((searchTerm) => {
       if (onSearch) {
@@ -73,38 +82,40 @@ const SearchBar = ({
     [onSearch, debounceMs]
   );
 
-  // Handle search value change
-  useEffect(() => {
-    setSearchValue(value);
-  }, [value]);
-
   // Handle search input change
   const handleSearchChange = (event) => {
     const newValue = event.target.value;
-    setSearchValue(newValue);
     
+    // Update parent state immediately for controlled input
     if (onChange) {
       onChange(newValue);
     }
     
+    // Debounced search call
     debouncedSearch(newValue);
   };
 
   // Handle search clear
   const handleClear = () => {
-    setSearchValue('');
     if (onChange) {
       onChange('');
     }
     if (onClear) {
       onClear();
     }
+    // Focus back to input after clearing
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 100);
   };
 
   // Handle enter key press
   const handleKeyPress = (event) => {
     if (event.key === 'Enter' && onSearch) {
-      onSearch(searchValue);
+      event.preventDefault();
+      onSearch(value);
     }
   };
 
@@ -117,6 +128,16 @@ const SearchBar = ({
     setFilterAnchorEl(null);
   };
 
+  const handleFilterSelect = (filterKey, filterValue) => {
+    if (onFilterChange) {
+      onFilterChange({
+        ...filters,
+        [filterKey]: filterValue
+      });
+    }
+    handleFilterClose();
+  };
+
   // Sort menu handlers
   const handleSortClick = (event) => {
     setSortAnchorEl(event.currentTarget);
@@ -126,19 +147,39 @@ const SearchBar = ({
     setSortAnchorEl(null);
   };
 
+  const handleSortSelect = (sortKey) => {
+    if (onSortChange) {
+      onSortChange(sortKey);
+    }
+    handleSortClose();
+  };
+
   // Get active filter count
   const getActiveFilterCount = () => {
     return Object.values(filters).filter(value => value && value !== '').length;
   };
 
+  // Clear all filters
+  const handleClearAllFilters = () => {
+    if (onFilterChange) {
+      const clearedFilters = Object.keys(filters).reduce((acc, key) => {
+        acc[key] = '';
+        return acc;
+      }, {});
+      onFilterChange(clearedFilters);
+    }
+  };
+
   // Render active filters
   const renderActiveFilters = () => {
     const activeFilters = Object.entries(filters)
-      .filter(([key, value]) => value && value !== '')
+      .filter(([key, value]) => value && value !== '' && key !== 'search')
       .map(([key, value]) => {
         const option = filterOptions.find(opt => opt.key === key);
+        const optionItem = option?.options.find(opt => opt.value === value);
         const label = option ? option.label : key;
-        return { key, value, label };
+        const displayValue = optionItem ? optionItem.label : value;
+        return { key, value, label, displayValue };
       });
 
     if (activeFilters.length === 0) {
@@ -147,15 +188,24 @@ const SearchBar = ({
 
     return (
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-        {activeFilters.map(({ key, value, label }) => (
+        {activeFilters.map(({ key, value, label, displayValue }) => (
           <Chip
             key={key}
-            label={`${label}: ${value}`}
+            label={`${label}: ${displayValue}`}
             size="small"
-            onDelete={() => onFilterChange && onFilterChange({ [key]: '' })}
+            onDelete={() => handleFilterSelect(key, '')}
             sx={{ fontSize: '0.75rem' }}
           />
         ))}
+        {activeFilters.length > 1 && (
+          <Chip
+            label="Clear All"
+            size="small"
+            variant="outlined"
+            onClick={handleClearAllFilters}
+            sx={{ fontSize: '0.75rem' }}
+          />
+        )}
       </Box>
     );
   };
@@ -173,8 +223,9 @@ const SearchBar = ({
       >
         {/* Search Input */}
         <TextField
+          ref={inputRef}
           fullWidth
-          value={searchValue}
+          value={value}
           onChange={handleSearchChange}
           onKeyPress={handleKeyPress}
           placeholder={placeholder}
@@ -185,7 +236,7 @@ const SearchBar = ({
                 <SearchIcon color="action" />
               </InputAdornment>
             ),
-            endAdornment: searchValue && (
+            endAdornment: value && (
               <InputAdornment position="end">
                 <IconButton
                   size="small"
@@ -199,13 +250,13 @@ const SearchBar = ({
           }}
           sx={{
             '& .MuiOutlinedInput-root': {
-              borderRadius: 2,
+              borderRadius: 2
             }
           }}
         />
 
-        {/* Action Buttons */}
-        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+        {/* Filter and Sort Buttons */}
+        <Box sx={{ display: 'flex', gap: 1, minWidth: 'fit-content' }}>
           {/* Filter Button */}
           {showFilters && filterOptions.length > 0 && (
             <Button
@@ -214,17 +265,18 @@ const SearchBar = ({
               onClick={handleFilterClick}
               disabled={disabled}
               sx={{
-                minWidth: { xs: 'auto', sm: 'auto' },
-                px: { xs: 2, sm: 3 }
+                minWidth: 'fit-content',
+                px: 2,
+                py: 1,
+                borderRadius: 2
               }}
             >
-              {!isMobile && 'Filter'}
+              Filter
               {getActiveFilterCount() > 0 && (
                 <Chip
                   label={getActiveFilterCount()}
                   size="small"
-                  color="primary"
-                  sx={{ ml: 1, height: 20, fontSize: '0.75rem' }}
+                  sx={{ ml: 1, height: 18, fontSize: '0.7rem' }}
                 />
               )}
             </Button>
@@ -238,11 +290,13 @@ const SearchBar = ({
               onClick={handleSortClick}
               disabled={disabled}
               sx={{
-                minWidth: { xs: 'auto', sm: 'auto' },
-                px: { xs: 2, sm: 3 }
+                minWidth: 'fit-content',
+                px: 2,
+                py: 1,
+                borderRadius: 2
               }}
             >
-              {!isMobile && 'Sort'}
+              Sort
             </Button>
           )}
         </Box>
@@ -257,33 +311,31 @@ const SearchBar = ({
         open={Boolean(filterAnchorEl)}
         onClose={handleFilterClose}
         PaperProps={{
-          sx: { minWidth: 200, p: 2 }
+          sx: { minWidth: 200, maxHeight: 300 }
         }}
       >
-        {filterOptions.map((option) => (
-          <FormControl
-            key={option.key}
-            fullWidth
-            size="small"
-            sx={{ mb: 2 }}
-          >
-            <InputLabel>{option.label}</InputLabel>
-            <Select
-              value={filters[option.key] || ''}
-              label={option.label}
-              onChange={(e) =>
-                onFilterChange &&
-                onFilterChange({ [option.key]: e.target.value })
-              }
+        {filterOptions.map((filterOption) => (
+          <Box key={filterOption.key}>
+            <MenuItem disabled sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+              {filterOption.label}
+            </MenuItem>
+            {filterOption.options.map((option) => (
+              <MenuItem
+                key={option.value}
+                onClick={() => handleFilterSelect(filterOption.key, option.value)}
+                selected={filters[filterOption.key] === option.value}
+                sx={{ pl: 3 }}
+              >
+                {option.label}
+              </MenuItem>
+            ))}
+            <MenuItem
+              onClick={() => handleFilterSelect(filterOption.key, '')}
+              sx={{ pl: 3, fontStyle: 'italic', color: 'text.secondary' }}
             >
-              <MenuItem value="">All</MenuItem>
-              {option.options.map((optionValue) => (
-                <MenuItem key={optionValue.value} value={optionValue.value}>
-                  {optionValue.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              Clear {filterOption.label}
+            </MenuItem>
+          </Box>
         ))}
       </Menu>
 
@@ -292,14 +344,15 @@ const SearchBar = ({
         anchorEl={sortAnchorEl}
         open={Boolean(sortAnchorEl)}
         onClose={handleSortClose}
+        PaperProps={{
+          sx: { minWidth: 160 }
+        }}
       >
         {Object.entries(sortOptions).map(([key, label]) => (
           <MenuItem
             key={key}
-            onClick={() => {
-              onSortChange && onSortChange(key);
-              handleSortClose();
-            }}
+            onClick={() => handleSortSelect(key)}
+            selected={filters.sortBy === key}
           >
             {label}
           </MenuItem>
@@ -308,18 +361,5 @@ const SearchBar = ({
     </Box>
   );
 };
-
-// Debounce utility function
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
 
 export default SearchBar;

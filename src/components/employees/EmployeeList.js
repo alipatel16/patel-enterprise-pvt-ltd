@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -56,17 +56,27 @@ const EmployeeList = () => {
     employees,
     loading,
     error,
-    pagination,
-    filters,
     loadEmployees,
-    searchEmployees,
     deleteEmployee,
-    setFilters,
     clearError
   } = useEmployee();
 
   const { canDelete } = useAuth();
 
+  // Local state for search and filters (no debouncing to avoid focus loss)
+  const [searchValue, setSearchValue] = useState('');
+  const [localFilters, setLocalFilters] = useState({
+    role: '',
+    department: '',
+    sortBy: 'name',
+    sortOrder: 'asc'
+  });
+
+  // Client-side pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Action menu state
   const [actionMenuAnchor, setActionMenuAnchor] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -77,36 +87,137 @@ const EmployeeList = () => {
     loadEmployees();
   }, [loadEmployees]);
 
-  // Handle search
-  const handleSearch = (searchTerm) => {
-    if (searchTerm.trim()) {
-      searchEmployees(searchTerm);
-    } else {
-      loadEmployees();
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchValue,
+    localFilters.role,
+    localFilters.department,
+    localFilters.sortBy,
+    localFilters.sortOrder,
+    pageSize
+  ]);
+
+  // Apply client-side filtering and sorting
+  const filteredAndSortedEmployees = useMemo(() => {
+    let filtered = [...employees];
+
+    // Apply search filter
+    if (searchValue.trim()) {
+      const searchTerm = searchValue.toLowerCase().trim();
+      filtered = filtered.filter((employee) => {
+        return (
+          employee.name?.toLowerCase().includes(searchTerm) ||
+          employee.employeeId?.toLowerCase().includes(searchTerm) ||
+          employee.phone?.includes(searchTerm) ||
+          employee.email?.toLowerCase().includes(searchTerm) ||
+          employee.role?.toLowerCase().includes(searchTerm) ||
+          employee.department?.toLowerCase().includes(searchTerm)
+        );
+      });
     }
+
+    // Apply role filter
+    if (localFilters.role) {
+      filtered = filtered.filter(
+        (employee) => employee.role === localFilters.role
+      );
+    }
+
+    // Apply department filter
+    if (localFilters.department) {
+      filtered = filtered.filter(
+        (employee) => employee.department === localFilters.department
+      );
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue = a[localFilters.sortBy] || '';
+      let bValue = b[localFilters.sortBy] || '';
+
+      // Handle different data types
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+
+      if (localFilters.sortBy === 'joinedDate' || localFilters.sortBy === 'createdAt') {
+        aValue = new Date(aValue).getTime() || 0;
+        bValue = new Date(bValue).getTime() || 0;
+      }
+
+      if (aValue < bValue) {
+        return localFilters.sortOrder === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return localFilters.sortOrder === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+
+    return filtered;
+  }, [employees, searchValue, localFilters]);
+
+  // Calculate client-side pagination
+  const paginatedEmployees = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredAndSortedEmployees.slice(startIndex, endIndex);
+  }, [filteredAndSortedEmployees, currentPage, pageSize]);
+
+  // Calculate pagination info
+  const paginationInfo = useMemo(() => {
+    const total = filteredAndSortedEmployees.length;
+    const totalPages = Math.ceil(total / pageSize);
+    const hasMore = currentPage < totalPages;
+
+    return {
+      currentPage,
+      totalPages,
+      total,
+      hasMore
+    };
+  }, [filteredAndSortedEmployees.length, currentPage, pageSize]);
+
+  // Handle search input change (no debouncing)
+  const handleSearchChange = (value) => {
+    setSearchValue(value);
   };
 
   // Handle search clear
   const handleSearchClear = () => {
-    setFilters({ search: '' });
-    loadEmployees();
+    setSearchValue('');
   };
 
   // Handle filter change
   const handleFilterChange = (newFilters) => {
-    setFilters(newFilters);
-    loadEmployees();
+    setLocalFilters((prev) => ({ ...prev, ...newFilters }));
+  };
+
+  // Handle sort change
+  const handleSortChange = (sortBy) => {
+    const newSortOrder =
+      localFilters.sortBy === sortBy && localFilters.sortOrder === 'asc'
+        ? 'desc'
+        : 'asc';
+    setLocalFilters((prev) => ({
+      ...prev,
+      sortBy,
+      sortOrder: newSortOrder
+    }));
   };
 
   // Handle action menu
   const handleActionMenuOpen = (event, employee) => {
+    event.stopPropagation();
     setActionMenuAnchor(event.currentTarget);
     setSelectedEmployee(employee);
   };
 
   const handleActionMenuClose = () => {
     setActionMenuAnchor(null);
-    setSelectedEmployee(null);
   };
 
   // Handle delete
@@ -124,10 +235,8 @@ const EmployeeList = () => {
       if (success) {
         setDeleteDialogOpen(false);
         setSelectedEmployee(null);
-        // Reload employees if we're on the last page and it becomes empty
-        if (employees.length === 1 && pagination.currentPage > 1) {
-          loadEmployees({ offset: (pagination.currentPage - 2) * 10 });
-        }
+        // Reload employees
+        loadEmployees();
       }
     } catch (error) {
       console.error('Delete error:', error);
@@ -139,6 +248,16 @@ const EmployeeList = () => {
   const handleDeleteCancel = () => {
     setDeleteDialogOpen(false);
     setSelectedEmployee(null);
+  };
+
+  // Handle pagination change - now works with client-side data
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (newPageSize) => {
+    setPageSize(newPageSize);
+    setCurrentPage(1); // Reset to first page when page size changes
   };
 
   // Get role color
@@ -175,27 +294,33 @@ const EmployeeList = () => {
     {
       key: 'role',
       label: 'Role',
-      options: Object.entries(EMPLOYEE_ROLES).map(([key, value]) => ({
-        value,
-        label: value.split('_').map(word => 
-          word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-        ).join(' ')
-      }))
+      options: [
+        { value: '', label: 'All Roles' },
+        ...Object.entries(EMPLOYEE_ROLES).map(([key, value]) => ({
+          value,
+          label: value.split('_').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          ).join(' ')
+        }))
+      ]
     },
     {
       key: 'department',
       label: 'Department',
-      options: Object.entries(EMPLOYEE_DEPARTMENTS).map(([key, value]) => ({
-        value,
-        label: value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
-      }))
+      options: [
+        { value: '', label: 'All Departments' },
+        ...Object.entries(EMPLOYEE_DEPARTMENTS).map(([key, value]) => ({
+          value,
+          label: value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+        }))
+      ]
     }
   ];
 
   // Sort options
   const sortOptions = {
-    name: 'Name A-Z',
-    dateOfJoining: 'Recently Joined',
+    name: 'Name',
+    joinedDate: 'Recently Joined',
     role: 'Role'
   };
 
@@ -207,7 +332,7 @@ const EmployeeList = () => {
         <Grid container spacing={2} sx={{ mt: 2 }}>
           {Array.from({ length: 6 }).map((_, index) => (
             <Grid item xs={12} sm={6} md={4} key={index}>
-              <Card>
+              <Card sx={{ height: 280 }}>
                 <CardContent>
                   <Box display="flex" alignItems="center" gap={2} mb={2}>
                     <Skeleton variant="circular" width={40} height={40} />
@@ -236,17 +361,16 @@ const EmployeeList = () => {
       {/* Search and Filters */}
       <Box mb={3}>
         <SearchBar
-          value={filters.search}
-          onChange={(value) => setFilters({ search: value })}
-          onSearch={handleSearch}
+          value={searchValue}
+          onChange={handleSearchChange}
           onClear={handleSearchClear}
           placeholder="Search employees by name, ID, phone, or email..."
           disabled={loading}
-          filters={filters}
+          filters={localFilters}
           onFilterChange={handleFilterChange}
           filterOptions={filterOptions}
           sortOptions={sortOptions}
-          onSortChange={(sortBy) => setFilters({ sortBy })}
+          onSortChange={handleSortChange}
           showFilters
           showSort
         />
@@ -260,7 +384,7 @@ const EmployeeList = () => {
       )}
 
       {/* Empty State */}
-      {!loading && employees.length === 0 && (
+      {!loading && filteredAndSortedEmployees.length === 0 && (
         <Card>
           <CardContent sx={{ textAlign: 'center', py: 6 }}>
             <BadgeIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
@@ -268,9 +392,9 @@ const EmployeeList = () => {
               No employees found
             </Typography>
             <Typography variant="body2" color="text.secondary" mb={3}>
-              {filters.search ? 
-                'Try adjusting your search criteria or filters.' :
-                'Start by adding your first employee to manage your team.'
+              {searchValue || localFilters.role || localFilters.department
+                ? 'Try adjusting your search criteria or filters.'
+                : 'Start by adding your first employee to manage your team.'
               }
             </Typography>
             <Button
@@ -285,10 +409,10 @@ const EmployeeList = () => {
       )}
 
       {/* Employee Grid */}
-      {employees.length > 0 && (
+      {filteredAndSortedEmployees.length > 0 && (
         <>
           <Grid container spacing={3}>
-            {employees.map((employee) => {
+            {paginatedEmployees.map((employee) => {
               const formattedEmployee = formatEmployeeForDisplay(employee);
               
               return (
@@ -297,6 +421,9 @@ const EmployeeList = () => {
                     sx={{
                       cursor: 'pointer',
                       transition: 'all 0.2s ease-in-out',
+                      height: 280, // Fixed height for consistency
+                      display: 'flex',
+                      flexDirection: 'column',
                       '&:hover': {
                         transform: 'translateY(-2px)',
                         boxShadow: 4
@@ -304,97 +431,125 @@ const EmployeeList = () => {
                     }}
                     onClick={() => navigate(`/employees/view/${employee.id}`)}
                   >
-                    <CardContent>
+                    <CardContent
+                      sx={{
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        p: 2.5
+                      }}
+                    >
                       {/* Header */}
-                      <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={2}>
-                        <Box display="flex" alignItems="center" gap={2} flex={1} minWidth={0}>
+                      <Box
+                        display="flex"
+                        alignItems="flex-start"
+                        justifyContent="space-between"
+                        mb={2}
+                      >
+                        <Box
+                          display="flex"
+                          alignItems="center"
+                          gap={2}
+                          flex={1}
+                          minWidth={0}
+                        >
                           <Avatar
                             sx={{
                               bgcolor: getRoleColor(employee.role),
-                              color: 'white'
+                              color: 'white',
+                              width: 40,
+                              height: 40
                             }}
                           >
                             {employee.name?.charAt(0)?.toUpperCase() || 'E'}
                           </Avatar>
                           <Box minWidth={0} flex={1}>
-                            <Typography variant="h6" component="h3" noWrap>
+                            <Typography
+                              variant="h6"
+                              component="h3"
+                              noWrap
+                              sx={{ fontSize: '1rem', fontWeight: 600 }}
+                            >
                               {employee.name}
                             </Typography>
-                            <Typography variant="body2" color="text.secondary" noWrap>
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              noWrap
+                              sx={{ fontSize: '0.75rem' }}
+                            >
                               ID: {employee.employeeId}
                             </Typography>
                           </Box>
                         </Box>
-                        
+
                         <IconButton
                           size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleActionMenuOpen(e, employee);
-                          }}
+                          onClick={(e) => handleActionMenuOpen(e, employee)}
+                          sx={{ mt: -0.5 }}
                         >
                           <MoreVertIcon />
                         </IconButton>
                       </Box>
 
-                      {/* Role and Department */}
-                      <Box mb={2}>
+                      {/* Contact and Role Info - Fixed height section */}
+                      <Box mb={2} sx={{ flex: 1, minHeight: 120 }}>
                         <Box display="flex" alignItems="center" gap={1} mb={1}>
                           <WorkIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                          <Typography variant="body2">
+                          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
                             {formattedEmployee.roleDisplay}
                           </Typography>
                         </Box>
                         <Box display="flex" alignItems="center" gap={1} mb={1}>
                           <BadgeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                          <Typography variant="body2">
+                          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
                             {formattedEmployee.departmentDisplay}
                           </Typography>
                         </Box>
-                      </Box>
-
-                      {/* Contact Info */}
-                      <Box mb={2}>
                         <Box display="flex" alignItems="center" gap={1} mb={1}>
                           <PhoneIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                          <Typography variant="body2" noWrap>
+                          <Typography variant="body2" noWrap sx={{ fontSize: '0.875rem' }}>
                             {employee.phone}
                           </Typography>
                         </Box>
                         {employee.email && (
-                          <Box display="flex" alignItems="center" gap={1}>
+                          <Box display="flex" alignItems="center" gap={1} mb={1}>
                             <EmailIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                            <Typography variant="body2" noWrap>
+                            <Typography variant="body2" noWrap sx={{ fontSize: '0.875rem' }}>
                               {employee.email}
                             </Typography>
                           </Box>
                         )}
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <CalendarIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                            {formatYearsOfService(employee.joinedDate)} of service
+                          </Typography>
+                        </Box>
                       </Box>
 
-                      {/* Service Duration */}
-                      <Box display="flex" alignItems="center" gap={1} mb={2}>
-                        <CalendarIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="text.secondary">
-                          {formatYearsOfService(employee.dateOfJoining)} of service
-                        </Typography>
-                      </Box>
-
-                      {/* Tags */}
-                      <Box display="flex" gap={1} flexWrap="wrap">
+                      {/* Tags - Fixed bottom section */}
+                      <Box display="flex" gap={1} flexWrap="wrap" mt="auto">
                         <Chip
                           label={formattedEmployee.roleDisplay}
                           size="small"
-                          sx={{ 
+                          sx={{
                             backgroundColor: `${getRoleColor(employee.role)}15`,
                             color: getRoleColor(employee.role),
-                            fontWeight: 500
+                            fontWeight: 500,
+                            fontSize: '0.75rem',
+                            height: 24
                           }}
                         />
                         <Chip
                           label={formattedEmployee.departmentDisplay}
                           size="small"
                           variant="outlined"
-                          sx={{ textTransform: 'capitalize' }}
+                          sx={{
+                            textTransform: 'capitalize',
+                            fontSize: '0.75rem',
+                            height: 24
+                          }}
                         />
                       </Box>
                     </CardContent>
@@ -404,14 +559,16 @@ const EmployeeList = () => {
             })}
           </Grid>
 
-          {/* Pagination */}
+          {/* Pagination - Now using client-side pagination info */}
           <Box mt={4}>
             <Pagination
-              currentPage={pagination.currentPage}
-              totalPages={pagination.totalPages}
-              total={pagination.total}
-              pageSize={10}
-              onPageChange={(page) => loadEmployees({ offset: (page - 1) * 10 })}
+              currentPage={paginationInfo.currentPage}
+              totalPages={paginationInfo.totalPages}
+              total={paginationInfo.total}
+              pageSize={pageSize}
+              pageSizeOptions={[5, 10, 25, 50]}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
               itemName="employees"
               disabled={loading}
             />
@@ -426,20 +583,24 @@ const EmployeeList = () => {
         onClose={handleActionMenuClose}
         onClick={(e) => e.stopPropagation()}
       >
-        <MenuItem onClick={() => {
-          navigate(`/employees/view/${selectedEmployee?.id}`);
-          handleActionMenuClose();
-        }}>
+        <MenuItem
+          onClick={() => {
+            navigate(`/employees/view/${selectedEmployee?.id}`);
+            handleActionMenuClose();
+          }}
+        >
           <ListItemIcon>
             <ViewIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>View Details</ListItemText>
         </MenuItem>
 
-        <MenuItem onClick={() => {
-          navigate(`/employees/edit/${selectedEmployee?.id}`);
-          handleActionMenuClose();
-        }}>
+        <MenuItem
+          onClick={() => {
+            navigate(`/employees/edit/${selectedEmployee?.id}`);
+            handleActionMenuClose();
+          }}
+        >
           <ListItemIcon>
             <EditIcon fontSize="small" />
           </ListItemIcon>
@@ -466,8 +627,8 @@ const EmployeeList = () => {
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete employee "{selectedEmployee?.name}" (ID: {selectedEmployee?.employeeId})? 
-            This action cannot be undone and will also affect any sales records associated with this employee.
+            Are you sure you want to delete employee "{selectedEmployee?.name}" (ID: {selectedEmployee?.employeeId})?
+            This action cannot be undone.
           </Typography>
         </DialogContent>
         <DialogActions>
