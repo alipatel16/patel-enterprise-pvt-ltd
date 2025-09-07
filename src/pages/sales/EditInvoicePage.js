@@ -21,13 +21,15 @@ import {
 import Layout from '../../components/common/Layout/Layout';
 import InvoiceForm from '../../components/sales/InvoiceForm/InvoiceForm';
 import LoadingSpinner from '../../components/common/UI/LoadingSpinner';
-import { useSales } from '../../hooks/useSales';
-import { useUserType } from '../../hooks/useUserType';
+import { SalesProvider, useSales } from '../../contexts/SalesContext/SalesContext'; // Fixed import
+import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext'; // Fixed import
+import { CustomerProvider } from '../../contexts/CustomerContext/CustomerContext';
+import { EmployeeProvider } from '../../contexts/EmployeeContext/EmployeeContext';
 
 /**
- * Edit Invoice page component
+ * Edit Invoice page content component
  */
-const EditInvoicePage = () => {
+const EditInvoicePageContent = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -37,7 +39,7 @@ const EditInvoicePage = () => {
     currentInvoice,
     loading,
     error,
-    updateSale,
+    updateInvoice, // Updated from updateSale to updateInvoice
     getInvoiceById,
     clearError
   } = useSales();
@@ -66,7 +68,7 @@ const EditInvoicePage = () => {
       setSubmitLoading(true);
       setSubmitError('');
       
-      await updateSale(id, invoiceData);
+      await updateInvoice(id, invoiceData);
       navigate('/sales', { 
         state: { 
           message: 'Invoice updated successfully',
@@ -79,6 +81,17 @@ const EditInvoicePage = () => {
       setSubmitLoading(false);
     }
   };
+
+    const breadcrumbs = [
+    {
+      label: 'Sales',
+      path: '/sales'
+    },
+    {
+      label: currentInvoice?.invoiceNumber || 'Edit Invoice Details',
+      path: `/sales/edit/${id}`
+    }
+  ];
 
   // Handle cancel
   const handleCancel = () => {
@@ -139,7 +152,7 @@ const EditInvoicePage = () => {
   }
 
   return (
-    <Layout>
+    <Layout title="Edit Details" breadcrumbs={breadcrumbs}>
       <Container 
         maxWidth="xl" 
         sx={{ 
@@ -149,40 +162,6 @@ const EditInvoicePage = () => {
       >
         {/* Header */}
         <Box sx={{ mb: 3 }}>
-          {/* Breadcrumbs */}
-          <Breadcrumbs sx={{ mb: 2, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-            <Link
-              color="inherit"
-              href="/dashboard"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate('/dashboard');
-              }}
-              sx={{ 
-                textDecoration: 'none',
-                '&:hover': { textDecoration: 'underline' }
-              }}
-            >
-              Dashboard
-            </Link>
-            <Link
-              color="inherit"
-              href="/sales"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate('/sales');
-              }}
-              sx={{ 
-                textDecoration: 'none',
-                '&:hover': { textDecoration: 'underline' }
-              }}
-            >
-              Sales
-            </Link>
-            <Typography color="text.primary">
-              Edit Invoice
-            </Typography>
-          </Breadcrumbs>
 
           {/* Page Title and Actions */}
           <Box 
@@ -270,6 +249,21 @@ const EditInvoicePage = () => {
         </Paper>
       </Container>
     </Layout>
+  );
+};
+
+/**
+ * Main Edit Invoice page component with all required providers
+ */
+const EditInvoicePage = () => {
+  return (
+    <CustomerProvider>
+      <EmployeeProvider>
+        <SalesProvider>
+          <EditInvoicePageContent />
+        </SalesProvider>
+      </EmployeeProvider>
+    </CustomerProvider>
   );
 };
 

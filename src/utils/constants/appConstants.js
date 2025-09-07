@@ -97,3 +97,11 @@ export const APP_COLORS = {
     secondary: '#ff6f00'
   }
 };
+
+export const GST_TAX_SLABS = [
+  { rate: 0, description: 'Nil rated' },
+  { rate: 5, description: 'Essential goods' },
+  { rate: 12, description: 'Standard goods' },
+  { rate: 18, description: 'Most goods and services' },
+  { rate: 28, description: 'Luxury and sin goods' }
+];

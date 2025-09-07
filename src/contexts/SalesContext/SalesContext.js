@@ -3,28 +3,12 @@ import salesService from '../../services/api/salesService';
 import { useUserType } from '../UserTypeContext/UserTypeContext';
 import { useAuth } from '../AuthContext/AuthContext';
 
-// Initial state
+// Initial state - simplified for client-side filtering
 const initialState = {
   sales: [],
   currentInvoice: null,
   loading: false,
   error: null,
-  pagination: {
-    currentPage: 1,
-    totalPages: 1,
-    total: 0,
-    hasMore: false
-  },
-  filters: {
-    search: '',
-    paymentStatus: '',
-    deliveryStatus: '',
-    customerId: '',
-    fromDate: '',
-    toDate: '',
-    sortBy: 'createdAt',
-    sortOrder: 'desc'
-  },
   stats: {
     totalSales: 0,
     totalAmount: 0,
@@ -51,8 +35,6 @@ const SALES_ACTIONS = {
   DELETE_SALE: 'DELETE_SALE',
   SET_ERROR: 'SET_ERROR',
   CLEAR_ERROR: 'CLEAR_ERROR',
-  SET_FILTERS: 'SET_FILTERS',
-  SET_PAGINATION: 'SET_PAGINATION',
   SET_STATS: 'SET_STATS',
   SET_NOTIFICATIONS: 'SET_NOTIFICATIONS',
   RESET_STATE: 'RESET_STATE'
@@ -71,13 +53,7 @@ const salesReducer = (state, action) => {
     case SALES_ACTIONS.SET_SALES:
       return {
         ...state,
-        sales: action.payload.sales || [],
-        pagination: {
-          currentPage: action.payload.currentPage || 1,
-          totalPages: action.payload.totalPages || 1,
-          total: action.payload.total || 0,
-          hasMore: action.payload.hasMore || false
-        },
+        sales: action.payload || [],
         loading: false,
         error: null
       };
@@ -94,10 +70,6 @@ const salesReducer = (state, action) => {
       return {
         ...state,
         sales: [action.payload, ...state.sales],
-        pagination: {
-          ...state.pagination,
-          total: state.pagination.total + 1
-        },
         loading: false,
         error: null
       };
@@ -122,10 +94,6 @@ const salesReducer = (state, action) => {
         currentInvoice: state.currentInvoice?.id === action.payload 
           ? null 
           : state.currentInvoice,
-        pagination: {
-          ...state.pagination,
-          total: Math.max(0, state.pagination.total - 1)
-        },
         loading: false,
         error: null
       };
@@ -141,15 +109,6 @@ const salesReducer = (state, action) => {
       return {
         ...state,
         error: null
-      };
-
-    case SALES_ACTIONS.SET_FILTERS:
-      return {
-        ...state,
-        filters: {
-          ...state.filters,
-          ...action.payload
-        }
       };
 
     case SALES_ACTIONS.SET_STATS:
@@ -190,8 +149,8 @@ export const SalesProvider = ({ children }) => {
   const { userType } = useUserType();
   const { user } = useAuth();
 
-  // Load sales
-  const loadSales = useCallback(async (options = {}) => {
+  // Load all sales - simplified for client-side filtering
+  const loadSales = useCallback(async () => {
     if (!userType) {
       dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: 'User type not available' });
       return;
@@ -199,46 +158,12 @@ export const SalesProvider = ({ children }) => {
 
     try {
       dispatch({ type: SALES_ACTIONS.SET_LOADING, payload: true });
-
-      const queryOptions = {
-        limit: 10,
-        offset: (state.pagination.currentPage - 1) * 10,
-        ...state.filters,
-        ...options
-      };
-
-      const response = await salesService.getSales(userType, queryOptions);
-      dispatch({ type: SALES_ACTIONS.SET_SALES, payload: response });
+      const sales = await salesService.getSales(userType);
+      dispatch({ type: SALES_ACTIONS.SET_SALES, payload: sales });
     } catch (error) {
       dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
     }
-  }, [userType, state.filters, state.pagination.currentPage]);
-
-  // Search sales
-  const searchSales = useCallback(async (searchTerm) => {
-    if (!userType || !searchTerm.trim()) {
-      await loadSales();
-      return;
-    }
-
-    try {
-      dispatch({ type: SALES_ACTIONS.SET_LOADING, payload: true });
-      
-      const sales = await salesService.searchSales(userType, searchTerm);
-      dispatch({ 
-        type: SALES_ACTIONS.SET_SALES, 
-        payload: { 
-          sales, 
-          total: sales.length,
-          currentPage: 1,
-          totalPages: 1,
-          hasMore: false 
-        } 
-      });
-    } catch (error) {
-      dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
-    }
-  }, [userType, loadSales]);
+  }, [userType]);
 
   // Get invoice by ID
   const getInvoiceById = useCallback(async (invoiceId) => {
@@ -402,12 +327,12 @@ export const SalesProvider = ({ children }) => {
     }
 
     try {
-      const stats = await salesService.getSalesStats(userType, state.filters);
+      const stats = await salesService.getSalesStats(userType);
       dispatch({ type: SALES_ACTIONS.SET_STATS, payload: stats });
     } catch (error) {
       console.error('Error loading sales stats:', error);
     }
-  }, [userType, state.filters]);
+  }, [userType]);
 
   // Load notifications (pending EMIs and deliveries)
   const loadNotifications = useCallback(async () => {
@@ -461,11 +386,6 @@ export const SalesProvider = ({ children }) => {
     }
   }, [userType]);
 
-  // Set filters
-  const setFilters = useCallback((newFilters) => {
-    dispatch({ type: SALES_ACTIONS.SET_FILTERS, payload: newFilters });
-  }, []);
-
   // Clear error
   const clearError = useCallback(() => {
     dispatch({ type: SALES_ACTIONS.CLEAR_ERROR });
@@ -481,31 +401,6 @@ export const SalesProvider = ({ children }) => {
     dispatch({ type: SALES_ACTIONS.SET_CURRENT_INVOICE, payload: invoice });
   }, []);
 
-  // Pagination helpers
-  const nextPage = useCallback(() => {
-    if (state.pagination.hasMore) {
-      loadSales({ 
-        offset: state.pagination.currentPage * 10 
-      });
-    }
-  }, [state.pagination, loadSales]);
-
-  const prevPage = useCallback(() => {
-    if (state.pagination.currentPage > 1) {
-      loadSales({ 
-        offset: (state.pagination.currentPage - 2) * 10 
-      });
-    }
-  }, [state.pagination, loadSales]);
-
-  const goToPage = useCallback((page) => {
-    if (page >= 1 && page <= state.pagination.totalPages) {
-      loadSales({ 
-        offset: (page - 1) * 10 
-      });
-    }
-  }, [state.pagination, loadSales]);
-
   // Context value
   const value = {
     // State
@@ -513,14 +408,11 @@ export const SalesProvider = ({ children }) => {
     currentInvoice: state.currentInvoice,
     loading: state.loading,
     error: state.error,
-    pagination: state.pagination,
-    filters: state.filters,
     stats: state.stats,
     notifications: state.notifications,
 
     // Actions
     loadSales,
-    searchSales,
     getInvoiceById,
     createInvoice,
     updateInvoice,
@@ -532,12 +424,6 @@ export const SalesProvider = ({ children }) => {
     loadNotifications,
     getCustomerPurchaseHistory,
     getSalesByDateRange,
-    
-    // Filters and pagination
-    setFilters,
-    nextPage,
-    prevPage,
-    goToPage,
     
     // Utilities
     clearError,

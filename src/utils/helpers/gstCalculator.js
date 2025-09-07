@@ -1,4 +1,7 @@
-import { GST_RATES, GST_TYPES, GUJARAT_STATE } from '../constants/appConstants';
+import { GST_RATES, GST_TYPES } from '../constants/appConstants';
+
+// Define Gujarat state constant locally to avoid import issues
+const GUJARAT_STATE = 'gujarat';
 
 /**
  * Calculate GST based on customer location and amount
@@ -84,6 +87,93 @@ export const calculateGST = (amount, customerState = '', includeGST = true) => {
 };
 
 /**
+ * Calculate GST with custom slab rate
+ * @param {number} amount - Base amount before GST
+ * @param {string} customerState - Customer's state
+ * @param {boolean} includeGST - Whether to include GST in calculation
+ * @param {number} gstSlabRate - Custom GST slab rate (e.g., 5, 12, 18, 28)
+ * @returns {Object} GST calculation details
+ */
+export const calculateGSTWithSlab = (amount, customerState = '', includeGST = true, gstSlabRate = 18) => {
+  const baseAmount = parseFloat(amount) || 0;
+  const slabRate = parseFloat(gstSlabRate) || 0;
+  
+  if (!includeGST || baseAmount <= 0 || slabRate === 0) {
+    return {
+      baseAmount,
+      gstType: GST_TYPES.NO_GST,
+      cgstRate: 0,
+      sgstRate: 0,
+      igstRate: 0,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      igstAmount: 0,
+      totalGstAmount: 0,
+      totalAmount: baseAmount,
+      gstSlabRate: slabRate,
+      gstBreakdown: {
+        cgst: { rate: 0, amount: 0 },
+        sgst: { rate: 0, amount: 0 },
+        igst: { rate: 0, amount: 0 }
+      }
+    };
+  }
+
+  const isGujaratCustomer = customerState.toLowerCase().trim() === GUJARAT_STATE.toLowerCase();
+  const gstType = isGujaratCustomer ? GST_TYPES.CGST_SGST : GST_TYPES.IGST;
+
+  let cgstRate = 0;
+  let sgstRate = 0;
+  let igstRate = 0;
+  let cgstAmount = 0;
+  let sgstAmount = 0;
+  let igstAmount = 0;
+
+  if (isGujaratCustomer) {
+    // Within Gujarat - CGST + SGST (split the slab rate equally)
+    cgstRate = slabRate / 2;
+    sgstRate = slabRate / 2;
+    cgstAmount = (baseAmount * cgstRate) / 100;
+    sgstAmount = (baseAmount * sgstRate) / 100;
+  } else {
+    // Outside Gujarat - IGST (full slab rate)
+    igstRate = slabRate;
+    igstAmount = (baseAmount * igstRate) / 100;
+  }
+
+  const totalGstAmount = cgstAmount + sgstAmount + igstAmount;
+  const totalAmount = baseAmount + totalGstAmount;
+
+  return {
+    baseAmount,
+    gstType,
+    cgstRate,
+    sgstRate,
+    igstRate,
+    cgstAmount: Math.round(cgstAmount * 100) / 100,
+    sgstAmount: Math.round(sgstAmount * 100) / 100,
+    igstAmount: Math.round(igstAmount * 100) / 100,
+    totalGstAmount: Math.round(totalGstAmount * 100) / 100,
+    totalAmount: Math.round(totalAmount * 100) / 100,
+    gstSlabRate: slabRate,
+    gstBreakdown: {
+      cgst: { 
+        rate: cgstRate, 
+        amount: Math.round(cgstAmount * 100) / 100 
+      },
+      sgst: { 
+        rate: sgstRate, 
+        amount: Math.round(sgstAmount * 100) / 100 
+      },
+      igst: { 
+        rate: igstRate, 
+        amount: Math.round(igstAmount * 100) / 100 
+      }
+    }
+  };
+};
+
+/**
  * Calculate GST from inclusive amount (reverse calculation)
  * @param {number} inclusiveAmount - Amount including GST
  * @param {string} customerState - Customer's state
@@ -103,6 +193,27 @@ export const calculateGSTFromInclusive = (inclusiveAmount, customerState = '') =
   const baseAmount = totalAmount / (1 + totalGstRate / 100);
   
   return calculateGST(baseAmount, customerState, true);
+};
+
+/**
+ * Calculate GST from inclusive amount with custom slab
+ * @param {number} inclusiveAmount - Amount including GST
+ * @param {string} customerState - Customer's state
+ * @param {number} gstSlabRate - Custom GST slab rate
+ * @returns {Object} GST calculation details
+ */
+export const calculateGSTFromInclusiveWithSlab = (inclusiveAmount, customerState = '', gstSlabRate = 18) => {
+  const totalAmount = parseFloat(inclusiveAmount) || 0;
+  const slabRate = parseFloat(gstSlabRate) || 0;
+  
+  if (totalAmount <= 0 || slabRate === 0) {
+    return calculateGSTWithSlab(0, customerState, false, slabRate);
+  }
+
+  // Calculate base amount from inclusive amount
+  const baseAmount = totalAmount / (1 + slabRate / 100);
+  
+  return calculateGSTWithSlab(baseAmount, customerState, true, slabRate);
 };
 
 /**
@@ -210,29 +321,40 @@ export const calculateEMIGST = (emiAmount, customerState = '', includeGST = fals
 };
 
 /**
- * Generate GST invoice summary
- * @param {Array} items - Array of items with amount and GST details
+ * Generate GST invoice summary with custom slabs
+ * @param {Array} items - Array of items with amount, GST details, and slab rates
  * @param {string} customerState - Customer's state
  * @param {Object} discounts - Discount information
  * @returns {Object} Invoice summary with GST
  */
-export const generateGSTInvoiceSummary = (items = [], customerState = '', discounts = {}) => {
+export const generateGSTInvoiceSummaryWithSlabs = (items = [], customerState = '', discounts = {}) => {
   let subtotal = 0;
   let totalGST = 0;
   let cgstTotal = 0;
   let sgstTotal = 0;
   let igstTotal = 0;
+  const itemBreakdowns = [];
 
   // Calculate totals for all items
-  items.forEach(item => {
+  items.forEach((item, index) => {
     const itemAmount = parseFloat(item.amount) || 0;
-    const gstCalc = calculateGST(itemAmount, customerState, item.includeGST !== false);
+    const gstSlab = parseFloat(item.gstSlab) || 18;
+    const gstCalc = calculateGSTWithSlab(itemAmount, customerState, item.includeGST !== false, gstSlab);
     
     subtotal += gstCalc.baseAmount;
     totalGST += gstCalc.totalGstAmount;
     cgstTotal += gstCalc.cgstAmount;
     sgstTotal += gstCalc.sgstAmount;
     igstTotal += gstCalc.igstAmount;
+    
+    itemBreakdowns.push({
+      itemIndex: index,
+      baseAmount: gstCalc.baseAmount,
+      gstAmount: gstCalc.totalGstAmount,
+      totalAmount: gstCalc.totalAmount,
+      gstSlab: gstSlab,
+      gstBreakdown: gstCalc.gstBreakdown
+    });
   });
 
   // Apply discounts
@@ -247,32 +369,69 @@ export const generateGSTInvoiceSummary = (items = [], customerState = '', discou
   }
 
   const discountedSubtotal = Math.max(0, subtotal - finalDiscount);
-  
-  // Recalculate GST on discounted amount
-  const finalGSTCalc = calculateGST(discountedSubtotal, customerState, items.some(item => item.includeGST !== false));
-  
-  const grandTotal = discountedSubtotal + finalGSTCalc.totalGstAmount;
+  const grandTotal = discountedSubtotal + totalGST;
 
   return {
     subtotal: Math.round(subtotal * 100) / 100,
     discountAmount: Math.round(finalDiscount * 100) / 100,
     discountedSubtotal: Math.round(discountedSubtotal * 100) / 100,
-    gstBreakdown: finalGSTCalc.gstBreakdown,
-    totalGST: Math.round(finalGSTCalc.totalGstAmount * 100) / 100,
+    totalGST: Math.round(totalGST * 100) / 100,
+    cgstTotal: Math.round(cgstTotal * 100) / 100,
+    sgstTotal: Math.round(sgstTotal * 100) / 100,
+    igstTotal: Math.round(igstTotal * 100) / 100,
     grandTotal: Math.round(grandTotal * 100) / 100,
-    gstType: finalGSTCalc.gstType,
-    isGujaratCustomer: customerState.toLowerCase().trim() === GUJARAT_STATE.toLowerCase()
+    isGujaratCustomer: customerState.toLowerCase().trim() === GUJARAT_STATE.toLowerCase(),
+    itemBreakdowns
   };
+};
+
+/**
+ * Get recommended GST slab for a product category
+ * @param {string} productCategory - Product category
+ * @returns {number} Recommended GST slab rate
+ */
+export const getRecommendedGSTSlab = (productCategory = '') => {
+  const category = productCategory.toLowerCase();
+  
+  // Common product categories and their typical GST rates
+  const categorySlabs = {
+    'food': 5,
+    'medicine': 5,
+    'book': 5,
+    'clothing': 5,
+    'electronics': 18,
+    'mobile': 12,
+    'computer': 18,
+    'furniture': 12,
+    'luxury': 28,
+    'tobacco': 28,
+    'alcohol': 28,
+    'car': 28,
+    'general': 18
+  };
+
+  // Check if category matches any known category
+  for (const [key, rate] of Object.entries(categorySlabs)) {
+    if (category.includes(key)) {
+      return rate;
+    }
+  }
+
+  // Default to 18% for unknown categories
+  return 18;
 };
 
 export default {
   calculateGST,
+  calculateGSTWithSlab,
   calculateGSTFromInclusive,
+  calculateGSTFromInclusiveWithSlab,
   formatGSTAmount,
   getGSTDisplayText,
   validateGSTNumber,
   getStateCodeFromGST,
   isGujaratGST,
   calculateEMIGST,
-  generateGSTInvoiceSummary
+  generateGSTInvoiceSummaryWithSlabs,
+  getRecommendedGSTSlab
 };

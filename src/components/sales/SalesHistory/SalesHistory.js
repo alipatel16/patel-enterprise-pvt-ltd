@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -54,17 +54,27 @@ const SalesHistory = () => {
     sales,
     loading,
     error,
-    pagination,
-    filters,
     loadSales,
-    searchSales,
     deleteInvoice,
-    setFilters,
     clearError
   } = useSales();
 
   const { canDelete } = useAuth();
 
+  // Local state for search and filters (no debouncing to avoid focus loss)
+  const [searchValue, setSearchValue] = useState('');
+  const [localFilters, setLocalFilters] = useState({
+    paymentStatus: '',
+    deliveryStatus: '',
+    sortBy: 'createdAt',
+    sortOrder: 'desc'
+  });
+
+  // Client-side pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Action menu state
   const [actionMenuAnchor, setActionMenuAnchor] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -75,36 +85,144 @@ const SalesHistory = () => {
     loadSales();
   }, [loadSales]);
 
-  // Handle search
-  const handleSearch = (searchTerm) => {
-    if (searchTerm.trim()) {
-      searchSales(searchTerm);
-    } else {
-      loadSales();
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchValue,
+    localFilters.paymentStatus,
+    localFilters.deliveryStatus,
+    localFilters.sortBy,
+    localFilters.sortOrder,
+    pageSize
+  ]);
+
+  // Apply client-side filtering and sorting
+  const filteredAndSortedSales = useMemo(() => {
+    let filtered = [...sales];
+
+    // Apply search filter
+    if (searchValue.trim()) {
+      const searchTerm = searchValue.toLowerCase().trim();
+      filtered = filtered.filter((sale) => {
+        return (
+          sale.invoiceNumber?.toLowerCase().includes(searchTerm) ||
+          sale.customerName?.toLowerCase().includes(searchTerm) ||
+          sale.customerPhone?.includes(searchTerm) ||
+          sale.items?.some(item => item.name?.toLowerCase().includes(searchTerm))
+        );
+      });
     }
+
+    // Apply payment status filter
+    if (localFilters.paymentStatus) {
+      filtered = filtered.filter(
+        (sale) => sale.paymentStatus === localFilters.paymentStatus
+      );
+    }
+
+    // Apply delivery status filter
+    if (localFilters.deliveryStatus) {
+      filtered = filtered.filter(
+        (sale) => sale.deliveryStatus === localFilters.deliveryStatus
+      );
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue = a[localFilters.sortBy] || '';
+      let bValue = b[localFilters.sortBy] || '';
+
+      // Handle different data types
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+
+      if (
+        localFilters.sortBy === 'createdAt' ||
+        localFilters.sortBy === 'saleDate' ||
+        localFilters.sortBy === 'updatedAt'
+      ) {
+        aValue = new Date(aValue).getTime() || 0;
+        bValue = new Date(bValue).getTime() || 0;
+      }
+
+      if (localFilters.sortBy === 'grandTotal' || localFilters.sortBy === 'totalAmount') {
+        aValue = parseFloat(aValue) || 0;
+        bValue = parseFloat(bValue) || 0;
+      }
+
+      if (aValue < bValue) {
+        return localFilters.sortOrder === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return localFilters.sortOrder === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+
+    return filtered;
+  }, [sales, searchValue, localFilters]);
+
+  // Calculate client-side pagination
+  const paginatedSales = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredAndSortedSales.slice(startIndex, endIndex);
+  }, [filteredAndSortedSales, currentPage, pageSize]);
+
+  // Calculate pagination info
+  const paginationInfo = useMemo(() => {
+    const total = filteredAndSortedSales.length;
+    const totalPages = Math.ceil(total / pageSize);
+    const hasMore = currentPage < totalPages;
+
+    return {
+      currentPage,
+      totalPages,
+      total,
+      hasMore
+    };
+  }, [filteredAndSortedSales.length, currentPage, pageSize]);
+
+  // Handle search input change (no debouncing)
+  const handleSearchChange = (value) => {
+    setSearchValue(value);
   };
 
   // Handle search clear
   const handleSearchClear = () => {
-    setFilters({ search: '' });
-    loadSales();
+    setSearchValue('');
   };
 
   // Handle filter change
   const handleFilterChange = (newFilters) => {
-    setFilters(newFilters);
-    loadSales();
+    setLocalFilters(prev => ({ ...prev, ...newFilters }));
+  };
+
+  // Handle sort change
+  const handleSortChange = (sortBy) => {
+    const newSortOrder =
+      localFilters.sortBy === sortBy && localFilters.sortOrder === 'asc'
+        ? 'desc'
+        : 'asc';
+    setLocalFilters(prev => ({
+      ...prev,
+      sortBy,
+      sortOrder: newSortOrder
+    }));
   };
 
   // Handle action menu
   const handleActionMenuOpen = (event, invoice) => {
+    event.stopPropagation();
     setActionMenuAnchor(event.currentTarget);
     setSelectedInvoice(invoice);
   };
 
   const handleActionMenuClose = () => {
     setActionMenuAnchor(null);
-    setSelectedInvoice(null);
   };
 
   // Handle delete
@@ -122,10 +240,8 @@ const SalesHistory = () => {
       if (success) {
         setDeleteDialogOpen(false);
         setSelectedInvoice(null);
-        // Reload sales if we're on the last page and it becomes empty
-        if (sales.length === 1 && pagination.currentPage > 1) {
-          loadSales({ offset: (pagination.currentPage - 2) * 10 });
-        }
+        // Reload sales
+        loadSales();
       }
     } catch (error) {
       console.error('Delete error:', error);
@@ -137,6 +253,16 @@ const SalesHistory = () => {
   const handleDeleteCancel = () => {
     setDeleteDialogOpen(false);
     setSelectedInvoice(null);
+  };
+
+  // Handle pagination change - now works with client-side data
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (newPageSize) => {
+    setPageSize(newPageSize);
+    setCurrentPage(1); // Reset to first page when page size changes
   };
 
   // Get payment status color
@@ -183,6 +309,7 @@ const SalesHistory = () => {
       key: 'paymentStatus',
       label: 'Payment Status',
       options: [
+        { value: '', label: 'All Payment Status' },
         { value: PAYMENT_STATUS.PAID, label: 'Paid' },
         { value: PAYMENT_STATUS.PENDING, label: 'Pending' },
         { value: PAYMENT_STATUS.EMI, label: 'EMI' }
@@ -192,6 +319,7 @@ const SalesHistory = () => {
       key: 'deliveryStatus',
       label: 'Delivery Status',
       options: [
+        { value: '', label: 'All Delivery Status' },
         { value: DELIVERY_STATUS.DELIVERED, label: 'Delivered' },
         { value: DELIVERY_STATUS.PENDING, label: 'Pending' },
         { value: DELIVERY_STATUS.SCHEDULED, label: 'Scheduled' }
@@ -244,17 +372,16 @@ const SalesHistory = () => {
       {/* Search and Filters */}
       <Box mb={3}>
         <SearchBar
-          value={filters.search}
-          onChange={(value) => setFilters({ search: value })}
-          onSearch={handleSearch}
+          value={searchValue}
+          onChange={handleSearchChange}
           onClear={handleSearchClear}
           placeholder="Search by invoice number, customer name, or phone..."
           disabled={loading}
-          filters={filters}
+          filters={localFilters}
           onFilterChange={handleFilterChange}
           filterOptions={filterOptions}
           sortOptions={sortOptions}
-          onSortChange={(sortBy) => setFilters({ sortBy })}
+          onSortChange={handleSortChange}
           showFilters
           showSort
         />
@@ -268,7 +395,7 @@ const SalesHistory = () => {
       )}
 
       {/* Empty State */}
-      {!loading && sales.length === 0 && (
+      {!loading && filteredAndSortedSales.length === 0 && (
         <Card>
           <CardContent sx={{ textAlign: 'center', py: 6 }}>
             <ReceiptIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
@@ -276,7 +403,7 @@ const SalesHistory = () => {
               No sales found
             </Typography>
             <Typography variant="body2" color="text.secondary" mb={3}>
-              {filters.search ? 
+              {searchValue || localFilters.paymentStatus || localFilters.deliveryStatus ? 
                 'Try adjusting your search criteria or filters.' :
                 'Start by creating your first invoice to track sales.'
               }
@@ -293,15 +420,18 @@ const SalesHistory = () => {
       )}
 
       {/* Sales Grid */}
-      {sales.length > 0 && (
+      {filteredAndSortedSales.length > 0 && (
         <>
           <Grid container spacing={3}>
-            {sales.map((sale) => (
+            {paginatedSales.map((sale) => (
               <Grid item xs={12} sm={6} lg={4} key={sale.id}>
                 <Card
                   sx={{
                     cursor: 'pointer',
                     transition: 'all 0.2s ease-in-out',
+                    height: 280, // Fixed height for consistency
+                    display: 'flex',
+                    flexDirection: 'column',
                     '&:hover': {
                       transform: 'translateY(-2px)',
                       boxShadow: 4
@@ -309,23 +439,32 @@ const SalesHistory = () => {
                   }}
                   onClick={() => navigate(`/sales/view/${sale.id}`)}
                 >
-                  <CardContent>
+                  <CardContent
+                    sx={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      p: 2.5
+                    }}
+                  >
                     {/* Header */}
                     <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={2}>
                       <Box display="flex" alignItems="center" gap={2} flex={1} minWidth={0}>
                         <Avatar
                           sx={{
                             bgcolor: theme.palette.primary.main,
-                            color: 'white'
+                            color: 'white',
+                            width: 40,
+                            height: 40
                           }}
                         >
                           <ReceiptIcon />
                         </Avatar>
                         <Box minWidth={0} flex={1}>
-                          <Typography variant="h6" component="h3" noWrap>
+                          <Typography variant="h6" component="h3" noWrap sx={{ fontSize: '1rem', fontWeight: 600 }}>
                             {sale.invoiceNumber}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary" noWrap>
+                          <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: '0.75rem' }}>
                             {formatDate(sale.saleDate || sale.createdAt)}
                           </Typography>
                         </Box>
@@ -333,78 +472,79 @@ const SalesHistory = () => {
                       
                       <IconButton
                         size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleActionMenuOpen(e, sale);
-                        }}
+                        onClick={(e) => handleActionMenuOpen(e, sale)}
+                        sx={{ mt: -0.5 }}
                       >
                         <MoreVertIcon />
                       </IconButton>
                     </Box>
 
-                    {/* Customer Info */}
-                    <Box mb={2}>
+                    {/* Customer Info - Fixed height section */}
+                    <Box mb={2} sx={{ flex: 1, minHeight: 120 }}>
                       <Box display="flex" alignItems="center" gap={1} mb={1}>
                         <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" noWrap>
+                        <Typography variant="body2" noWrap sx={{ fontSize: '0.875rem' }}>
                           {sale.customerName}
                         </Typography>
                       </Box>
                       {sale.customerPhone && (
                         <Box display="flex" alignItems="center" gap={1} mb={1}>
                           <PhoneIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                          <Typography variant="body2" noWrap>
+                          <Typography variant="body2" noWrap sx={{ fontSize: '0.875rem' }}>
                             {sale.customerPhone}
                           </Typography>
                         </Box>
                       )}
-                    </Box>
-
-                    {/* Amount */}
-                    <Box display="flex" alignItems="center" gap={1} mb={2}>
-                      <MoneyIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="h6" color="primary.main" fontWeight="bold">
-                        {formatCurrency(sale.grandTotal)}
-                      </Typography>
-                    </Box>
-
-                    {/* Status Chips */}
-                    <Box display="flex" gap={1} flexWrap="wrap" mb={2}>
-                      <Chip
-                        label={sale.paymentStatus?.toUpperCase()}
-                        size="small"
-                        color={getPaymentStatusColor(sale.paymentStatus)}
-                        icon={<PaymentIcon />}
-                        sx={{ textTransform: 'capitalize' }}
-                      />
-                      <Chip
-                        label={sale.deliveryStatus?.toUpperCase()}
-                        size="small"
-                        color={getDeliveryStatusColor(sale.deliveryStatus)}
-                        icon={<DeliveryIcon />}
-                        sx={{ textTransform: 'capitalize' }}
-                      />
-                    </Box>
-
-                    {/* Additional Info */}
-                    <Box>
-                      {sale.paymentStatus === PAYMENT_STATUS.EMI && (
-                        <Box display="flex" alignItems="center" gap={1} mb={1}>
-                          <ScheduleIcon sx={{ fontSize: 16, color: 'warning.main' }} />
-                          <Typography variant="caption" color="warning.main">
-                            EMI Payment Plan
-                          </Typography>
-                        </Box>
-                      )}
                       
-                      {sale.deliveryStatus === DELIVERY_STATUS.SCHEDULED && sale.scheduledDeliveryDate && (
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <CalendarIcon sx={{ fontSize: 16, color: 'info.main' }} />
-                          <Typography variant="caption" color="info.main">
-                            Delivery: {formatDate(sale.scheduledDeliveryDate)}
-                          </Typography>
-                        </Box>
-                      )}
+                      {/* Amount */}
+                      <Box display="flex" alignItems="center" gap={1} mb={2}>
+                        <MoneyIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                        <Typography variant="h6" color="primary.main" fontWeight="bold" sx={{ fontSize: '1.1rem' }}>
+                          {formatCurrency(sale.grandTotal || sale.totalAmount)}
+                        </Typography>
+                      </Box>
+                    </Box>
+
+                    {/* Status Chips and Additional Info - Fixed bottom section */}
+                    <Box mt="auto">
+                      {/* Status Chips */}
+                      <Box display="flex" gap={1} flexWrap="wrap" mb={2}>
+                        <Chip
+                          label={sale.paymentStatus?.toUpperCase()}
+                          size="small"
+                          color={getPaymentStatusColor(sale.paymentStatus)}
+                          icon={<PaymentIcon />}
+                          sx={{ textTransform: 'capitalize', fontSize: '0.75rem', height: 24 }}
+                        />
+                        <Chip
+                          label={sale.deliveryStatus?.toUpperCase()}
+                          size="small"
+                          color={getDeliveryStatusColor(sale.deliveryStatus)}
+                          icon={<DeliveryIcon />}
+                          sx={{ textTransform: 'capitalize', fontSize: '0.75rem', height: 24 }}
+                        />
+                      </Box>
+
+                      {/* Additional Info */}
+                      <Box>
+                        {sale.paymentStatus === PAYMENT_STATUS.EMI && (
+                          <Box display="flex" alignItems="center" gap={1} mb={1}>
+                            <ScheduleIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                            <Typography variant="caption" color="warning.main">
+                              EMI Payment Plan
+                            </Typography>
+                          </Box>
+                        )}
+                        
+                        {sale.deliveryStatus === DELIVERY_STATUS.SCHEDULED && sale.scheduledDeliveryDate && (
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <CalendarIcon sx={{ fontSize: 16, color: 'info.main' }} />
+                            <Typography variant="caption" color="info.main">
+                              Delivery: {formatDate(sale.scheduledDeliveryDate)}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
                     </Box>
                   </CardContent>
                 </Card>
@@ -412,14 +552,16 @@ const SalesHistory = () => {
             ))}
           </Grid>
 
-          {/* Pagination */}
+          {/* Pagination - Now using client-side pagination info */}
           <Box mt={4}>
             <Pagination
-              currentPage={pagination.currentPage}
-              totalPages={pagination.totalPages}
-              total={pagination.total}
-              pageSize={10}
-              onPageChange={(page) => loadSales({ offset: (page - 1) * 10 })}
+              currentPage={paginationInfo.currentPage}
+              totalPages={paginationInfo.totalPages}
+              total={paginationInfo.total}
+              pageSize={pageSize}
+              pageSizeOptions={[5, 10, 25, 50]}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
               itemName="invoices"
               disabled={loading}
             />

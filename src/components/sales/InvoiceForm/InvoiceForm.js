@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Card,
@@ -23,22 +23,42 @@ import {
   Paper,
   useTheme,
   useMediaQuery,
-  CircularProgress
-} from '@mui/material';
+  CircularProgress,
+  MenuItem,
+} from "@mui/material";
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
   Receipt as ReceiptIcon,
-  Calculate as CalculateIcon
-} from '@mui/icons-material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+  Calculate as CalculateIcon,
+} from "@mui/icons-material";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 
-import { useCustomer } from '../../../contexts/CustomerContext/CustomerContext';
-import { useEmployee } from '../../../contexts/EmployeeContext/EmployeeContext';
-import { calculateGST } from '../../../utils/helpers/gstCalculator';
-import { PAYMENT_STATUS, DELIVERY_STATUS } from '../../../utils/constants/appConstants';
+import { useCustomer } from "../../../contexts/CustomerContext/CustomerContext";
+import { useEmployee } from "../../../contexts/EmployeeContext/EmployeeContext";
+import { calculateGSTWithSlab } from "../../../utils/helpers/gstCalculator";
+import {
+  PAYMENT_STATUS,
+  DELIVERY_STATUS,
+} from "../../../utils/constants/appConstants";
+
+// GST Tax Slabs - Define inline to avoid import issues
+const GST_TAX_SLABS = [
+  { rate: 0, description: "Nil rated" },
+  { rate: 5, description: "Essential goods" },
+  { rate: 12, description: "Standard goods" },
+  { rate: 18, description: "Most goods and services" },
+  { rate: 28, description: "Luxury and sin goods" },
+];
+
+// Helper function to safely parse dates
+const parseDate = (dateValue) => {
+  if (!dateValue) return null;
+  const date = new Date(dateValue);
+  return isNaN(date.getTime()) ? null : date;
+};
 
 /**
  * InvoiceForm component for creating and editing invoices
@@ -57,10 +77,10 @@ const InvoiceForm = ({
   onSubmit,
   onCancel,
   loading = false,
-  error = null
+  error = null,
 }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const { getCustomerSuggestions } = useCustomer();
   const { getEmployeeSuggestions } = useEmployee();
@@ -68,14 +88,14 @@ const InvoiceForm = ({
   // Form state
   const [formData, setFormData] = useState({
     saleDate: new Date(),
-    customerId: '',
-    customerName: '',
-    customerPhone: '',
-    customerAddress: '',
-    customerState: '',
-    salesPersonId: '',
-    salesPersonName: '',
-    items: [{ name: '', description: '', quantity: 1, rate: 0 }],
+    customerId: "",
+    customerName: "",
+    customerPhone: "",
+    customerAddress: "",
+    customerState: "",
+    salesPersonId: "",
+    salesPersonName: "",
+    items: [{ name: "", description: "", quantity: 1, rate: 0, gstSlab: 18 }],
     includeGST: true,
     paymentStatus: PAYMENT_STATUS.PAID,
     deliveryStatus: DELIVERY_STATUS.DELIVERED,
@@ -83,8 +103,8 @@ const InvoiceForm = ({
     emiDetails: {
       monthlyAmount: 0,
       startDate: null,
-      numberOfInstallments: 1
-    }
+      numberOfInstallments: 1,
+    },
   });
 
   const [formErrors, setFormErrors] = useState({});
@@ -95,32 +115,64 @@ const InvoiceForm = ({
   const [calculations, setCalculations] = useState({
     subtotal: 0,
     totalGST: 0,
-    grandTotal: 0
+    grandTotal: 0,
+    itemTotals: [],
   });
+
+  // Store selected customer and employee for autocomplete
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
 
   // Initialize form data for edit
   useEffect(() => {
     if (isEdit && invoice) {
+      // Safely parse dates to avoid Invalid time value error
+      const saleDate = parseDate(invoice.saleDate) || new Date();
+      const scheduledDeliveryDate = parseDate(invoice.scheduledDeliveryDate);
+      const emiStartDate = parseDate(invoice.emiDetails?.startDate);
+
       setFormData({
-        saleDate: invoice.saleDate ? new Date(invoice.saleDate) : new Date(),
-        customerId: invoice.customerId || '',
-        customerName: invoice.customerName || '',
-        customerPhone: invoice.customerPhone || '',
-        customerAddress: invoice.customerAddress || '',
-        customerState: invoice.customerState || '',
-        salesPersonId: invoice.salesPersonId || '',
-        salesPersonName: invoice.salesPersonName || '',
-        items: invoice.items || [{ name: '', description: '', quantity: 1, rate: 0 }],
+        saleDate,
+        customerId: invoice.customerId || "",
+        customerName: invoice.customerName || "",
+        customerPhone: invoice.customerPhone || "",
+        customerAddress: invoice.customerAddress || "",
+        customerState: invoice.customerState || "",
+        salesPersonId: invoice.salesPersonId || "",
+        salesPersonName: invoice.salesPersonName || "",
+        items: invoice.items || [
+          { name: "", description: "", quantity: 1, rate: 0, gstSlab: 18 },
+        ],
         includeGST: invoice.includeGST !== false,
         paymentStatus: invoice.paymentStatus || PAYMENT_STATUS.PAID,
         deliveryStatus: invoice.deliveryStatus || DELIVERY_STATUS.DELIVERED,
-        scheduledDeliveryDate: invoice.scheduledDeliveryDate ? new Date(invoice.scheduledDeliveryDate) : null,
-        emiDetails: invoice.emiDetails || {
-          monthlyAmount: 0,
-          startDate: null,
-          numberOfInstallments: 1
-        }
+        scheduledDeliveryDate,
+        emiDetails: {
+          monthlyAmount: invoice.emiDetails?.monthlyAmount || 0,
+          startDate: emiStartDate,
+          numberOfInstallments: invoice.emiDetails?.numberOfInstallments || 1,
+        },
       });
+
+      // Set up autocomplete selections for edit mode
+      if (invoice.customerId && invoice.customerName) {
+        setSelectedCustomer({
+          id: invoice.customerId,
+          name: invoice.customerName,
+          phone: invoice.customerPhone,
+          address: invoice.customerAddress,
+          state: invoice.customerState,
+          label: `${invoice.customerName} - ${invoice.customerPhone}`,
+        });
+      }
+
+      if (invoice.salesPersonId && invoice.salesPersonName) {
+        setSelectedEmployee({
+          id: invoice.salesPersonId,
+          name: invoice.salesPersonName,
+          label: invoice.salesPersonName,
+        });
+      }
     }
   }, [isEdit, invoice]);
 
@@ -129,25 +181,76 @@ const InvoiceForm = ({
     const calculateTotals = () => {
       let subtotal = 0;
       let totalGST = 0;
+      const itemTotals = [];
 
-      formData.items.forEach(item => {
+      formData.items.forEach((item, index) => {
         if (item.quantity && item.rate) {
           const itemTotal = parseFloat(item.quantity) * parseFloat(item.rate);
-          const gstCalc = calculateGST(itemTotal, formData.customerState, formData.includeGST);
+          const gstCalc = calculateGSTWithSlab(
+            itemTotal,
+            formData.customerState,
+            formData.includeGST,
+            item.gstSlab || 18
+          );
+
           subtotal += gstCalc.baseAmount;
           totalGST += gstCalc.totalGstAmount;
+
+          itemTotals[index] = {
+            baseAmount: gstCalc.baseAmount,
+            gstAmount: gstCalc.totalGstAmount,
+            totalAmount: gstCalc.totalAmount,
+            gstSlab: item.gstSlab || 18,
+          };
+        } else {
+          itemTotals[index] = {
+            baseAmount: 0,
+            gstAmount: 0,
+            totalAmount: 0,
+            gstSlab: item.gstSlab || 18,
+          };
         }
       });
 
       setCalculations({
         subtotal: Math.round(subtotal * 100) / 100,
         totalGST: Math.round(totalGST * 100) / 100,
-        grandTotal: Math.round((subtotal + totalGST) * 100) / 100
+        grandTotal: Math.round((subtotal + totalGST) * 100) / 100,
+        itemTotals,
       });
     };
 
     calculateTotals();
   }, [formData.items, formData.customerState, formData.includeGST]);
+
+  // Auto-calculate EMI installments when relevant values change
+  useEffect(() => {
+    if (formData.paymentStatus === PAYMENT_STATUS.EMI && 
+        formData.emiDetails.monthlyAmount > 0 && 
+        calculations.grandTotal > 0) {
+      
+      const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
+      const calculatedInstallments = Math.ceil(calculations.grandTotal / monthlyAmount);
+      
+      console.log('EMI Auto-Calculation:');
+      console.log('- Grand Total:', calculations.grandTotal);
+      console.log('- Monthly Amount:', monthlyAmount);
+      console.log('- Calculated Installments:', calculatedInstallments);
+      console.log('- Current Installments:', formData.emiDetails.numberOfInstallments);
+      
+      // Only update if the calculated value is different from current value
+      if (calculatedInstallments !== formData.emiDetails.numberOfInstallments) {
+        console.log('Updating EMI installments from', formData.emiDetails.numberOfInstallments, 'to', calculatedInstallments);
+        setFormData((prev) => ({
+          ...prev,
+          emiDetails: {
+            ...prev.emiDetails,
+            numberOfInstallments: calculatedInstallments
+          }
+        }));
+      }
+    }
+  }, [calculations.grandTotal, formData.paymentStatus, formData.emiDetails.monthlyAmount]);
 
   // Handle customer search
   const handleCustomerSearch = async (searchTerm) => {
@@ -161,7 +264,7 @@ const InvoiceForm = ({
       const suggestions = await getCustomerSuggestions(searchTerm);
       setCustomerOptions(suggestions);
     } catch (error) {
-      console.error('Error fetching customer suggestions:', error);
+      console.error("Error fetching customer suggestions:", error);
     } finally {
       setCustomerLoading(false);
     }
@@ -169,14 +272,25 @@ const InvoiceForm = ({
 
   // Handle customer selection
   const handleCustomerSelect = (customer) => {
+    setSelectedCustomer(customer);
     if (customer) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         customerId: customer.id,
         customerName: customer.name,
         customerPhone: customer.phone,
         customerAddress: customer.address,
-        customerState: customer.state || ''
+        customerState: customer.state || "",
+      }));
+    } else {
+      // Clear customer data when selection is cleared
+      setFormData((prev) => ({
+        ...prev,
+        customerId: "",
+        customerName: "",
+        customerPhone: "",
+        customerAddress: "",
+        customerState: "",
       }));
     }
   };
@@ -193,7 +307,7 @@ const InvoiceForm = ({
       const suggestions = await getEmployeeSuggestions(searchTerm);
       setEmployeeOptions(suggestions);
     } catch (error) {
-      console.error('Error fetching employee suggestions:', error);
+      console.error("Error fetching employee suggestions:", error);
     } finally {
       setEmployeeLoading(false);
     }
@@ -201,70 +315,120 @@ const InvoiceForm = ({
 
   // Handle employee selection
   const handleEmployeeSelect = (employee) => {
+    setSelectedEmployee(employee);
     if (employee) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         salesPersonId: employee.id,
-        salesPersonName: employee.name
+        salesPersonName: employee.name,
+      }));
+    } else {
+      // Clear employee data when selection is cleared
+      setFormData((prev) => ({
+        ...prev,
+        salesPersonId: "",
+        salesPersonName: "",
       }));
     }
   };
 
   // Handle item changes
   const handleItemChange = (index, field, value) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      items: prev.items.map((item, i) => 
+      items: prev.items.map((item, i) =>
         i === index ? { ...item, [field]: value } : item
-      )
+      ),
     }));
   };
 
   // Add new item row
   const addItemRow = () => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      items: [...prev.items, { name: '', description: '', quantity: 1, rate: 0 }]
+      items: [
+        ...prev.items,
+        { name: "", description: "", quantity: 1, rate: 0, gstSlab: 18 },
+      ],
     }));
   };
 
   // Remove item row
   const removeItemRow = (index) => {
     if (formData.items.length > 1) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        items: prev.items.filter((_, i) => i !== index)
+        items: prev.items.filter((_, i) => i !== index),
       }));
     }
   };
 
   // Handle form field changes
   const handleChange = (field) => (event) => {
-    const value = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
-    setFormData(prev => ({
+    const value =
+      event.target.type === "checkbox"
+        ? event.target.checked
+        : event.target.value;
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
+  };
+
+  // Handle payment status change with EMI calculation
+  const handlePaymentStatusChange = (event) => {
+    const newStatus = event.target.value;
+    setFormData((prev) => {
+      const updatedData = {
+        ...prev,
+        paymentStatus: newStatus,
+      };
+
+      // If switching to EMI and we have values, calculate installments immediately
+      if (newStatus === PAYMENT_STATUS.EMI && 
+          prev.emiDetails.monthlyAmount > 0 && 
+          calculations.grandTotal > 0) {
+        const numberOfInstallments = Math.ceil(calculations.grandTotal / parseFloat(prev.emiDetails.monthlyAmount));
+        updatedData.emiDetails = {
+          ...prev.emiDetails,
+          numberOfInstallments
+        };
+        console.log('Payment Status Change - Calculating EMI installments:', numberOfInstallments);
+      }
+
+      return updatedData;
+    });
   };
 
   // Handle date changes
   const handleDateChange = (field) => (date) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [field]: date
+      [field]: date,
     }));
   };
 
-  // Handle EMI details change
+  // Handle EMI details change with immediate calculation
   const handleEMIChange = (field) => (event) => {
     const value = event.target.value;
-    setFormData(prev => ({
-      ...prev,
-      emiDetails: {
+    setFormData((prev) => {
+      const updatedEmiDetails = {
         ...prev.emiDetails,
-        [field]: value
+        [field]: value,
+      };
+
+      // Auto-calculate numberOfInstallments when monthlyAmount changes
+      if (field === 'monthlyAmount' && value > 0 && calculations.grandTotal > 0) {
+        const numberOfInstallments = Math.ceil(calculations.grandTotal / parseFloat(value));
+        updatedEmiDetails.numberOfInstallments = numberOfInstallments;
+        console.log('EMI Monthly Amount Change - Calculating installments:', numberOfInstallments);
       }
-    }));
+
+      return {
+        ...prev,
+        emiDetails: updatedEmiDetails,
+      };
+    });
   };
 
   // Validate form
@@ -272,74 +436,106 @@ const InvoiceForm = ({
     const errors = {};
 
     if (!formData.customerId || !formData.customerName) {
-      errors.customer = 'Customer is required';
+      errors.customer = "Customer is required";
     }
 
     if (!formData.salesPersonId || !formData.salesPersonName) {
-      errors.salesPerson = 'Sales person is required';
+      errors.salesPerson = "Sales person is required";
     }
 
     if (formData.items.length === 0) {
-      errors.items = 'At least one item is required';
+      errors.items = "At least one item is required";
     }
 
     formData.items.forEach((item, index) => {
       if (!item.name) {
-        errors[`item_${index}_name`] = 'Item name is required';
+        errors[`item_${index}_name`] = "Item name is required";
       }
       if (!item.quantity || parseFloat(item.quantity) <= 0) {
-        errors[`item_${index}_quantity`] = 'Valid quantity is required';
+        errors[`item_${index}_quantity`] = "Valid quantity is required";
       }
       if (!item.rate || parseFloat(item.rate) <= 0) {
-        errors[`item_${index}_rate`] = 'Valid rate is required';
+        errors[`item_${index}_rate`] = "Valid rate is required";
       }
     });
 
     if (formData.paymentStatus === PAYMENT_STATUS.EMI) {
-      if (!formData.emiDetails.monthlyAmount || parseFloat(formData.emiDetails.monthlyAmount) <= 0) {
-        errors.emiAmount = 'EMI monthly amount is required';
+      if (
+        !formData.emiDetails.monthlyAmount ||
+        parseFloat(formData.emiDetails.monthlyAmount) <= 0
+      ) {
+        errors.emiAmount = "EMI monthly amount is required";
       }
-      if (!formData.emiDetails.startDate) {
-        errors.emiStartDate = 'EMI start date is required';
+
+      if (
+        !formData.emiDetails.startDate ||
+        formData.emiDetails.startDate === null
+      ) {
+        errors.emiStartDate = "EMI start date is required";
       }
     }
 
-    if (formData.deliveryStatus === DELIVERY_STATUS.SCHEDULED && !formData.scheduledDeliveryDate) {
-      errors.deliveryDate = 'Scheduled delivery date is required';
+    if (
+      formData.deliveryStatus === DELIVERY_STATUS.SCHEDULED &&
+      !formData.scheduledDeliveryDate
+    ) {
+      errors.deliveryDate = "Scheduled delivery date is required";
     }
 
+    console.log("Validation errors:", errors);
     return errors;
   };
 
-  // Generate EMI schedule
+  const handleEMIStartDateChange = (date) => {
+    setFormData((prev) => ({
+      ...prev,
+      emiDetails: {
+        ...prev.emiDetails,
+        startDate: date,
+      },
+    }));
+  };
+
+  // Generate EMI schedule with proper installment calculation
   const generateEMISchedule = () => {
-    if (formData.paymentStatus !== PAYMENT_STATUS.EMI || !formData.emiDetails.monthlyAmount || !formData.emiDetails.startDate) {
+    if (
+      formData.paymentStatus !== PAYMENT_STATUS.EMI ||
+      !formData.emiDetails.monthlyAmount ||
+      !formData.emiDetails.startDate ||
+      !formData.emiDetails.numberOfInstallments
+    ) {
       return [];
     }
 
     const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
     const startDate = new Date(formData.emiDetails.startDate);
     const totalAmount = calculations.grandTotal;
-    const numberOfInstallments = Math.ceil(totalAmount / monthlyAmount);
+    const numberOfInstallments = parseInt(formData.emiDetails.numberOfInstallments);
+
+    console.log('Generating EMI Schedule:');
+    console.log('- Monthly Amount:', monthlyAmount);
+    console.log('- Number of Installments:', numberOfInstallments);
+    console.log('- Total Amount:', totalAmount);
 
     const schedule = [];
     for (let i = 0; i < numberOfInstallments; i++) {
       const dueDate = new Date(startDate);
       dueDate.setMonth(dueDate.getMonth() + i);
-      
+
       const isLastInstallment = i === numberOfInstallments - 1;
-      const amount = isLastInstallment 
-        ? totalAmount - (monthlyAmount * (numberOfInstallments - 1))
+      const amount = isLastInstallment
+        ? totalAmount - monthlyAmount * (numberOfInstallments - 1)
         : monthlyAmount;
 
       schedule.push({
         installmentNumber: i + 1,
         dueDate: dueDate.toISOString(),
         amount: Math.round(amount * 100) / 100,
-        paid: false
+        paid: false,
       });
     }
 
+    console.log('Generated EMI Schedule:', schedule);
     return schedule;
   };
 
@@ -359,12 +555,18 @@ const InvoiceForm = ({
       ...formData,
       saleDate: formData.saleDate.toISOString(),
       scheduledDeliveryDate: formData.scheduledDeliveryDate?.toISOString(),
-      emiDetails: formData.paymentStatus === PAYMENT_STATUS.EMI ? {
-        ...formData.emiDetails,
-        startDate: formData.emiDetails.startDate?.toISOString(),
-        schedule: generateEMISchedule()
-      } : null
+      emiDetails:
+        formData.paymentStatus === PAYMENT_STATUS.EMI
+          ? {
+              ...formData.emiDetails,
+              startDate: formData.emiDetails.startDate?.toISOString(),
+              schedule: generateEMISchedule(),
+            }
+          : null,
     };
+
+    console.log('Submitting Invoice Data:', invoiceData);
+    console.log('EMI Details in submission:', invoiceData.emiDetails);
 
     if (onSubmit) {
       await onSubmit(invoiceData);
@@ -386,24 +588,28 @@ const InvoiceForm = ({
           {/* Basic Details */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography
+                variant="h6"
+                gutterBottom
+                sx={{ display: "flex", alignItems: "center", gap: 1 }}
+              >
                 <ReceiptIcon />
                 Invoice Details
               </Typography>
-              
+
               <Grid container spacing={3}>
                 {/* Sale Date */}
                 <Grid item xs={12} sm={6}>
                   <DatePicker
                     label="Sale Date"
                     value={formData.saleDate}
-                    onChange={handleDateChange('saleDate')}
+                    onChange={handleDateChange("saleDate")}
                     disabled={loading}
                     slotProps={{
                       textField: {
                         fullWidth: true,
-                        required: true
-                      }
+                        required: true,
+                      },
                     }}
                   />
                 </Grid>
@@ -414,7 +620,7 @@ const InvoiceForm = ({
                     control={
                       <Switch
                         checked={formData.includeGST}
-                        onChange={handleChange('includeGST')}
+                        onChange={handleChange("includeGST")}
                         disabled={loading}
                       />
                     }
@@ -432,7 +638,7 @@ const InvoiceForm = ({
               <Typography variant="h6" gutterBottom>
                 Customer Details
               </Typography>
-              
+
               {formErrors.customer && (
                 <Alert severity="error" sx={{ mb: 2 }}>
                   {formErrors.customer}
@@ -444,9 +650,15 @@ const InvoiceForm = ({
                 <Grid item xs={12}>
                   <Autocomplete
                     options={customerOptions}
-                    getOptionLabel={(option) => option.label || ''}
+                    getOptionLabel={(option) => option.label || ""}
                     loading={customerLoading}
-                    onInputChange={(event, value) => handleCustomerSearch(value)}
+                    value={selectedCustomer}
+                    isOptionEqualToValue={(option, value) => 
+                      option.id === value.id
+                    }
+                    onInputChange={(event, value) =>
+                      handleCustomerSearch(value)
+                    }
                     onChange={(event, value) => handleCustomerSelect(value)}
                     disabled={loading}
                     renderInput={(params) => (
@@ -507,7 +719,7 @@ const InvoiceForm = ({
               <Typography variant="h6" gutterBottom>
                 Sales Person
               </Typography>
-              
+
               {formErrors.salesPerson && (
                 <Alert severity="error" sx={{ mb: 2 }}>
                   {formErrors.salesPerson}
@@ -516,8 +728,12 @@ const InvoiceForm = ({
 
               <Autocomplete
                 options={employeeOptions}
-                getOptionLabel={(option) => option.label || ''}
+                getOptionLabel={(option) => option.label || ""}
                 loading={employeeLoading}
+                value={selectedEmployee}
+                isOptionEqualToValue={(option, value) => 
+                  option.id === value.id
+                }
                 onInputChange={(event, value) => handleEmployeeSearch(value)}
                 onChange={(event, value) => handleEmployeeSelect(value)}
                 disabled={loading}
@@ -537,10 +753,13 @@ const InvoiceForm = ({
           {/* Items */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6">
-                  Items
-                </Typography>
+              <Box
+                display="flex"
+                justifyContent="space-between"
+                alignItems="center"
+                mb={3}
+              >
+                <Typography variant="h6">Items</Typography>
                 <Button
                   startIcon={<AddIcon />}
                   onClick={addItemRow}
@@ -560,12 +779,13 @@ const InvoiceForm = ({
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Item Name *</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell>Qty *</TableCell>
-                      <TableCell>Rate *</TableCell>
-                      <TableCell>Total</TableCell>
-                      <TableCell width={50}></TableCell>
+                      <TableCell sx={{ width: '30%', minWidth: 200 }}>Item Name *</TableCell>
+                      <TableCell sx={{ width: '25%', minWidth: 150 }}>Description</TableCell>
+                      <TableCell sx={{ width: '10%', minWidth: 80 }}>Qty *</TableCell>
+                      <TableCell sx={{ width: '15%', minWidth: 100 }}>Rate *</TableCell>
+                      {formData.includeGST && <TableCell sx={{ width: '10%', minWidth: 80 }}>GST %</TableCell>}
+                      <TableCell sx={{ width: '15%', minWidth: 100 }}>Total</TableCell>
+                      <TableCell sx={{ width: '5%', minWidth: 50 }}></TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -574,53 +794,123 @@ const InvoiceForm = ({
                         <TableCell>
                           <TextField
                             fullWidth
-                            size="small"
-                            placeholder="Item name"
+                            size="medium"
+                            placeholder="Enter item name..."
                             value={item.name}
-                            onChange={(e) => handleItemChange(index, 'name', e.target.value)}
+                            onChange={(e) =>
+                              handleItemChange(index, "name", e.target.value)
+                            }
                             error={!!formErrors[`item_${index}_name`]}
                             disabled={loading}
+                            sx={{
+                              '& .MuiInputBase-root': {
+                                fontSize: '0.875rem',
+                              }
+                            }}
                           />
                         </TableCell>
                         <TableCell>
                           <TextField
                             fullWidth
-                            size="small"
-                            placeholder="Description"
+                            size="medium"
+                            placeholder="Item description..."
                             value={item.description}
-                            onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                            onChange={(e) =>
+                              handleItemChange(
+                                index,
+                                "description",
+                                e.target.value
+                              )
+                            }
                             disabled={loading}
+                            multiline
+                            maxRows={2}
+                            sx={{
+                              '& .MuiInputBase-root': {
+                                fontSize: '0.875rem',
+                              }
+                            }}
                           />
                         </TableCell>
                         <TableCell>
                           <TextField
                             fullWidth
-                            size="small"
+                            size="medium"
                             type="number"
                             placeholder="Qty"
                             value={item.quantity}
-                            onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                            onChange={(e) =>
+                              handleItemChange(
+                                index,
+                                "quantity",
+                                e.target.value
+                              )
+                            }
                             error={!!formErrors[`item_${index}_quantity`]}
                             disabled={loading}
                             inputProps={{ min: 1 }}
+                            sx={{
+                              '& .MuiInputBase-root': {
+                                fontSize: '0.875rem',
+                              }
+                            }}
                           />
                         </TableCell>
                         <TableCell>
                           <TextField
                             fullWidth
-                            size="small"
+                            size="medium"
                             type="number"
                             placeholder="Rate"
                             value={item.rate}
-                            onChange={(e) => handleItemChange(index, 'rate', e.target.value)}
+                            onChange={(e) =>
+                              handleItemChange(index, "rate", e.target.value)
+                            }
                             error={!!formErrors[`item_${index}_rate`]}
                             disabled={loading}
                             inputProps={{ min: 0, step: 0.01 }}
+                            sx={{
+                              '& .MuiInputBase-root': {
+                                fontSize: '0.875rem',
+                              }
+                            }}
                           />
                         </TableCell>
+                        {formData.includeGST && (
+                          <TableCell>
+                            <TextField
+                              fullWidth
+                              size="medium"
+                              select
+                              value={item.gstSlab || 18}
+                              onChange={(e) =>
+                                handleItemChange(
+                                  index,
+                                  "gstSlab",
+                                  parseFloat(e.target.value)
+                                )
+                              }
+                              disabled={loading}
+                              sx={{
+                                '& .MuiInputBase-root': {
+                                  fontSize: '0.875rem',
+                                }
+                              }}
+                            >
+                              {GST_TAX_SLABS.map((slab) => (
+                                <MenuItem key={slab.rate} value={slab.rate}>
+                                  {slab.rate}%
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </TableCell>
+                        )}
                         <TableCell>
-                          <Typography variant="body2">
-                            ₹{(parseFloat(item.quantity || 0) * parseFloat(item.rate || 0)).toFixed(2)}
+                          <Typography variant="body2" fontWeight={600} color="primary.main">
+                            ₹
+                            {calculations.itemTotals[
+                              index
+                            ]?.totalAmount?.toFixed(2) || "0.00"}
                           </Typography>
                         </TableCell>
                         <TableCell>
@@ -647,31 +937,49 @@ const InvoiceForm = ({
           {/* Calculation Summary */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography
+                variant="h6"
+                gutterBottom
+                sx={{ display: "flex", alignItems: "center", gap: 1 }}
+              >
                 <CalculateIcon />
                 Summary
               </Typography>
-              
+
               <Box>
                 <Box display="flex" justifyContent="space-between" mb={1}>
                   <Typography variant="body2">Subtotal:</Typography>
-                  <Typography variant="body2">₹{calculations.subtotal.toFixed(2)}</Typography>
+                  <Typography variant="body2">
+                    ₹{calculations.subtotal.toFixed(2)}
+                  </Typography>
                 </Box>
-                
+
                 {formData.includeGST && (
                   <Box display="flex" justifyContent="space-between" mb={1}>
                     <Typography variant="body2">
-                      GST ({formData.customerState?.toLowerCase() === 'gujarat' ? 'CGST+SGST' : 'IGST'}):
+                      GST (
+                      {formData.customerState?.toLowerCase() === "gujarat"
+                        ? "CGST+SGST"
+                        : "IGST"}
+                      ):
                     </Typography>
-                    <Typography variant="body2">₹{calculations.totalGST.toFixed(2)}</Typography>
+                    <Typography variant="body2">
+                      ₹{calculations.totalGST.toFixed(2)}
+                    </Typography>
                   </Box>
                 )}
-                
+
                 <Divider sx={{ my: 1 }} />
-                
+
                 <Box display="flex" justifyContent="space-between">
-                  <Typography variant="h6" fontWeight="bold">Grand Total:</Typography>
-                  <Typography variant="h6" fontWeight="bold" color="primary.main">
+                  <Typography variant="h6" fontWeight="bold">
+                    Grand Total:
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    fontWeight="bold"
+                    color="primary.main"
+                  >
                     ₹{calculations.grandTotal.toFixed(2)}
                   </Typography>
                 </Box>
@@ -685,18 +993,20 @@ const InvoiceForm = ({
               <Typography variant="h6" gutterBottom>
                 Payment Options
               </Typography>
-              
+
               <FormControl fullWidth sx={{ mb: 2 }}>
                 <TextField
                   select
                   label="Payment Status"
                   value={formData.paymentStatus}
-                  onChange={handleChange('paymentStatus')}
+                  onChange={handlePaymentStatusChange}
                   disabled={loading}
                 >
-                  <option value={PAYMENT_STATUS.PAID}>Paid in Full</option>
-                  <option value={PAYMENT_STATUS.EMI}>EMI Payment</option>
-                  <option value={PAYMENT_STATUS.PENDING}>Payment Pending</option>
+                  <MenuItem value={PAYMENT_STATUS.PAID}>Paid in Full</MenuItem>
+                  <MenuItem value={PAYMENT_STATUS.EMI}>EMI Payment</MenuItem>
+                  <MenuItem value={PAYMENT_STATUS.PENDING}>
+                    Payment Pending
+                  </MenuItem>
                 </TextField>
               </FormControl>
 
@@ -708,27 +1018,85 @@ const InvoiceForm = ({
                     label="Monthly EMI Amount"
                     type="number"
                     value={formData.emiDetails.monthlyAmount}
-                    onChange={handleEMIChange('monthlyAmount')}
+                    onChange={handleEMIChange("monthlyAmount")}
                     error={!!formErrors.emiAmount}
                     helperText={formErrors.emiAmount}
                     disabled={loading}
                     sx={{ mb: 2 }}
                     inputProps={{ min: 1, step: 0.01 }}
                   />
-                  
+
                   <DatePicker
                     label="EMI Start Date"
                     value={formData.emiDetails.startDate}
-                    onChange={handleDateChange('emiDetails.startDate')}
+                    onChange={handleEMIStartDateChange}
                     disabled={loading}
+                    sx={{ mb: 2 }}
                     slotProps={{
                       textField: {
                         fullWidth: true,
                         error: !!formErrors.emiStartDate,
-                        helperText: formErrors.emiStartDate
-                      }
+                        helperText: formErrors.emiStartDate,
+                      },
                     }}
                   />
+
+                  {/* Display calculated EMI details */}
+                  {formData.emiDetails.monthlyAmount > 0 && calculations.grandTotal > 0 && (
+                    <Box sx={{ 
+                      mt: 2, 
+                      p: 2, 
+                      backgroundColor: 'rgba(25, 118, 210, 0.1)', 
+                      borderRadius: 1,
+                      border: '1px solid rgba(25, 118, 210, 0.2)'
+                    }}>
+                      <Typography variant="subtitle2" color="primary" gutterBottom>
+                        EMI Calculation Summary:
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Invoice Total:</strong> ₹{calculations.grandTotal.toFixed(2)}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Monthly EMI:</strong> ₹{parseFloat(formData.emiDetails.monthlyAmount).toFixed(2)}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Number of Installments:</strong> {formData.emiDetails.numberOfInstallments} months
+                      </Typography>
+                      
+                      {/* Calculate correct EMI breakdown */}
+                      {(() => {
+                        const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
+                        const numberOfInstallments = formData.emiDetails.numberOfInstallments;
+                        const totalAmount = calculations.grandTotal;
+                        
+                        if (numberOfInstallments > 1) {
+                          const regularInstallments = numberOfInstallments - 1;
+                          const regularInstallmentTotal = monthlyAmount * regularInstallments;
+                          const lastInstallmentAmount = totalAmount - regularInstallmentTotal;
+                          
+                          return (
+                            <>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                • First {regularInstallments} installments: ₹{monthlyAmount.toFixed(2)} each = ₹{regularInstallmentTotal.toFixed(2)}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                • Last installment: ₹{lastInstallmentAmount.toFixed(2)}
+                              </Typography>
+                            </>
+                          );
+                        }
+                        return null;
+                      })()}
+                      
+                      <Typography variant="body2" color="success.main" fontWeight={600}>
+                        <strong>Total EMI Amount:</strong> ₹{calculations.grandTotal.toFixed(2)}
+                      </Typography>
+                      
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, fontStyle: 'italic' }}>
+                        Note: Last installment amount is adjusted to match invoice total
+                      </Typography>
+                    </Box>
+                  )}
                 </Box>
               )}
             </CardContent>
@@ -740,18 +1108,22 @@ const InvoiceForm = ({
               <Typography variant="h6" gutterBottom>
                 Delivery Options
               </Typography>
-              
+
               <FormControl fullWidth sx={{ mb: 2 }}>
                 <TextField
                   select
                   label="Delivery Status"
                   value={formData.deliveryStatus}
-                  onChange={handleChange('deliveryStatus')}
+                  onChange={handleChange("deliveryStatus")}
                   disabled={loading}
                 >
-                  <option value={DELIVERY_STATUS.DELIVERED}>Delivered</option>
-                  <option value={DELIVERY_STATUS.SCHEDULED}>Schedule Later</option>
-                  <option value={DELIVERY_STATUS.PENDING}>Pending</option>
+                  <MenuItem value={DELIVERY_STATUS.DELIVERED}>
+                    Delivered
+                  </MenuItem>
+                  <MenuItem value={DELIVERY_STATUS.SCHEDULED}>
+                    Schedule Later
+                  </MenuItem>
+                  <MenuItem value={DELIVERY_STATUS.PENDING}>Pending</MenuItem>
                 </TextField>
               </FormControl>
 
@@ -760,14 +1132,14 @@ const InvoiceForm = ({
                 <DatePicker
                   label="Scheduled Delivery Date"
                   value={formData.scheduledDeliveryDate}
-                  onChange={handleDateChange('scheduledDeliveryDate')}
+                  onChange={handleDateChange("scheduledDeliveryDate")}
                   disabled={loading}
                   slotProps={{
                     textField: {
                       fullWidth: true,
                       error: !!formErrors.deliveryDate,
-                      helperText: formErrors.deliveryDate
-                    }
+                      helperText: formErrors.deliveryDate,
+                    },
                   }}
                 />
               )}
@@ -777,22 +1149,24 @@ const InvoiceForm = ({
           {/* Form Actions */}
           <Card>
             <CardContent>
-              <Box 
-                display="flex" 
-                flexDirection="column"
-                gap={2}
-              >
+              <Box display="flex" flexDirection="column" gap={2}>
                 <Button
                   type="submit"
                   variant="contained"
                   disabled={loading}
                   size="large"
                   fullWidth
-                  startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+                  startIcon={
+                    loading ? (
+                      <CircularProgress size={20} color="inherit" />
+                    ) : (
+                      <SaveIcon />
+                    )
+                  }
                 >
-                  {isEdit ? 'Update Invoice' : 'Create Invoice'}
+                  {isEdit ? "Update Invoice" : "Create Invoice"}
                 </Button>
-                
+
                 <Button
                   variant="outlined"
                   onClick={onCancel}

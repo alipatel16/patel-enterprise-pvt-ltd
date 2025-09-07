@@ -1,6 +1,6 @@
 import BaseService from './baseService';
 import { COLLECTIONS, PAYMENT_STATUS, DELIVERY_STATUS } from '../../utils/constants/appConstants';
-import { calculateGST } from '../../utils/helpers/gstCalculator';
+import { calculateGSTWithSlab } from '../../utils/helpers/gstCalculator';
 
 /**
  * Sales service for managing sales and invoices
@@ -11,36 +11,222 @@ class SalesService extends BaseService {
   }
 
   /**
+   * Helper function to clean undefined values from object
+   * @param {Object} obj - Object to clean
+   * @returns {Object} Cleaned object without undefined values
+   */
+  cleanUndefinedValues(obj) {
+    const cleaned = {};
+    
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const value = obj[key];
+        
+        if (value !== undefined) {
+          if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+            // Recursively clean nested objects
+            const cleanedNested = this.cleanUndefinedValues(value);
+            if (Object.keys(cleanedNested).length > 0) {
+              cleaned[key] = cleanedNested;
+            }
+          } else {
+            cleaned[key] = value;
+          }
+        }
+      }
+    }
+    
+    return cleaned;
+  }
+
+  /**
+   * Create new invoice (alias for createSale for backward compatibility)
+   * @param {string} userType - User type
+   * @param {Object} invoiceData - Invoice data
+   * @returns {Promise<Object>} Created invoice
+   */
+  async createInvoice(userType, invoiceData) {
+    try {
+      // Generate invoice number
+      const invoiceNumber = await this.generateInvoiceNumber(userType);
+      
+      // Calculate totals with GST slabs
+      let subtotal = 0;
+      let totalGST = 0;
+      const processedItems = [];
+
+      // Process each item with its GST slab
+      if (invoiceData.items && invoiceData.items.length > 0) {
+        invoiceData.items.forEach(item => {
+          const itemTotal = parseFloat(item.quantity || 0) * parseFloat(item.rate || 0);
+          const gstCalc = calculateGSTWithSlab(
+            itemTotal,
+            invoiceData.customerState,
+            invoiceData.includeGST !== false,
+            item.gstSlab || 18
+          );
+          
+          subtotal += gstCalc.baseAmount;
+          totalGST += gstCalc.totalGstAmount;
+          
+          processedItems.push({
+            ...item,
+            baseAmount: gstCalc.baseAmount,
+            gstAmount: gstCalc.totalGstAmount,
+            totalAmount: gstCalc.totalAmount,
+            gstBreakdown: gstCalc.gstBreakdown
+          });
+        });
+      }
+
+      // Clean invoice data - remove undefined values and structure properly
+      const cleanInvoiceData = {
+        invoiceNumber,
+        saleDate: invoiceData.saleDate,
+        customerId: invoiceData.customerId,
+        customerName: invoiceData.customerName,
+        customerPhone: invoiceData.customerPhone,
+        customerAddress: invoiceData.customerAddress,
+        customerState: invoiceData.customerState,
+        salesPersonId: invoiceData.salesPersonId,
+        salesPersonName: invoiceData.salesPersonName,
+        items: processedItems,
+        includeGST: invoiceData.includeGST,
+        subtotal: Math.round(subtotal * 100) / 100,
+        totalGST: Math.round(totalGST * 100) / 100,
+        grandTotal: Math.round((subtotal + totalGST) * 100) / 100,
+        // Firebase rules expect 'totalAmount' - add this field
+        totalAmount: Math.round((subtotal + totalGST) * 100) / 100,
+        paymentStatus: invoiceData.paymentStatus || PAYMENT_STATUS.PENDING,
+        deliveryStatus: invoiceData.deliveryStatus || DELIVERY_STATUS.PENDING,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: invoiceData.createdBy,
+        createdByName: invoiceData.createdByName
+      };
+
+      // Only add scheduledDeliveryDate if it exists
+      if (invoiceData.scheduledDeliveryDate) {
+        cleanInvoiceData.scheduledDeliveryDate = invoiceData.scheduledDeliveryDate;
+      }
+
+      // Only add emiDetails if payment status is EMI and data is complete
+      if (invoiceData.paymentStatus === PAYMENT_STATUS.EMI && invoiceData.emiDetails) {
+        const emiDetails = {
+          monthlyAmount: parseFloat(invoiceData.emiDetails.monthlyAmount || 0),
+          numberOfInstallments: parseInt(invoiceData.emiDetails.numberOfInstallments || 1)
+        };
+
+        // Only add startDate and schedule if startDate exists
+        if (invoiceData.emiDetails.startDate) {
+          emiDetails.startDate = invoiceData.emiDetails.startDate;
+          emiDetails.schedule = invoiceData.emiDetails.schedule || [];
+        }
+
+        cleanInvoiceData.emiDetails = emiDetails;
+      }
+
+      return await this.create(userType, cleanInvoiceData);
+    } catch (error) {
+      console.error('Error creating invoice:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Create new sale/invoice
    * @param {string} userType - User type
    * @param {Object} saleData - Sale data
    * @returns {Promise<Object>} Created sale
    */
   async createSale(userType, saleData) {
+    return await this.createInvoice(userType, saleData);
+  }
+
+  /**
+   * Get invoice by ID
+   * @param {string} userType - User type
+   * @param {string} invoiceId - Invoice ID
+   * @returns {Promise<Object>} Invoice data
+   */
+  async getInvoiceById(userType, invoiceId) {
     try {
-      // Generate invoice number
-      const invoiceNumber = await this.generateInvoiceNumber(userType);
-      
-      // Calculate GST and totals
-      const gstCalculation = calculateGST(
-        saleData.subtotal, 
-        saleData.customer?.state,
-        saleData.includeGST !== false
-      );
-
-      const saleWithCalculations = {
-        ...saleData,
-        invoiceNumber,
-        ...gstCalculation,
-        status: 'active',
-        paymentStatus: saleData.paymentStatus || PAYMENT_STATUS.PENDING,
-        deliveryStatus: saleData.deliveryStatus || DELIVERY_STATUS.PENDING,
-        createdBy: saleData.userId
-      };
-
-      return await this.create(userType, saleWithCalculations);
+      return await this.getById(userType, invoiceId);
     } catch (error) {
-      console.error('Error creating sale:', error);
+      console.error('Error getting invoice:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update invoice
+   * @param {string} userType - User type
+   * @param {string} invoiceId - Invoice ID
+   * @param {Object} updates - Update data
+   * @returns {Promise<Object>} Updated invoice
+   */
+  async updateInvoice(userType, invoiceId, updates) {
+    try {
+      // Clean undefined values from updates
+      const cleanUpdates = this.cleanUndefinedValues(updates);
+      
+      // Recalculate totals if items changed
+      if (cleanUpdates.items) {
+        let subtotal = 0;
+        let totalGST = 0;
+        const processedItems = [];
+
+        cleanUpdates.items.forEach(item => {
+          const itemTotal = parseFloat(item.quantity || 0) * parseFloat(item.rate || 0);
+          const gstCalc = calculateGSTWithSlab(
+            itemTotal,
+            cleanUpdates.customerState,
+            cleanUpdates.includeGST !== false,
+            item.gstSlab || 18
+          );
+          
+          subtotal += gstCalc.baseAmount;
+          totalGST += gstCalc.totalGstAmount;
+          
+          processedItems.push({
+            ...item,
+            baseAmount: gstCalc.baseAmount,
+            gstAmount: gstCalc.totalGstAmount,
+            totalAmount: gstCalc.totalAmount,
+            gstBreakdown: gstCalc.gstBreakdown
+          });
+        });
+
+        cleanUpdates.items = processedItems;
+        cleanUpdates.subtotal = Math.round(subtotal * 100) / 100;
+        cleanUpdates.totalGST = Math.round(totalGST * 100) / 100;
+        cleanUpdates.grandTotal = Math.round((subtotal + totalGST) * 100) / 100;
+        // Update totalAmount as well for consistency
+        cleanUpdates.totalAmount = cleanUpdates.grandTotal;
+      }
+
+      cleanUpdates.updatedAt = new Date().toISOString();
+      
+      return await this.update(userType, invoiceId, cleanUpdates);
+    } catch (error) {
+      console.error('Error updating invoice:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete invoice
+   * @param {string} userType - User type
+   * @param {string} invoiceId - Invoice ID
+   * @returns {Promise<boolean>} Success status
+   */
+  async deleteInvoice(userType, invoiceId) {
+    try {
+      await this.delete(userType, invoiceId);
+      return true;
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
       throw error;
     }
   }
@@ -53,95 +239,24 @@ class SalesService extends BaseService {
    * @returns {Promise<Object>} Updated sale
    */
   async updateSale(userType, saleId, updates) {
-    try {
-      // Recalculate GST if amount or customer changed
-      if (updates.subtotal || updates.customer || updates.includeGST !== undefined) {
-        const existingSale = await this.getById(userType, saleId);
-        const customerState = updates.customer?.state || existingSale.customer?.state;
-        const subtotal = updates.subtotal || existingSale.subtotal;
-        const includeGST = updates.includeGST !== undefined ? updates.includeGST : existingSale.includeGST;
-
-        const gstCalculation = calculateGST(subtotal, customerState, includeGST);
-        updates = { ...updates, ...gstCalculation };
-      }
-
-      return await this.update(userType, saleId, updates);
-    } catch (error) {
-      console.error('Error updating sale:', error);
-      throw error;
-    }
+    return await this.updateInvoice(userType, saleId, updates);
   }
 
   /**
-   * Get sales with filters
+   * Get sales with filters - simplified for client-side filtering
    * @param {string} userType - User type
-   * @param {Object} filters - Filter options
-   * @returns {Promise<Array>} Filtered sales
+   * @param {Object} filters - Filter options (mostly ignored for client-side filtering)
+   * @returns {Promise<Array>} All sales data
    */
   async getSales(userType, filters = {}) {
     try {
-      const {
-        search,
-        customer,
-        paymentStatus,
-        deliveryStatus,
-        dateFrom,
-        dateTo,
-        amountMin,
-        amountMax,
-        ...otherOptions
-      } = filters;
+      // Simple query to get all sales, let client handle filtering/sorting
+      const sales = await this.getAll(userType, {
+        orderBy: 'createdAt',
+        orderDirection: 'desc'
+      });
 
-      const whereClause = [];
-
-      // Filter by customer
-      if (customer) {
-        whereClause.push(['customer.id', '==', customer]);
-      }
-
-      // Filter by payment status
-      if (paymentStatus) {
-        whereClause.push(['paymentStatus', '==', paymentStatus]);
-      }
-
-      // Filter by delivery status
-      if (deliveryStatus) {
-        whereClause.push(['deliveryStatus', '==', deliveryStatus]);
-      }
-
-      // Filter by date range
-      if (dateFrom) {
-        whereClause.push(['date', '>=', dateFrom]);
-      }
-      if (dateTo) {
-        whereClause.push(['date', '<=', dateTo]);
-      }
-
-      // Filter by amount range
-      if (amountMin) {
-        whereClause.push(['totalAmount', '>=', parseFloat(amountMin)]);
-      }
-      if (amountMax) {
-        whereClause.push(['totalAmount', '<=', parseFloat(amountMax)]);
-      }
-
-      const queryOptions = {
-        where: whereClause,
-        ...otherOptions
-      };
-
-      let sales = await this.getAll(userType, queryOptions);
-
-      // Apply search filter (client-side due to Firebase limitations)
-      if (search && search.trim()) {
-        const searchTerm = search.toLowerCase().trim();
-        sales = sales.filter(sale => 
-          sale.invoiceNumber?.toLowerCase().includes(searchTerm) ||
-          sale.customer?.name?.toLowerCase().includes(searchTerm) ||
-          sale.items?.some(item => item.name?.toLowerCase().includes(searchTerm))
-        );
-      }
-
+      // Return simple array for client-side processing
       return sales;
     } catch (error) {
       console.error('Error getting sales:', error);
@@ -150,42 +265,259 @@ class SalesService extends BaseService {
   }
 
   /**
-   * Get sales statistics
+   * Search sales by term
    * @param {string} userType - User type
-   * @param {string} userId - User ID
-   * @param {Object} dateRange - Date range for statistics
-   * @returns {Promise<Object>} Sales statistics
+   * @param {string} searchTerm - Search term
+   * @returns {Promise<Array>} Matching sales
    */
-  async getSalesStatistics(userType, userId, dateRange = {}) {
+  async searchSales(userType, searchTerm) {
     try {
-      const { from, to } = dateRange;
-      const whereClause = [
-        ['createdBy', '==', userId],
-        ['userType', '==', userType]
-      ];
-
-      if (from) whereClause.push(['date', '>=', from]);
-      if (to) whereClause.push(['date', '<=', to]);
-
-      const sales = await this.getAll(userType, {
-        where: whereClause
+      // Get all sales and filter client-side (Firebase limitation)
+      const allSales = await this.getAll(userType, {
+        orderBy: 'createdAt',
+        orderDirection: 'desc',
+        limit: 100 // Reasonable limit for search
       });
 
-      // Calculate statistics
+      if (!searchTerm.trim()) {
+        return allSales;
+      }
+
+      const term = searchTerm.toLowerCase().trim();
+      return allSales.filter(sale => 
+        sale.invoiceNumber?.toLowerCase().includes(term) ||
+        sale.customerName?.toLowerCase().includes(term) ||
+        sale.items?.some(item => item.name?.toLowerCase().includes(term))
+      );
+    } catch (error) {
+      console.error('Error searching sales:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get sales statistics
+   * @param {string} userType - User type
+   * @param {Object} filters - Filter options
+   * @returns {Promise<Object>} Sales statistics
+   */
+  async getSalesStats(userType, filters = {}) {
+    try {
+      const sales = await this.getAll(userType, {
+        orderBy: 'createdAt',
+        orderDirection: 'desc'
+      });
+
+      const today = new Date();
+      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+      const todaysSales = sales.filter(sale => {
+        const saleDate = new Date(sale.saleDate);
+        return saleDate >= todayStart;
+      });
+
       const stats = {
         totalSales: sales.length,
-        totalRevenue: sales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0),
+        totalAmount: sales.reduce((sum, sale) => sum + (sale.grandTotal || 0), 0),
+        todaysSales: todaysSales.length,
+        todaysAmount: todaysSales.reduce((sum, sale) => sum + (sale.grandTotal || 0), 0),
         pendingPayments: sales.filter(sale => sale.paymentStatus === PAYMENT_STATUS.PENDING).length,
         pendingDeliveries: sales.filter(sale => sale.deliveryStatus === DELIVERY_STATUS.PENDING).length,
-        paidSales: sales.filter(sale => sale.paymentStatus === PAYMENT_STATUS.PAID).length,
-        deliveredSales: sales.filter(sale => sale.deliveryStatus === DELIVERY_STATUS.DELIVERED).length,
-        emiSales: sales.filter(sale => sale.paymentStatus === PAYMENT_STATUS.EMI).length,
-        averageSaleAmount: sales.length > 0 ? sales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0) / sales.length : 0
+        paidInvoices: sales.filter(sale => sale.paymentStatus === PAYMENT_STATUS.PAID).length,
+        emiInvoices: sales.filter(sale => sale.paymentStatus === PAYMENT_STATUS.EMI).length
       };
 
       return stats;
     } catch (error) {
-      console.error('Error getting sales statistics:', error);
+      console.error('Error getting sales stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get pending EMI payments
+   * @param {string} userType - User type
+   * @returns {Promise<Array>} Pending EMI payments
+   */
+  async getPendingEMIPayments(userType) {
+    try {
+      return await this.getAll(userType, {
+        where: [
+          ['paymentStatus', '==', PAYMENT_STATUS.EMI]
+        ],
+        orderBy: 'createdAt',
+        orderDirection: 'desc'
+      });
+    } catch (error) {
+      console.error('Error getting pending EMIs:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get pending deliveries
+   * @param {string} userType - User type
+   * @returns {Promise<Array>} Pending deliveries
+   */
+  async getPendingDeliveries(userType) {
+    try {
+      return await this.getAll(userType, {
+        where: [
+          ['deliveryStatus', '!=', DELIVERY_STATUS.DELIVERED]
+        ],
+        orderBy: 'createdAt',
+        orderDirection: 'desc'
+      });
+    } catch (error) {
+      console.error('Error getting pending deliveries:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update payment status
+   * @param {string} userType - User type
+   * @param {string} invoiceId - Invoice ID
+   * @param {string} paymentStatus - New payment status
+   * @param {Object} paymentDetails - Additional payment data
+   * @returns {Promise<Object>} Updated invoice
+   */
+  async updatePaymentStatus(userType, invoiceId, paymentStatus, paymentDetails = {}) {
+    try {
+      const updates = {
+        paymentStatus,
+        ...paymentDetails,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (paymentStatus === PAYMENT_STATUS.PAID) {
+        updates.paymentDate = new Date().toISOString();
+      }
+
+      return await this.updateInvoice(userType, invoiceId, updates);
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update delivery status
+   * @param {string} userType - User type
+   * @param {string} invoiceId - Invoice ID
+   * @param {string} deliveryStatus - New delivery status
+   * @param {Object} deliveryDetails - Additional delivery data
+   * @returns {Promise<Object>} Updated invoice
+   */
+  async updateDeliveryStatus(userType, invoiceId, deliveryStatus, deliveryDetails = {}) {
+    try {
+      const updates = {
+        deliveryStatus,
+        ...deliveryDetails,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (deliveryStatus === DELIVERY_STATUS.DELIVERED) {
+        updates.deliveryDate = new Date().toISOString();
+      }
+
+      return await this.updateInvoice(userType, invoiceId, updates);
+    } catch (error) {
+      console.error('Error updating delivery status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update EMI payment
+   * @param {string} userType - User type
+   * @param {string} invoiceId - Invoice ID
+   * @param {number} emiIndex - EMI installment index
+   * @param {Object} paymentDetails - Payment details
+   * @returns {Promise<Object>} Updated invoice
+   */
+  async updateEMIPayment(userType, invoiceId, emiIndex, paymentDetails) {
+    try {
+      const invoice = await this.getById(userType, invoiceId);
+      
+      if (!invoice.emiDetails || !invoice.emiDetails.schedule) {
+        throw new Error('EMI schedule not found');
+      }
+
+      const schedule = [...invoice.emiDetails.schedule];
+      if (emiIndex >= 0 && emiIndex < schedule.length) {
+        schedule[emiIndex] = {
+          ...schedule[emiIndex],
+          paid: true,
+          paymentDate: new Date().toISOString(),
+          ...paymentDetails
+        };
+
+        const updates = {
+          emiDetails: {
+            ...invoice.emiDetails,
+            schedule
+          },
+          updatedAt: new Date().toISOString()
+        };
+
+        // Check if all EMIs are paid
+        const allPaid = schedule.every(emi => emi.paid);
+        if (allPaid) {
+          updates.paymentStatus = PAYMENT_STATUS.PAID;
+          updates.paymentDate = new Date().toISOString();
+        }
+
+        return await this.updateInvoice(userType, invoiceId, updates);
+      } else {
+        throw new Error('Invalid EMI index');
+      }
+    } catch (error) {
+      console.error('Error updating EMI payment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get customer purchase history
+   * @param {string} userType - User type
+   * @param {string} customerId - Customer ID
+   * @returns {Promise<Array>} Customer's purchase history
+   */
+  async getCustomerPurchaseHistory(userType, customerId) {
+    try {
+      return await this.getAll(userType, {
+        where: [
+          ['customerId', '==', customerId]
+        ],
+        orderBy: 'createdAt',
+        orderDirection: 'desc'
+      });
+    } catch (error) {
+      console.error('Error getting customer purchase history:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get sales by date range
+   * @param {string} userType - User type
+   * @param {string} startDate - Start date
+   * @param {string} endDate - End date
+   * @returns {Promise<Array>} Sales in date range
+   */
+  async getSalesByDateRange(userType, startDate, endDate) {
+    try {
+      return await this.getAll(userType, {
+        where: [
+          ['saleDate', '>=', startDate],
+          ['saleDate', '<=', endDate]
+        ],
+        orderBy: 'saleDate',
+        orderDirection: 'desc'
+      });
+    } catch (error) {
+      console.error('Error getting sales by date range:', error);
       throw error;
     }
   }
@@ -236,104 +568,6 @@ class SalesService extends BaseService {
       const timestamp = Date.now();
       const prefix = userType === 'electronics' ? 'ELE' : 'FUR';
       return `${prefix}${timestamp}`;
-    }
-  }
-
-  /**
-   * Get pending EMI payments
-   * @param {string} userType - User type
-   * @param {string} userId - User ID
-   * @returns {Promise<Array>} Pending EMI payments
-   */
-  async getPendingEMIs(userType, userId) {
-    try {
-      return await this.getAll(userType, {
-        where: [
-          ['createdBy', '==', userId],
-          ['userType', '==', userType],
-          ['paymentStatus', '==', PAYMENT_STATUS.EMI]
-        ],
-        orderBy: 'nextEMIDate',
-        orderDirection: 'asc'
-      });
-    } catch (error) {
-      console.error('Error getting pending EMIs:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get pending deliveries
-   * @param {string} userType - User type
-   * @param {string} userId - User ID
-   * @returns {Promise<Array>} Pending deliveries
-   */
-  async getPendingDeliveries(userType, userId) {
-    try {
-      return await this.getAll(userType, {
-        where: [
-          ['createdBy', '==', userId],
-          ['userType', '==', userType],
-          ['deliveryStatus', '!=', DELIVERY_STATUS.DELIVERED]
-        ],
-        orderBy: 'deliveryDate',
-        orderDirection: 'asc'
-      });
-    } catch (error) {
-      console.error('Error getting pending deliveries:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Update payment status
-   * @param {string} userType - User type
-   * @param {string} saleId - Sale ID
-   * @param {string} paymentStatus - New payment status
-   * @param {Object} paymentData - Additional payment data
-   * @returns {Promise<Object>} Updated sale
-   */
-  async updatePaymentStatus(userType, saleId, paymentStatus, paymentData = {}) {
-    try {
-      const updates = {
-        paymentStatus,
-        ...paymentData
-      };
-
-      if (paymentStatus === PAYMENT_STATUS.PAID) {
-        updates.paymentDate = new Date().toISOString();
-      }
-
-      return await this.update(userType, saleId, updates);
-    } catch (error) {
-      console.error('Error updating payment status:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Update delivery status
-   * @param {string} userType - User type
-   * @param {string} saleId - Sale ID
-   * @param {string} deliveryStatus - New delivery status
-   * @param {Object} deliveryData - Additional delivery data
-   * @returns {Promise<Object>} Updated sale
-   */
-  async updateDeliveryStatus(userType, saleId, deliveryStatus, deliveryData = {}) {
-    try {
-      const updates = {
-        deliveryStatus,
-        ...deliveryData
-      };
-
-      if (deliveryStatus === DELIVERY_STATUS.DELIVERED) {
-        updates.deliveryDate = new Date().toISOString();
-      }
-
-      return await this.update(userType, saleId, updates);
-    } catch (error) {
-      console.error('Error updating delivery status:', error);
-      throw error;
     }
   }
 }

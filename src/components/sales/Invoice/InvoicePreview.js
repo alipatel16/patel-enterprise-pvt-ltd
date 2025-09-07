@@ -15,12 +15,20 @@ import {
   Chip,
   Avatar,
   useTheme,
-  alpha
+  useMediaQuery,
+  alpha,
+  Stack,
+  Paper
 } from '@mui/material';
 import {
   Business as BusinessIcon,
   Receipt as ReceiptIcon,
-  Person as PersonIcon
+  Person as PersonIcon,
+  AccountCircle as SalesPersonIcon,
+  Phone as PhoneIcon,
+  Email as EmailIcon,
+  LocationOn as LocationIcon,
+  CalendarToday as CalendarIcon
 } from '@mui/icons-material';
 
 import { useUserType } from '../../../contexts/UserTypeContext/UserTypeContext';
@@ -44,6 +52,8 @@ const InvoicePreview = forwardRef(({
   variant = 'preview'
 }, ref) => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { getDisplayName, getThemeColors } = useUserType();
   
   const themeColors = getThemeColors();
@@ -51,16 +61,20 @@ const InvoicePreview = forwardRef(({
   // Default invoice data structure
   const defaultInvoice = {
     invoiceNumber: '',
-    date: new Date(),
+    saleDate: new Date(),
     dueDate: null,
-    customer: {},
+    customerName: '',
+    customerPhone: '',
+    customerAddress: '',
+    customerState: '',
+    salesPersonName: '',
     items: [],
-    subTotal: 0,
-    gstAmount: 0,
-    totalAmount: 0,
+    subtotal: 0,
+    totalGST: 0,
+    grandTotal: 0,
     paymentStatus: PAYMENT_STATUS.PENDING,
     deliveryStatus: DELIVERY_STATUS.PENDING,
-    gstType: GST_TYPES.NO_GST,
+    includeGST: false,
     notes: '',
     terms: ''
   };
@@ -84,26 +98,61 @@ const InvoicePreview = forwardRef(({
   const getStatusColor = (status, type = 'payment') => {
     const colors = {
       payment: {
-        paid: theme.palette.success.main,
-        pending: theme.palette.warning.main,
-        emi: theme.palette.info.main
+        [PAYMENT_STATUS.PAID]: theme.palette.success.main,
+        [PAYMENT_STATUS.PENDING]: theme.palette.warning.main,
+        [PAYMENT_STATUS.EMI]: theme.palette.info.main
       },
       delivery: {
-        delivered: theme.palette.success.main,
-        pending: theme.palette.warning.main,
-        scheduled: theme.palette.info.main
+        [DELIVERY_STATUS.DELIVERED]: theme.palette.success.main,
+        [DELIVERY_STATUS.PENDING]: theme.palette.warning.main,
+        [DELIVERY_STATUS.SCHEDULED]: theme.palette.info.main
       }
     };
     
     return colors[type]?.[status] || theme.palette.text.secondary;
   };
 
-  // Calculate totals
-  const calculations = {
-    itemTotal: invoiceData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0),
-    gstAmount: invoiceData.gstAmount || 0,
-    grandTotal: invoiceData.totalAmount || 0
-  };
+  // Status chip component
+  const StatusChip = ({ label, status, type = 'payment' }) => (
+    <Chip
+      label={label}
+      size={isSmallMobile ? 'small' : 'medium'}
+      sx={{
+        backgroundColor: alpha(getStatusColor(status, type), 0.1),
+        color: getStatusColor(status, type),
+        fontWeight: 600,
+        border: `1px solid ${alpha(getStatusColor(status, type), 0.3)}`
+      }}
+    />
+  );
+
+  // Info item component for better organization
+  const InfoItem = ({ icon, label, value, href }) => (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+      {icon && (
+        <Box sx={{ color: 'text.secondary', fontSize: '1rem' }}>
+          {icon}
+        </Box>
+      )}
+      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 'fit-content' }}>
+        {label}:
+      </Typography>
+      <Typography 
+        variant="body2" 
+        sx={{ 
+          fontWeight: 500, 
+          wordBreak: 'break-word',
+          ...(href && { 
+            color: 'primary.main', 
+            textDecoration: 'underline',
+            cursor: 'pointer' 
+          })
+        }}
+      >
+        {value}
+      </Typography>
+    </Box>
+  );
 
   return (
     <Box
@@ -123,343 +172,553 @@ const InvoicePreview = forwardRef(({
       }}
     >
       <Card 
-        elevation={variant === 'print' ? 0 : 2}
+        elevation={variant === 'print' ? 0 : 1}
         sx={{ 
           maxWidth: '21cm',
           margin: 'auto',
-          minHeight: variant === 'print' ? '29.7cm' : 'auto'
+          minHeight: variant === 'print' ? '29.7cm' : 'auto',
+          borderRadius: variant === 'print' ? 0 : 2
         }}
       >
-        <CardContent sx={{ p: 4 }}>
-          {/* Header */}
-          <Box sx={{ mb: 4 }}>
+        <CardContent sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
+          {/* Header Section */}
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: { xs: 2, sm: 3 }, 
+              mb: 3,
+              background: `linear-gradient(135deg, ${themeColors.primary}15 0%, ${themeColors.secondary}15 100%)`,
+              border: `1px solid ${alpha(themeColors.primary, 0.1)}`
+            }}
+          >
             <Grid container spacing={3} alignItems="center">
-              {/* Company Logo/Info */}
-              <Grid item xs={12} md={6}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+              {/* Company Info */}
+              <Grid item xs={12} md={7}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
                   <Avatar
                     sx={{
-                      width: 60,
-                      height: 60,
+                      width: { xs: 50, sm: 60 },
+                      height: { xs: 50, sm: 60 },
                       backgroundColor: themeColors.primary,
-                      fontSize: '1.5rem'
+                      fontSize: { xs: '1.2rem', sm: '1.5rem' }
                     }}
                   >
-                    <BusinessIcon fontSize="large" />
+                    <BusinessIcon fontSize="inherit" />
                   </Avatar>
-                  <Box>
-                    <Typography variant="h5" fontWeight={700} color={themeColors.primary}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography 
+                      variant={isSmallMobile ? 'h6' : 'h5'} 
+                      fontWeight={700} 
+                      color={themeColors.primary}
+                      sx={{ lineHeight: 1.2, mb: 0.5 }}
+                    >
                       {companyDetails.name}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {getDisplayName()} Business
+                      {getDisplayName()} Business Solutions
                     </Typography>
                   </Box>
                 </Box>
                 
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  {companyDetails.address}, {companyDetails.city}
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  {companyDetails.state} - {companyDetails.pincode}
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  Phone: {companyDetails.phone}
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  Email: {companyDetails.email}
-                </Typography>
-                {companyDetails.gst && (
-                  <Typography variant="body2" fontWeight={500}>
-                    GST: {companyDetails.gst}
-                  </Typography>
-                )}
+                <Stack spacing={0.5}>
+                  <InfoItem 
+                    icon={<LocationIcon fontSize="small" />}
+                    label="Address"
+                    value={`${companyDetails.address}, ${companyDetails.city}, ${companyDetails.state} - ${companyDetails.pincode}`}
+                  />
+                  <InfoItem 
+                    icon={<PhoneIcon fontSize="small" />}
+                    label="Phone"
+                    value={companyDetails.phone}
+                  />
+                  <InfoItem 
+                    icon={<EmailIcon fontSize="small" />}
+                    label="Email"
+                    value={companyDetails.email}
+                  />
+                  {companyDetails.gst && (
+                    <InfoItem 
+                      label="GST"
+                      value={companyDetails.gst}
+                    />
+                  )}
+                </Stack>
               </Grid>
 
               {/* Invoice Details */}
-              <Grid item xs={12} md={6}>
-                <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-                  <Typography variant="h4" fontWeight={700} color={themeColors.primary} gutterBottom>
+              <Grid item xs={12} md={5}>
+                <Box sx={{ 
+                  textAlign: { xs: 'left', md: 'right' },
+                  mt: { xs: 2, md: 0 }
+                }}>
+                  <Typography 
+                    variant={isSmallMobile ? 'h5' : 'h4'} 
+                    fontWeight={700} 
+                    color={themeColors.primary} 
+                    gutterBottom
+                    sx={{ display: 'flex', alignItems: 'center', justifyContent: { xs: 'flex-start', md: 'flex-end' }, gap: 1 }}
+                  >
+                    <ReceiptIcon fontSize="inherit" />
                     INVOICE
                   </Typography>
                   
-                  <Box sx={{ display: 'inline-block', textAlign: 'left' }}>
-                    <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>Invoice #:</strong> {invoiceData.invoiceNumber}
-                    </Typography>
-                    <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>Date:</strong> {formatDate(invoiceData.date)}
-                    </Typography>
-                    {invoiceData.dueDate && (
-                      <Typography variant="body1" sx={{ mb: 1 }}>
-                        <strong>Due Date:</strong> {formatDate(invoiceData.dueDate)}
-                      </Typography>
-                    )}
-                    
-                    <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                      <Chip
-                        label={invoiceData.paymentStatus?.toUpperCase()}
-                        size="small"
-                        sx={{
-                          backgroundColor: getStatusColor(invoiceData.paymentStatus, 'payment') + '20',
-                          color: getStatusColor(invoiceData.paymentStatus, 'payment'),
-                          fontWeight: 600
-                        }}
+                  <Paper 
+                    elevation={0}
+                    sx={{ 
+                      display: 'inline-block', 
+                      p: 2, 
+                      backgroundColor: 'background.paper',
+                      border: `1px solid ${theme.palette.divider}`,
+                      borderRadius: 1,
+                      textAlign: 'left',
+                      minWidth: { xs: '100%', md: 250 }
+                    }}
+                  >
+                    <Stack spacing={1}>
+                      <InfoItem 
+                        label="Invoice #"
+                        value={invoiceData.invoiceNumber}
                       />
-                      <Chip
-                        label={invoiceData.deliveryStatus?.toUpperCase()}
-                        size="small"
-                        sx={{
-                          backgroundColor: getStatusColor(invoiceData.deliveryStatus, 'delivery') + '20',
-                          color: getStatusColor(invoiceData.deliveryStatus, 'delivery'),
-                          fontWeight: 600
-                        }}
+                      <InfoItem 
+                        icon={<CalendarIcon fontSize="small" />}
+                        label="Date"
+                        value={formatDate(invoiceData.saleDate)}
+                      />
+                      {invoiceData.dueDate && (
+                        <InfoItem 
+                          label="Due Date"
+                          value={formatDate(invoiceData.dueDate)}
+                        />
+                      )}
+                    </Stack>
+                    
+                    <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
+                      <StatusChip
+                        label={`Pay: ${invoiceData.paymentStatus}`}
+                        status={invoiceData.paymentStatus}
+                        type="payment"
+                      />
+                      <StatusChip
+                        label={`Del: ${invoiceData.deliveryStatus}`}
+                        status={invoiceData.deliveryStatus}
+                        type="delivery"
                       />
                     </Box>
-                  </Box>
+                  </Paper>
                 </Box>
               </Grid>
             </Grid>
-          </Box>
+          </Paper>
 
-          {/* Bill To */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" fontWeight={600} gutterBottom>
-              Bill To:
-            </Typography>
-            
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-              <Avatar sx={{ backgroundColor: themeColors.secondary + '20', color: themeColors.secondary }}>
-                <PersonIcon />
-              </Avatar>
-              <Box>
-                <Typography variant="h6" fontWeight={600}>
-                  {invoiceData.customer?.name || 'Customer Name'}
+          {/* Customer and Sales Person Info */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            {/* Bill To */}
+            <Grid item xs={12} md={6}>
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 2, 
+                  height: '100%',
+                  border: `1px solid ${theme.palette.divider}`,
+                  borderRadius: 1
+                }}
+              >
+                <Typography variant="h6" fontWeight={600} gutterBottom sx={{ color: themeColors.primary }}>
+                  Bill To:
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {invoiceData.customer?.type?.charAt(0).toUpperCase() + invoiceData.customer?.type?.slice(1)} • {invoiceData.customer?.category?.charAt(0).toUpperCase() + invoiceData.customer?.category?.slice(1)}
-                </Typography>
-              </Box>
-            </Box>
-            
-            {invoiceData.customer?.address && (
-              <Typography variant="body2" sx={{ mb: 1 }}>
-                {invoiceData.customer.address}
-              </Typography>
-            )}
-            
-            <Grid container spacing={2}>
-              {invoiceData.customer?.phone && (
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Phone:</strong> {invoiceData.customer.phone}
-                  </Typography>
-                </Grid>
-              )}
-              
-              {invoiceData.customer?.email && (
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Email:</strong> {invoiceData.customer.email}
-                  </Typography>
-                </Grid>
-              )}
-              
-              {invoiceData.customer?.gstNumber && (
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>GST:</strong> {invoiceData.customer.gstNumber}
-                  </Typography>
-                </Grid>
-              )}
-            </Grid>
-          </Box>
-
-          {/* Items Table */}
-          <TableContainer component={Box} sx={{ mb: 4 }}>
-            <Table>
-              <TableHead>
-                <TableRow sx={{ backgroundColor: alpha(themeColors.primary, 0.1) }}>
-                  <TableCell><strong>#</strong></TableCell>
-                  <TableCell><strong>Description</strong></TableCell>
-                  <TableCell align="right"><strong>Qty</strong></TableCell>
-                  <TableCell align="right"><strong>Rate</strong></TableCell>
-                  <TableCell align="right"><strong>Amount</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {invoiceData.items.map((item, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{index + 1}</TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={500}>
-                        {item.name || item.description}
-                      </Typography>
-                      {item.description && item.name && (
-                        <Typography variant="caption" color="text.secondary">
-                          {item.description}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell align="right">{item.quantity}</TableCell>
-                    <TableCell align="right">{formatCurrency(item.price)}</TableCell>
-                    <TableCell align="right" fontWeight={500}>
-                      {formatCurrency(item.quantity * item.price)}
-                    </TableCell>
-                  </TableRow>
-                ))}
                 
-                {invoiceData.items.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        No items added
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          {/* Totals */}
-          <Grid container justifyContent="flex-end">
-            <Grid item xs={12} sm={6} md={4}>
-              <Box sx={{ border: `1px solid ${theme.palette.divider}`, p: 2, borderRadius: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Subtotal:</Typography>
-                  <Typography variant="body2" fontWeight={500}>
-                    {formatCurrency(calculations.itemTotal)}
-                  </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  <Avatar sx={{ 
+                    backgroundColor: alpha(themeColors.secondary, 0.1), 
+                    color: themeColors.secondary,
+                    width: 40,
+                    height: 40
+                  }}>
+                    <PersonIcon />
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                      {invoiceData.customerName || 'Customer Name'}
+                    </Typography>
+                  </Box>
                 </Box>
                 
-                {calculations.gstAmount > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">
-                      GST ({invoiceData.gstType === GST_TYPES.CGST_SGST ? 'CGST+SGST' : 'IGST'}):
+                <Stack spacing={0.5}>
+                  {invoiceData.customerPhone && (
+                    <InfoItem 
+                      icon={<PhoneIcon fontSize="small" />}
+                      label="Phone"
+                      value={invoiceData.customerPhone}
+                    />
+                  )}
+                  
+                  {invoiceData.customerAddress && (
+                    <InfoItem 
+                      icon={<LocationIcon fontSize="small" />}
+                      label="Address"
+                      value={invoiceData.customerAddress}
+                    />
+                  )}
+                  
+                  {invoiceData.customerState && (
+                    <InfoItem 
+                      label="State"
+                      value={invoiceData.customerState}
+                    />
+                  )}
+                </Stack>
+              </Paper>
+            </Grid>
+
+            {/* Sales Person */}
+            <Grid item xs={12} md={6}>
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 2, 
+                  height: '100%',
+                  border: `1px solid ${theme.palette.divider}`,
+                  borderRadius: 1
+                }}
+              >
+                <Typography variant="h6" fontWeight={600} gutterBottom sx={{ color: themeColors.primary }}>
+                  Sales Person:
+                </Typography>
+                
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  <Avatar sx={{ 
+                    backgroundColor: alpha(themeColors.primary, 0.1), 
+                    color: themeColors.primary,
+                    width: 40,
+                    height: 40
+                  }}>
+                    <SalesPersonIcon />
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                      {invoiceData.salesPersonName || 'Sales Person'}
                     </Typography>
-                    <Typography variant="body2" fontWeight={500}>
-                      {formatCurrency(calculations.gstAmount)}
+                    <Typography variant="body2" color="text.secondary">
+                      Sales Representative
+                    </Typography>
+                  </Box>
+                </Box>
+              </Paper>
+            </Grid>
+          </Grid>
+
+          {/* Items Table */}
+          <Paper elevation={0} sx={{ mb: 4, border: `1px solid ${theme.palette.divider}` }}>
+            <Box sx={{ p: 2, backgroundColor: alpha(themeColors.primary, 0.05) }}>
+              <Typography variant="h6" fontWeight={600} sx={{ color: themeColors.primary }}>
+                Invoice Items
+              </Typography>
+            </Box>
+            
+            {/* Desktop Table */}
+            {!isMobile ? (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: alpha(themeColors.primary, 0.1) }}>
+                      <TableCell sx={{ fontWeight: 700 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>Qty</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>Rate</TableCell>
+                      {invoiceData.includeGST && (
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>GST %</TableCell>
+                      )}
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>Amount</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {invoiceData.items.map((item, index) => (
+                      <TableRow key={index} sx={{ '&:nth-of-type(odd)': { backgroundColor: alpha(theme.palette.action.hover, 0.3) } }}>
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={500}>
+                            {item.name}
+                          </Typography>
+                          {item.description && (
+                            <Typography variant="caption" color="text.secondary">
+                              {item.description}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell align="right">{item.quantity}</TableCell>
+                        <TableCell align="right">{formatCurrency(item.rate)}</TableCell>
+                        {invoiceData.includeGST && (
+                          <TableCell align="right">{item.gstSlab || 18}%</TableCell>
+                        )}
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>
+                          {formatCurrency((item.quantity || 0) * (item.rate || 0))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    
+                    {invoiceData.items.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={invoiceData.includeGST ? 6 : 5} align="center" sx={{ py: 4 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            No items added
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              /* Mobile Cards */
+              <Box sx={{ p: 2 }}>
+                {invoiceData.items.length > 0 ? (
+                  <Stack spacing={2}>
+                    {invoiceData.items.map((item, index) => (
+                      <Paper 
+                        key={index}
+                        elevation={0}
+                        sx={{ 
+                          p: 2, 
+                          border: `1px solid ${theme.palette.divider}`,
+                          borderRadius: 1
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                          <Typography variant="body1" fontWeight={600} sx={{ flex: 1 }}>
+                            {index + 1}. {item.name}
+                          </Typography>
+                          <Typography variant="h6" fontWeight={700} color="primary.main">
+                            {formatCurrency((item.quantity || 0) * (item.rate || 0))}
+                          </Typography>
+                        </Box>
+                        
+                        {item.description && (
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            {item.description}
+                          </Typography>
+                        )}
+                        
+                        <Grid container spacing={1}>
+                          <Grid item xs={4}>
+                            <Typography variant="caption" color="text.secondary">Qty</Typography>
+                            <Typography variant="body2" fontWeight={500}>{item.quantity}</Typography>
+                          </Grid>
+                          <Grid item xs={4}>
+                            <Typography variant="caption" color="text.secondary">Rate</Typography>
+                            <Typography variant="body2" fontWeight={500}>{formatCurrency(item.rate)}</Typography>
+                          </Grid>
+                          {invoiceData.includeGST && (
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary">GST</Typography>
+                              <Typography variant="body2" fontWeight={500}>{item.gstSlab || 18}%</Typography>
+                            </Grid>
+                          )}
+                        </Grid>
+                      </Paper>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Box sx={{ py: 4, textAlign: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      No items added
                     </Typography>
                   </Box>
                 )}
-                
-                <Divider sx={{ my: 1 }} />
-                
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="h6" fontWeight={700}>Total:</Typography>
-                  <Typography variant="h6" fontWeight={700} color={themeColors.primary}>
-                    {formatCurrency(calculations.grandTotal)}
-                  </Typography>
-                </Box>
               </Box>
+            )}
+          </Paper>
+
+          {/* Totals Section */}
+          <Grid container justifyContent="flex-end" sx={{ mb: 4 }}>
+            <Grid item xs={12} sm={8} md={6} lg={4}>
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 3, 
+                  border: `2px solid ${themeColors.primary}`,
+                  borderRadius: 2,
+                  backgroundColor: alpha(themeColors.primary, 0.02)
+                }}
+              >
+                <Typography variant="h6" fontWeight={700} gutterBottom sx={{ color: themeColors.primary }}>
+                  Invoice Summary
+                </Typography>
+                
+                <Stack spacing={1.5}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body1">Subtotal:</Typography>
+                    <Typography variant="body1" fontWeight={600}>
+                      {formatCurrency(invoiceData.subtotal || 0)}
+                    </Typography>
+                  </Box>
+                  
+                  {invoiceData.includeGST && invoiceData.totalGST > 0 && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body1">
+                        GST ({invoiceData.customerState?.toLowerCase() === 'gujarat' ? 'CGST+SGST' : 'IGST'}):
+                      </Typography>
+                      <Typography variant="body1" fontWeight={600}>
+                        {formatCurrency(invoiceData.totalGST || 0)}
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  <Divider sx={{ my: 1 }} />
+                  
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="h6" fontWeight={700}>Grand Total:</Typography>
+                    <Typography variant="h6" fontWeight={700} color={themeColors.primary}>
+                      {formatCurrency(invoiceData.grandTotal || 0)}
+                    </Typography>
+                  </Box>
+                </Stack>
+              </Paper>
             </Grid>
           </Grid>
 
           {/* EMI Details */}
           {invoiceData.paymentStatus === PAYMENT_STATUS.EMI && invoiceData.emiDetails && (
-            <Box sx={{ mt: 4, p: 2, backgroundColor: alpha(theme.palette.info.main, 0.1), borderRadius: 1 }}>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                EMI Details:
+            <Paper 
+              elevation={0}
+              sx={{ 
+                mb: 4, 
+                p: 3, 
+                backgroundColor: alpha(theme.palette.info.main, 0.05),
+                border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+                borderRadius: 2
+              }}
+            >
+              <Typography variant="h6" fontWeight={600} gutterBottom sx={{ color: theme.palette.info.main }}>
+                EMI Payment Details
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Monthly EMI:</strong> {formatCurrency(invoiceData.emiDetails.monthlyAmount)}
-                  </Typography>
+                  <InfoItem 
+                    label="Monthly EMI"
+                    value={formatCurrency(invoiceData.emiDetails.monthlyAmount)}
+                  />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Start Date:</strong> {formatDate(invoiceData.emiDetails.startDate)}
-                  </Typography>
+                  <InfoItem 
+                    label="Start Date"
+                    value={formatDate(invoiceData.emiDetails.startDate)}
+                  />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Duration:</strong> {invoiceData.emiDetails.months} months
-                  </Typography>
+                  <InfoItem 
+                    label="Installments"
+                    value={`${invoiceData.emiDetails.numberOfInstallments} months`}
+                  />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Total EMI Amount:</strong> {formatCurrency(invoiceData.emiDetails.totalAmount)}
-                  </Typography>
+                  <InfoItem 
+                    label="Total EMI Amount"
+                    value={formatCurrency(invoiceData.grandTotal || 0)}
+                  />
                 </Grid>
               </Grid>
-            </Box>
+              
+              {/* EMI Breakdown */}
+              {invoiceData.emiDetails.numberOfInstallments > 1 && (
+                <Box sx={{ 
+                  mt: 2, 
+                  p: 2, 
+                  backgroundColor: alpha(theme.palette.info.main, 0.03),
+                  borderRadius: 1,
+                  border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`
+                }}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    EMI Breakdown:
+                  </Typography>
+                  
+                  {(() => {
+                    const monthlyAmount = parseFloat(invoiceData.emiDetails.monthlyAmount || 0);
+                    const numberOfInstallments = parseInt(invoiceData.emiDetails.numberOfInstallments || 1);
+                    const totalAmount = invoiceData.grandTotal || 0;
+                    
+                    if (numberOfInstallments > 1) {
+                      const regularInstallments = numberOfInstallments - 1;
+                      const regularInstallmentTotal = monthlyAmount * regularInstallments;
+                      const lastInstallmentAmount = totalAmount - regularInstallmentTotal;
+                      
+                      return (
+                        <Stack spacing={0.5}>
+                          <Typography variant="body2" color="text.secondary">
+                            • First {regularInstallments} installments: {formatCurrency(monthlyAmount)} each = {formatCurrency(regularInstallmentTotal)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            • Last installment: {formatCurrency(lastInstallmentAmount)}
+                          </Typography>
+                          <Typography variant="body2" color="success.main" fontWeight={500} sx={{ mt: 1 }}>
+                            Total matches invoice amount: {formatCurrency(totalAmount)}
+                          </Typography>
+                        </Stack>
+                      );
+                    }
+                    return (
+                      <Typography variant="body2" color="text.secondary">
+                        Single installment of {formatCurrency(totalAmount)}
+                      </Typography>
+                    );
+                  })()}
+                </Box>
+              )}
+            </Paper>
           )}
 
           {/* Delivery Details */}
-          {invoiceData.deliveryDetails && (
-            <Box sx={{ mt: 3, p: 2, backgroundColor: alpha(theme.palette.success.main, 0.1), borderRadius: 1 }}>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Delivery Details:
+          {(invoiceData.deliveryStatus === DELIVERY_STATUS.SCHEDULED && invoiceData.scheduledDeliveryDate) && (
+            <Paper 
+              elevation={0}
+              sx={{ 
+                mb: 4, 
+                p: 3, 
+                backgroundColor: alpha(theme.palette.success.main, 0.05),
+                border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`,
+                borderRadius: 2
+              }}
+            >
+              <Typography variant="h6" fontWeight={600} gutterBottom sx={{ color: theme.palette.success.main }}>
+                Delivery Information
               </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Delivery Date:</strong> {formatDate(invoiceData.deliveryDetails.scheduledDate)}
-                  </Typography>
-                </Grid>
-                {invoiceData.deliveryDetails.address && (
-                  <Grid item xs={12}>
-                    <Typography variant="body2">
-                      <strong>Delivery Address:</strong> {invoiceData.deliveryDetails.address}
-                    </Typography>
-                  </Grid>
-                )}
-              </Grid>
-            </Box>
-          )}
-
-          {/* Notes and Terms */}
-          {(invoiceData.notes || invoiceData.terms) && (
-            <Box sx={{ mt: 4 }}>
-              {invoiceData.notes && (
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="h6" fontWeight={600} gutterBottom>
-                    Notes:
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
-                    {invoiceData.notes}
-                  </Typography>
-                </Box>
-              )}
-              
-              {invoiceData.terms && (
-                <Box>
-                  <Typography variant="h6" fontWeight={600} gutterBottom>
-                    Terms & Conditions:
-                  </Typography>
-                  <Typography variant="body2">
-                    {invoiceData.terms}
-                  </Typography>
-                </Box>
-              )}
-            </Box>
+              <InfoItem 
+                icon={<CalendarIcon fontSize="small" />}
+                label="Scheduled Delivery"
+                value={formatDate(invoiceData.scheduledDeliveryDate)}
+              />
+            </Paper>
           )}
 
           {/* Footer */}
-          <Box sx={{ mt: 6, pt: 3, borderTop: `1px solid ${theme.palette.divider}` }}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+          <Box sx={{ 
+            mt: 6, 
+            pt: 3, 
+            borderTop: `2px solid ${theme.palette.divider}`,
+            textAlign: 'center'
+          }}>
+            <Typography variant="h6" fontWeight={600} gutterBottom sx={{ color: themeColors.primary }}>
+              Thank you for your business!
+            </Typography>
+            
+            <Grid container spacing={2} sx={{ mt: 2 }}>
+              <Grid item xs={12} sm={6}>
                 <Typography variant="body2" color="text.secondary">
-                  Thank you for your business!
+                  For any queries, contact us at {companyDetails.phone}
                 </Typography>
                 {companyDetails.website && (
                   <Typography variant="body2" color="text.secondary">
-                    Visit us at: {companyDetails.website}
+                    Visit: {companyDetails.website}
                   </Typography>
                 )}
               </Grid>
               
-              <Grid item xs={12} md={6}>
-                <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Generated on {formatDate(new Date())}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Powered by Business Manager
-                  </Typography>
-                </Box>
+              <Grid item xs={12} sm={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Generated on {formatDate(new Date())}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Powered by Business Manager System
+                </Typography>
               </Grid>
             </Grid>
           </Box>

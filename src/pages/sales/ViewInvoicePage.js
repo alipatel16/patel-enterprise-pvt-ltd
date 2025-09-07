@@ -32,16 +32,16 @@ import Layout from '../../components/common/Layout/Layout';
 import LoadingSpinner from '../../components/common/UI/LoadingSpinner';
 import ConfirmDialog from '../../components/common/UI/ConfirmDialog';
 import InvoicePreview from '../../components/sales/Invoice/InvoicePreview';
-import { useSales } from '../../hooks/useSales';
-import { useAuth } from '../../hooks/useAuth';
-import { useUserType } from '../../hooks/useUserType';
+import { SalesProvider, useSales } from '../../contexts/SalesContext/SalesContext'; // Fixed import
+import { useAuth } from '../../contexts/AuthContext/AuthContext'; // Fixed import
+import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext'; // Fixed import
 import { formatCurrency, formatDate } from '../../utils/helpers/formatHelpers';
 import { USER_ROLES, PAYMENT_STATUS, DELIVERY_STATUS } from '../../utils/constants/appConstants';
 
 /**
- * View Invoice page component
+ * View Invoice page content component (wrapped in providers)
  */
-const ViewInvoicePage = () => {
+const ViewInvoicePageContent = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -51,7 +51,7 @@ const ViewInvoicePage = () => {
     currentInvoice,
     loading,
     error,
-    deleteSale,
+    deleteInvoice,
     getInvoiceById,
     clearError
   } = useSales();
@@ -85,13 +85,15 @@ const ViewInvoicePage = () => {
   const handleDelete = async () => {
     try {
       setDeleteLoading(true);
-      await deleteSale(id);
-      navigate('/sales', { 
-        state: { 
-          message: 'Invoice deleted successfully',
-          severity: 'success'
-        }
-      });
+      const success = await deleteInvoice(id);
+      if (success) {
+        navigate('/sales', { 
+          state: { 
+            message: 'Invoice deleted successfully',
+            severity: 'success'
+          }
+        });
+      }
     } catch (err) {
       console.error('Error deleting invoice:', err);
     } finally {
@@ -99,6 +101,17 @@ const ViewInvoicePage = () => {
       setShowDeleteDialog(false);
     }
   };
+
+   const breadcrumbs = [
+    {
+      label: 'Sales',
+      path: '/sales'
+    },
+    {
+      label: currentInvoice?.invoiceNumber || 'Invoice Details',
+      path: `/sales/view/${id}`
+    }
+  ];
 
   // Handle print
   const handlePrint = () => {
@@ -170,7 +183,7 @@ const ViewInvoicePage = () => {
   }
 
   return (
-    <Layout>
+    <Layout title="Invoice Details" breadcrumbs={breadcrumbs}>
       <Container 
         maxWidth="xl" 
         sx={{ 
@@ -180,40 +193,6 @@ const ViewInvoicePage = () => {
       >
         {/* Header */}
         <Box sx={{ mb: 3 }}>
-          {/* Breadcrumbs */}
-          <Breadcrumbs sx={{ mb: 2, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-            <Link
-              color="inherit"
-              href="/dashboard"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate('/dashboard');
-              }}
-              sx={{ 
-                textDecoration: 'none',
-                '&:hover': { textDecoration: 'underline' }
-              }}
-            >
-              Dashboard
-            </Link>
-            <Link
-              color="inherit"
-              href="/sales"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate('/sales');
-              }}
-              sx={{ 
-                textDecoration: 'none',
-                '&:hover': { textDecoration: 'underline' }
-              }}
-            >
-              Sales
-            </Link>
-            <Typography color="text.primary">
-              Invoice #{currentInvoice.invoiceNumber}
-            </Typography>
-          </Breadcrumbs>
 
           {/* Page Title and Actions */}
           <Box 
@@ -242,7 +221,7 @@ const ViewInvoicePage = () => {
                 color="text.secondary"
                 sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
               >
-                {getDisplayName()} invoice for {currentInvoice.customer?.name}
+                {getDisplayName()} invoice for {currentInvoice.customerName}
               </Typography>
             </Box>
             
@@ -330,7 +309,7 @@ const ViewInvoicePage = () => {
               size={isMobile ? 'small' : 'medium'}
             />
             <Chip
-              label={formatDate(currentInvoice.date)}
+              label={formatDate(currentInvoice.saleDate)}
               variant="outlined"
               size={isMobile ? 'small' : 'medium'}
             />
@@ -372,6 +351,17 @@ const ViewInvoicePage = () => {
         />
       </Container>
     </Layout>
+  );
+};
+
+/**
+ * Main View Invoice page component with providers
+ */
+const ViewInvoicePage = () => {
+  return (
+    <SalesProvider>
+      <ViewInvoicePageContent />
+    </SalesProvider>
   );
 };
 
