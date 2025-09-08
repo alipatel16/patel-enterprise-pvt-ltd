@@ -19,9 +19,13 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  TextField,
+  InputAdornment,
+  CircularProgress,
   useTheme,
   useMediaQuery,
-  Avatar
+  Avatar,
+  Tooltip
 } from '@mui/material';
 import {
   Receipt as ReceiptIcon,
@@ -38,18 +42,38 @@ import {
   Add as AddIcon,
   Schedule as ScheduleIcon,
   FilterList as FilterIcon,
-  Clear as ClearIcon
+  Clear as ClearIcon,
+  AccountBalance as BankIcon,
+  CreditCard as CardIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  PaymentOutlined as RecordPaymentIcon,
+  Save as SaveIcon,
+  Close as CloseIcon,
+  DateRange as DateRangeIcon
 } from '@mui/icons-material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
+import salesService from '../../../services/api/salesService';
 import { useSales } from '../../../contexts/SalesContext/SalesContext';
 import { useAuth } from '../../../contexts/AuthContext/AuthContext';
 import SearchBar from '../../common/UI/SearchBar';
 import Pagination from '../../common/UI/Pagination';
-import { PAYMENT_STATUS, DELIVERY_STATUS } from '../../../utils/constants/appConstants';
+import { 
+  PAYMENT_STATUS, 
+  PAYMENT_STATUS_DISPLAY,
+  PAYMENT_METHODS,
+  PAYMENT_METHOD_DISPLAY,
+  DELIVERY_STATUS,
+  PAYMENT_CATEGORIES,
+  PAYMENT_CATEGORY_DISPLAY
+} from '../../../utils/constants/appConstants';
+import { useUserType } from '../../../contexts/UserTypeContext';
 
 const SalesHistory = () => {
   const navigate = useNavigate();
   const theme = useTheme();
+  const { userType } = useUserType();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -59,7 +83,7 @@ const SalesHistory = () => {
     error,
     loadSales,
     deleteInvoice,
-    clearError
+    clearError,
   } = useSales();
 
   const { canDelete } = useAuth();
@@ -72,6 +96,7 @@ const SalesHistory = () => {
   const [localFilters, setLocalFilters] = useState({
     paymentStatus: '',
     deliveryStatus: '',
+    originalPaymentCategory: '', // NEW - Filter by original payment category
     sortBy: 'createdAt',
     sortOrder: 'desc'
   });
@@ -86,6 +111,18 @@ const SalesHistory = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Payment recording state with date picker
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    paymentMethod: PAYMENT_METHODS.CASH,
+    reference: '',
+    notes: '',
+    paymentDate: new Date() // NEW - Add payment date
+  });
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+
   // Load sales on component mount
   useEffect(() => {
     loadSales();
@@ -98,10 +135,11 @@ const SalesHistory = () => {
     searchValue,
     localFilters.paymentStatus,
     localFilters.deliveryStatus,
+    localFilters.originalPaymentCategory, // NEW
     localFilters.sortBy,
     localFilters.sortOrder,
     pageSize,
-    customerIdFromUrl // Add customerIdFromUrl to dependencies
+    customerIdFromUrl
   ]);
 
   // Find customer name for filtered customer
@@ -148,6 +186,13 @@ const SalesHistory = () => {
       );
     }
 
+    // NEW - Apply original payment category filter
+    if (localFilters.originalPaymentCategory) {
+      filtered = filtered.filter(
+        (sale) => sale.originalPaymentCategory === localFilters.originalPaymentCategory
+      );
+    }
+
     // Apply sorting
     filtered.sort((a, b) => {
       let aValue = a[localFilters.sortBy] || '';
@@ -183,7 +228,7 @@ const SalesHistory = () => {
     });
 
     return filtered;
-  }, [sales, searchValue, localFilters, customerIdFromUrl]); // Add customerIdFromUrl to dependencies
+  }, [sales, searchValue, localFilters, customerIdFromUrl]);
 
   // Calculate client-side pagination
   const paginatedSales = useMemo(() => {
@@ -293,12 +338,123 @@ const SalesHistory = () => {
     setCurrentPage(1); // Reset to first page when page size changes
   };
 
-  // Get payment status color
+  // Payment recording functions
+  const canRecordPayment = (invoice) => {
+    if (!invoice) return false;
+    
+    const isPartialPayment = invoice.paymentStatus === PAYMENT_STATUS.FINANCE || 
+                            invoice.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER;
+    
+    if (!isPartialPayment) return false;
+    
+    const remainingBalance = getRemainingBalance(invoice);
+    return remainingBalance > 0;
+  };
+
+  const handleRecordPayment = () => {
+    if (!selectedInvoice) return;
+    
+    const remainingBalance = getRemainingBalance(selectedInvoice);
+    setPaymentForm({
+      amount: remainingBalance.toString(),
+      paymentMethod: PAYMENT_METHODS.CASH,
+      reference: '',
+      notes: '',
+      paymentDate: new Date() // NEW - Default to today
+    });
+    setPaymentError('');
+    setPaymentDialogOpen(true);
+    handleActionMenuClose();
+  };
+
+  const handlePaymentFormChange = (field) => (event) => {
+    setPaymentForm(prev => ({
+      ...prev,
+      [field]: event.target.value
+    }));
+  };
+
+  // NEW - Handle payment date change
+  const handlePaymentDateChange = (date) => {
+    setPaymentForm(prev => ({
+      ...prev,
+      paymentDate: date
+    }));
+  };
+
+  const handlePaymentSubmit = async () => {
+    if (!selectedInvoice) return;
+
+    const amount = parseFloat(paymentForm.amount);
+    const remainingBalance = getRemainingBalance(selectedInvoice);
+
+    // Validation
+    if (!amount || amount <= 0) {
+      setPaymentError('Please enter a valid payment amount');
+      return;
+    }
+
+    if (amount > remainingBalance) {
+      setPaymentError(`Payment amount cannot exceed remaining balance of ${formatCurrency(remainingBalance)}`);
+      return;
+    }
+
+    if (!paymentForm.paymentDate) {
+      setPaymentError('Please select a payment date');
+      return;
+    }
+
+    setPaymentLoading(true);
+    setPaymentError('');
+
+    try {
+      const paymentDetails = {
+        paymentMethod: paymentForm.paymentMethod,
+        reference: paymentForm.reference,
+        notes: paymentForm.notes,
+        paymentDate: paymentForm.paymentDate.toISOString(), // NEW - Include payment date
+        recordedBy: 'current-user-id',
+        recordedByName: 'Current User'
+      };
+      
+      await salesService.recordAdditionalPayment(userType, selectedInvoice?.id, amount, paymentDetails);
+      
+      // Reload sales
+      await loadSales();
+      
+      setPaymentDialogOpen(false);
+      setSelectedInvoice(null);
+      
+      console.log('Payment recorded successfully');
+      
+    } catch (error) {
+      setPaymentError(error.message || 'Failed to record payment');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handlePaymentCancel = () => {
+    setPaymentDialogOpen(false);
+    setPaymentForm({
+      amount: '',
+      paymentMethod: PAYMENT_METHODS.CASH,
+      reference: '',
+      notes: '',
+      paymentDate: new Date()
+    });
+    setPaymentError('');
+    setSelectedInvoice(null);
+  };
+
+  // Get payment status color with new statuses
   const getPaymentStatusColor = (status) => {
     const statusColors = {
       [PAYMENT_STATUS.PAID]: 'success',
       [PAYMENT_STATUS.PENDING]: 'error',
-      [PAYMENT_STATUS.EMI]: 'warning'
+      [PAYMENT_STATUS.EMI]: 'warning',
+      [PAYMENT_STATUS.FINANCE]: 'info',
+      [PAYMENT_STATUS.BANK_TRANSFER]: 'primary'
     };
     return statusColors[status] || 'default';
   };
@@ -311,6 +467,42 @@ const SalesHistory = () => {
       [DELIVERY_STATUS.SCHEDULED]: 'info'
     };
     return statusColors[status] || 'default';
+  };
+
+  // Get payment status icon
+  const getPaymentStatusIcon = (status) => {
+    const iconMap = {
+      [PAYMENT_STATUS.PAID]: <MoneyIcon />,
+      [PAYMENT_STATUS.PENDING]: <PaymentIcon />,
+      [PAYMENT_STATUS.EMI]: <ScheduleIcon />,
+      [PAYMENT_STATUS.FINANCE]: <BankIcon />,
+      [PAYMENT_STATUS.BANK_TRANSFER]: <CardIcon />
+    };
+    return iconMap[status] || <PaymentIcon />;
+  };
+
+  // Calculate actual amount paid for partial payments
+  const getActualAmountPaid = (sale) => {
+    if (sale.paymentStatus === PAYMENT_STATUS.FINANCE || 
+        sale.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER) {
+      return sale.paymentDetails?.downPayment || 0;
+    }
+    if (sale.paymentStatus === PAYMENT_STATUS.PAID || sale.fullyPaid) {
+      return sale.grandTotal || sale.totalAmount || 0;
+    }
+    if (sale.paymentStatus === PAYMENT_STATUS.EMI && sale.emiDetails?.schedule) {
+      return sale.emiDetails.schedule
+        .filter(emi => emi.paid)
+        .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
+    }
+    return 0;
+  };
+
+  // Get remaining balance
+  const getRemainingBalance = (sale) => {
+    const totalAmount = sale.grandTotal || sale.totalAmount || 0;
+    const paidAmount = getActualAmountPaid(sale);
+    return Math.max(0, totalAmount - paidAmount);
   };
 
   // Format date
@@ -331,16 +523,18 @@ const SalesHistory = () => {
     })}`;
   };
 
-  // Filter options for search bar
+  // Filter options for search bar - UPDATED with new payment categories
   const filterOptions = [
     {
       key: 'paymentStatus',
       label: 'Payment Status',
       options: [
         { value: '', label: 'All Payment Status' },
-        { value: PAYMENT_STATUS.PAID, label: 'Paid' },
-        { value: PAYMENT_STATUS.PENDING, label: 'Pending' },
-        { value: PAYMENT_STATUS.EMI, label: 'EMI' }
+        { value: PAYMENT_STATUS.PAID, label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.PAID] },
+        { value: PAYMENT_STATUS.PENDING, label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.PENDING] },
+        { value: PAYMENT_STATUS.EMI, label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.EMI] },
+        { value: PAYMENT_STATUS.FINANCE, label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.FINANCE] },
+        { value: PAYMENT_STATUS.BANK_TRANSFER, label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.BANK_TRANSFER] }
       ]
     },
     {
@@ -351,6 +545,18 @@ const SalesHistory = () => {
         { value: DELIVERY_STATUS.DELIVERED, label: 'Delivered' },
         { value: DELIVERY_STATUS.PENDING, label: 'Pending' },
         { value: DELIVERY_STATUS.SCHEDULED, label: 'Scheduled' }
+      ]
+    },
+    // NEW - Filter by original payment category
+    {
+      key: 'originalPaymentCategory',
+      label: 'Payment Category',
+      options: [
+        { value: '', label: 'All Payment Categories' },
+        ...Object.entries(PAYMENT_CATEGORY_DISPLAY).map(([key, label]) => ({
+          value: key,
+          label
+        }))
       ]
     }
   ];
@@ -460,7 +666,7 @@ const SalesHistory = () => {
               }
             </Typography>
             <Typography variant="body2" color="text.secondary" mb={3}>
-              {searchValue || localFilters.paymentStatus || localFilters.deliveryStatus ? 
+              {searchValue || localFilters.paymentStatus || localFilters.deliveryStatus || localFilters.originalPaymentCategory ? 
                 'Try adjusting your search criteria or filters.' :
                 customerIdFromUrl ?
                   `${filteredCustomerName} doesn't have any sales yet. Create their first invoice to get started.` :
@@ -514,22 +720,26 @@ const SalesHistory = () => {
                   </Grid>
                   <Grid item xs={6} sm={3}>
                     <Typography variant="body2" color="text.secondary">
-                      EMI Invoices
+                      Amount Paid
                     </Typography>
-                    <Typography variant="h6" color="warning.main">
-                      {filteredAndSortedSales.filter(sale => 
-                        sale.paymentStatus === PAYMENT_STATUS.EMI
-                      ).length}
+                    <Typography variant="h6" color="success.main">
+                      {formatCurrency(
+                        filteredAndSortedSales.reduce((sum, sale) => 
+                          sum + getActualAmountPaid(sale), 0
+                        )
+                      )}
                     </Typography>
                   </Grid>
                   <Grid item xs={6} sm={3}>
                     <Typography variant="body2" color="text.secondary">
-                      Pending Deliveries
+                      Outstanding
                     </Typography>
                     <Typography variant="h6" color="error.main">
-                      {filteredAndSortedSales.filter(sale => 
-                        sale.deliveryStatus !== DELIVERY_STATUS.DELIVERED
-                      ).length}
+                      {formatCurrency(
+                        filteredAndSortedSales.reduce((sum, sale) => 
+                          sum + getRemainingBalance(sale), 0
+                        )
+                      )}
                     </Typography>
                   </Grid>
                 </Grid>
@@ -538,140 +748,211 @@ const SalesHistory = () => {
           )}
 
           <Grid container spacing={3}>
-            {paginatedSales.map((sale) => (
-              <Grid item xs={12} sm={6} lg={4} key={sale.id}>
-                <Card
-                  sx={{
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease-in-out',
-                    height: 280, // Fixed height for consistency
-                    display: 'flex',
-                    flexDirection: 'column',
-                    '&:hover': {
-                      transform: 'translateY(-2px)',
-                      boxShadow: 4
-                    }
-                  }}
-                  onClick={() => navigate(`/sales/view/${sale.id}`)}
-                >
-                  <CardContent
+            {paginatedSales.map((sale) => {
+              const actualPaid = getActualAmountPaid(sale);
+              const remainingBalance = getRemainingBalance(sale);
+              const isPartialPayment = sale.paymentStatus === PAYMENT_STATUS.FINANCE || 
+                                     sale.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER;
+
+              return (
+                <Grid item xs={12} sm={6} lg={4} key={sale.id}>
+                  <Card
                     sx={{
-                      flex: 1,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease-in-out',
+                      height: 350, // Increased height to accommodate new fields
                       display: 'flex',
                       flexDirection: 'column',
-                      p: 2.5
+                      '&:hover': {
+                        transform: 'translateY(-2px)',
+                        boxShadow: 4
+                      }
                     }}
+                    onClick={() => navigate(`/sales/view/${sale.id}`)}
                   >
-                    {/* Header */}
-                    <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={2}>
-                      <Box display="flex" alignItems="center" gap={2} flex={1} minWidth={0}>
-                        <Avatar
-                          sx={{
-                            bgcolor: theme.palette.primary.main,
-                            color: 'white',
-                            width: 40,
-                            height: 40
-                          }}
+                    <CardContent
+                      sx={{
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        p: 2.5
+                      }}
+                    >
+                      {/* Header */}
+                      <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={2}>
+                        <Box display="flex" alignItems="center" gap={2} flex={1} minWidth={0}>
+                          <Avatar
+                            sx={{
+                              bgcolor: theme.palette.primary.main,
+                              color: 'white',
+                              width: 40,
+                              height: 40
+                            }}
+                          >
+                            <ReceiptIcon />
+                          </Avatar>
+                          <Box minWidth={0} flex={1}>
+                            <Typography variant="h6" component="h3" noWrap sx={{ fontSize: '1rem', fontWeight: 600 }}>
+                              {sale.invoiceNumber}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: '0.75rem' }}>
+                              {formatDate(sale.saleDate || sale.createdAt)}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        
+                        <IconButton
+                          size="small"
+                          onClick={(e) => handleActionMenuOpen(e, sale)}
+                          sx={{ mt: -0.5 }}
                         >
-                          <ReceiptIcon />
-                        </Avatar>
-                        <Box minWidth={0} flex={1}>
-                          <Typography variant="h6" component="h3" noWrap sx={{ fontSize: '1rem', fontWeight: 600 }}>
-                            {sale.invoiceNumber}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: '0.75rem' }}>
-                            {formatDate(sale.saleDate || sale.createdAt)}
-                          </Typography>
-                        </Box>
-                      </Box>
-                      
-                      <IconButton
-                        size="small"
-                        onClick={(e) => handleActionMenuOpen(e, sale)}
-                        sx={{ mt: -0.5 }}
-                      >
-                        <MoreVertIcon />
-                      </IconButton>
-                    </Box>
-
-                    {/* Customer Info - Fixed height section */}
-                    <Box mb={2} sx={{ flex: 1, minHeight: 120 }}>
-                      {/* Only show customer name if not filtered by customer */}
-                      {!customerIdFromUrl && (
-                        <Box display="flex" alignItems="center" gap={1} mb={1}>
-                          <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                          <Typography variant="body2" noWrap sx={{ fontSize: '0.875rem' }}>
-                            {sale.customerName}
-                          </Typography>
-                        </Box>
-                      )}
-                      
-                      {sale.customerPhone && (
-                        <Box display="flex" alignItems="center" gap={1} mb={1}>
-                          <PhoneIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                          <Typography variant="body2" noWrap sx={{ fontSize: '0.875rem' }}>
-                            {sale.customerPhone}
-                          </Typography>
-                        </Box>
-                      )}
-                      
-                      {/* Amount */}
-                      <Box display="flex" alignItems="center" gap={1} mb={2}>
-                        <MoneyIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="h6" color="primary.main" fontWeight="bold" sx={{ fontSize: '1.1rem' }}>
-                          {formatCurrency(sale.grandTotal || sale.totalAmount)}
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    {/* Status Chips and Additional Info - Fixed bottom section */}
-                    <Box mt="auto">
-                      {/* Status Chips */}
-                      <Box display="flex" gap={1} flexWrap="wrap" mb={2}>
-                        <Chip
-                          label={sale.paymentStatus?.toUpperCase()}
-                          size="small"
-                          color={getPaymentStatusColor(sale.paymentStatus)}
-                          icon={<PaymentIcon />}
-                          sx={{ textTransform: 'capitalize', fontSize: '0.75rem', height: 24 }}
-                        />
-                        <Chip
-                          label={sale.deliveryStatus?.toUpperCase()}
-                          size="small"
-                          color={getDeliveryStatusColor(sale.deliveryStatus)}
-                          icon={<DeliveryIcon />}
-                          sx={{ textTransform: 'capitalize', fontSize: '0.75rem', height: 24 }}
-                        />
+                          <MoreVertIcon />
+                        </IconButton>
                       </Box>
 
-                      {/* Additional Info */}
-                      <Box>
-                        {sale.paymentStatus === PAYMENT_STATUS.EMI && (
+                      {/* Customer Info - Fixed height section */}
+                      <Box mb={2} sx={{ flex: 1, minHeight: 160 }}>
+                        {/* Only show customer name if not filtered by customer */}
+                        {!customerIdFromUrl && (
                           <Box display="flex" alignItems="center" gap={1} mb={1}>
-                            <ScheduleIcon sx={{ fontSize: 16, color: 'warning.main' }} />
-                            <Typography variant="caption" color="warning.main">
-                              EMI Payment Plan
+                            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                            <Typography variant="body2" noWrap sx={{ fontSize: '0.875rem' }}>
+                              {sale.customerName}
                             </Typography>
                           </Box>
                         )}
                         
-                        {sale.deliveryStatus === DELIVERY_STATUS.SCHEDULED && sale.scheduledDeliveryDate && (
-                          <Box display="flex" alignItems="center" gap={1}>
-                            <CalendarIcon sx={{ fontSize: 16, color: 'info.main' }} />
-                            <Typography variant="caption" color="info.main">
-                              Delivery: {formatDate(sale.scheduledDeliveryDate)}
+                        {sale.customerPhone && (
+                          <Box display="flex" alignItems="center" gap={1} mb={1}>
+                            <PhoneIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                            <Typography variant="body2" noWrap sx={{ fontSize: '0.875rem' }}>
+                              {sale.customerPhone}
                             </Typography>
                           </Box>
                         )}
+                        
+                        {/* Total Amount */}
+                        <Box display="flex" alignItems="center" gap={1} mb={1}>
+                          <MoneyIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                          <Typography variant="h6" color="primary.main" fontWeight="bold" sx={{ fontSize: '1.1rem' }}>
+                            {formatCurrency(sale.grandTotal || sale.totalAmount)}
+                          </Typography>
+                        </Box>
+
+                        {/* NEW - Show original payment category */}
+                        {sale.originalPaymentCategory && (
+                          <Box mb={1}>
+                            <Chip
+                              label={PAYMENT_CATEGORY_DISPLAY[sale.originalPaymentCategory] || sale.originalPaymentCategory}
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontSize: '0.7rem', height: 20 }}
+                            />
+                          </Box>
+                        )}
+
+                        {/* Payment Progress for Partial Payments */}
+                        {isPartialPayment && (
+                          <Box mt={1}>
+                            <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                              <TrendingUpIcon sx={{ fontSize: 14, color: 'success.main' }} />
+                              <Typography variant="caption" color="success.main">
+                                Paid: {formatCurrency(actualPaid)}
+                              </Typography>
+                            </Box>
+                            {remainingBalance > 0 && (
+                              <Box display="flex" alignItems="center" gap={1}>
+                                <TrendingDownIcon sx={{ fontSize: 14, color: 'warning.main' }} />
+                                <Typography variant="caption" color="warning.main">
+                                  Balance: {formatCurrency(remainingBalance)}
+                                </Typography>
+                              </Box>
+                            )}
+                          </Box>
+                        )}
+
+                        {/* NEW - Show if fully paid flag */}
+                        {sale.fullyPaid && sale.paymentStatus !== PAYMENT_STATUS.PAID && (
+                          <Box mt={1}>
+                            <Chip
+                              label="Fully Paid"
+                              size="small"
+                              color="success"
+                              sx={{ fontSize: '0.7rem', height: 20 }}
+                            />
+                          </Box>
+                        )}
                       </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
+
+                      {/* Status Chips and Additional Info */}
+                      <Box mt="auto">
+                        {/* Status Chips */}
+                        <Box display="flex" gap={1} flexWrap="wrap" mb={2}>
+                          <Tooltip title={PAYMENT_STATUS_DISPLAY[sale.paymentStatus] || sale.paymentStatus}>
+                            <Chip
+                              label={sale.paymentStatus?.toUpperCase()}
+                              size="small"
+                              color={getPaymentStatusColor(sale.paymentStatus)}
+                              icon={getPaymentStatusIcon(sale.paymentStatus)}
+                              sx={{ textTransform: 'capitalize', fontSize: '0.75rem', height: 24 }}
+                            />
+                          </Tooltip>
+                          <Chip
+                            label={sale.deliveryStatus?.toUpperCase()}
+                            size="small"
+                            color={getDeliveryStatusColor(sale.deliveryStatus)}
+                            icon={<DeliveryIcon />}
+                            sx={{ textTransform: 'capitalize', fontSize: '0.75rem', height: 24 }}
+                          />
+                        </Box>
+
+                        {/* Additional Info */}
+                        <Box>
+                          {sale.paymentStatus === PAYMENT_STATUS.EMI && (
+                            <Box display="flex" alignItems="center" gap={1} mb={1}>
+                              <ScheduleIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                              <Typography variant="caption" color="warning.main">
+                                EMI Payment Plan
+                              </Typography>
+                            </Box>
+                          )}
+
+                          {sale.paymentStatus === PAYMENT_STATUS.FINANCE && sale.paymentDetails?.financeCompany && (
+                            <Box display="flex" alignItems="center" gap={1} mb={1}>
+                              <BankIcon sx={{ fontSize: 16, color: 'info.main' }} />
+                              <Typography variant="caption" color="info.main">
+                                Finance: {sale.paymentDetails.financeCompany}
+                              </Typography>
+                            </Box>
+                          )}
+
+                          {sale.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER && sale.paymentDetails?.bankName && (
+                            <Box display="flex" alignItems="center" gap={1} mb={1}>
+                              <CardIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                              <Typography variant="caption" color="primary.main">
+                                Bank: {sale.paymentDetails.bankName}
+                              </Typography>
+                            </Box>
+                          )}
+                          
+                          {sale.deliveryStatus === DELIVERY_STATUS.SCHEDULED && sale.scheduledDeliveryDate && (
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <CalendarIcon sx={{ fontSize: 16, color: 'info.main' }} />
+                              <Typography variant="caption" color="info.main">
+                                Delivery: {formatDate(sale.scheduledDeliveryDate)}
+                              </Typography>
+                            </Box>
+                          )}
+                        </Box>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
           </Grid>
 
-          {/* Pagination - Now using client-side pagination info */}
+          {/* Pagination */}
           <Box mt={4}>
             <Pagination
               currentPage={paginationInfo.currentPage}
@@ -718,6 +999,16 @@ const SalesHistory = () => {
           <ListItemText>Edit Invoice</ListItemText>
         </MenuItem>
 
+        {/* Record Payment option */}
+        {canRecordPayment(selectedInvoice) && (
+          <MenuItem onClick={handleRecordPayment}>
+            <ListItemIcon>
+              <RecordPaymentIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Record Payment</ListItemText>
+          </MenuItem>
+        )}
+
         {canDelete() && (
           <MenuItem onClick={handleDeleteClick}>
             <ListItemIcon>
@@ -753,6 +1044,178 @@ const SalesHistory = () => {
             disabled={deleting}
           >
             {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Payment Recording Dialog with Date Picker */}
+      <Dialog
+        open={paymentDialogOpen}
+        onClose={paymentLoading ? undefined : handlePaymentCancel}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <RecordPaymentIcon color="primary" />
+          Record Payment - {selectedInvoice?.invoiceNumber}
+        </DialogTitle>
+        <DialogContent>
+          {selectedInvoice && (
+            <Box sx={{ mb: 3 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Customer:
+                  </Typography>
+                  <Typography variant="body1" fontWeight={500}>
+                    {selectedInvoice.customerName}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Invoice Total:
+                  </Typography>
+                  <Typography variant="body1" fontWeight={500}>
+                    {formatCurrency(selectedInvoice.grandTotal || selectedInvoice.totalAmount)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Amount Paid:
+                  </Typography>
+                  <Typography variant="body1" fontWeight={500} color="success.main">
+                    {formatCurrency(getActualAmountPaid(selectedInvoice))}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Remaining Balance:
+                  </Typography>
+                  <Typography variant="body1" fontWeight={500} color="warning.main">
+                    {formatCurrency(getRemainingBalance(selectedInvoice))}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+
+          {paymentError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {paymentError}
+            </Alert>
+          )}
+
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Payment Amount"
+                type="number"
+                value={paymentForm.amount}
+                onChange={handlePaymentFormChange('amount')}
+                disabled={paymentLoading}
+                inputProps={{ min: 0, max: selectedInvoice ? getRemainingBalance(selectedInvoice) : 0, step: 0.01 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">₹</InputAdornment>
+                  ),
+                }}
+                helperText={selectedInvoice ? `Maximum: ${formatCurrency(getRemainingBalance(selectedInvoice))}` : ''}
+              />
+            </Grid>
+
+            {/* NEW - Payment Date Picker */}
+            <Grid item xs={12} sm={6}>
+              <DatePicker
+                label="Payment Date"
+                value={paymentForm.paymentDate}
+                onChange={handlePaymentDateChange}
+                disabled={paymentLoading}
+                maxDate={new Date()}
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    InputProps: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <DateRangeIcon />
+                        </InputAdornment>
+                      ),
+                    },
+                  },
+                }}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                select
+                label="Payment Method"
+                value={paymentForm.paymentMethod}
+                onChange={handlePaymentFormChange('paymentMethod')}
+                disabled={paymentLoading}
+                SelectProps={{
+                  native: true,
+                }}
+              >
+                <option value={PAYMENT_METHODS.CASH}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CASH]}</option>
+                <option value={PAYMENT_METHODS.CARD}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CARD]}</option>
+                <option value={PAYMENT_METHODS.CREDIT_CARD}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CREDIT_CARD]}</option>
+                <option value={PAYMENT_METHODS.UPI}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.UPI]}</option>
+                <option value={PAYMENT_METHODS.NET_BANKING}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.NET_BANKING]}</option>
+                <option value={PAYMENT_METHODS.CHEQUE}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CHEQUE]}</option>
+                <option value={PAYMENT_METHODS.BANK_TRANSFER}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.BANK_TRANSFER]}</option>
+              </TextField>
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Payment Reference"
+                placeholder="Transaction ID, Cheque No, etc."
+                value={paymentForm.reference}
+                onChange={handlePaymentFormChange('reference')}
+                disabled={paymentLoading}
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Notes"
+                placeholder="Additional notes about this payment..."
+                value={paymentForm.notes}
+                onChange={handlePaymentFormChange('notes')}
+                disabled={paymentLoading}
+                multiline
+                rows={2}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={handlePaymentCancel} 
+            disabled={paymentLoading}
+            startIcon={<CloseIcon />}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handlePaymentSubmit}
+            color="primary"
+            variant="contained"
+            disabled={paymentLoading || !paymentForm.amount || !paymentForm.paymentDate}
+            startIcon={
+              paymentLoading ? (
+                <CircularProgress size={20} color="inherit" />
+              ) : (
+                <SaveIcon />
+              )
+            }
+          >
+            {paymentLoading ? 'Recording...' : 'Record Payment'}
           </Button>
         </DialogActions>
       </Dialog>

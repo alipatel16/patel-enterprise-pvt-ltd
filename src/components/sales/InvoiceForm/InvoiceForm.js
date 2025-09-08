@@ -25,6 +25,8 @@ import {
   useMediaQuery,
   CircularProgress,
   MenuItem,
+  Chip,
+  InputAdornment
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -33,6 +35,10 @@ import {
   Cancel as CancelIcon,
   Receipt as ReceiptIcon,
   Calculate as CalculateIcon,
+  Payment as PaymentIcon,
+  AccountBalance as BankIcon,
+  AttachMoney as MoneyIcon,
+  CreditCard as CreditCardIcon
 } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 
@@ -41,7 +47,11 @@ import { useEmployee } from "../../../contexts/EmployeeContext/EmployeeContext";
 import { calculateGSTWithSlab } from "../../../utils/helpers/gstCalculator";
 import {
   PAYMENT_STATUS,
+  PAYMENT_STATUS_DISPLAY,
+  PAYMENT_METHODS,
+  PAYMENT_METHOD_DISPLAY,
   DELIVERY_STATUS,
+  getPaymentCategory
 } from "../../../utils/constants/appConstants";
 
 // GST Tax Slabs - Define inline to avoid import issues
@@ -100,6 +110,16 @@ const InvoiceForm = ({
     paymentStatus: PAYMENT_STATUS.PAID,
     deliveryStatus: DELIVERY_STATUS.DELIVERED,
     scheduledDeliveryDate: null,
+    remarks: "", // Remarks field
+    // Payment details for partial payments
+    paymentDetails: {
+      downPayment: 0,
+      remainingBalance: 0,
+      paymentMethod: PAYMENT_METHODS.CASH,
+      bankName: "",
+      financeCompany: "",
+      paymentReference: ""
+    },
     emiDetails: {
       monthlyAmount: 0,
       startDate: null,
@@ -147,6 +167,15 @@ const InvoiceForm = ({
         paymentStatus: invoice.paymentStatus || PAYMENT_STATUS.PAID,
         deliveryStatus: invoice.deliveryStatus || DELIVERY_STATUS.DELIVERED,
         scheduledDeliveryDate,
+        remarks: invoice.remarks || "",
+        paymentDetails: {
+          downPayment: invoice.paymentDetails?.downPayment || 0,
+          remainingBalance: invoice.paymentDetails?.remainingBalance || 0,
+          paymentMethod: invoice.paymentDetails?.paymentMethod || PAYMENT_METHODS.CASH,
+          bankName: invoice.paymentDetails?.bankName || "",
+          financeCompany: invoice.paymentDetails?.financeCompany || "",
+          paymentReference: invoice.paymentDetails?.paymentReference || ""
+        },
         emiDetails: {
           monthlyAmount: invoice.emiDetails?.monthlyAmount || 0,
           startDate: emiStartDate,
@@ -223,6 +252,23 @@ const InvoiceForm = ({
     calculateTotals();
   }, [formData.items, formData.customerState, formData.includeGST]);
 
+  // Auto-calculate remaining balance for finance/bank transfer
+  useEffect(() => {
+    if (formData.paymentStatus === PAYMENT_STATUS.FINANCE || 
+        formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER) {
+      const downPayment = parseFloat(formData.paymentDetails.downPayment) || 0;
+      const remainingBalance = Math.max(0, calculations.grandTotal - downPayment);
+      
+      setFormData(prev => ({
+        ...prev,
+        paymentDetails: {
+          ...prev.paymentDetails,
+          remainingBalance: Math.round(remainingBalance * 100) / 100
+        }
+      }));
+    }
+  }, [calculations.grandTotal, formData.paymentDetails.downPayment, formData.paymentStatus]);
+
   // Auto-calculate EMI installments when relevant values change
   useEffect(() => {
     if (formData.paymentStatus === PAYMENT_STATUS.EMI && 
@@ -232,15 +278,8 @@ const InvoiceForm = ({
       const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
       const calculatedInstallments = Math.ceil(calculations.grandTotal / monthlyAmount);
       
-      console.log('EMI Auto-Calculation:');
-      console.log('- Grand Total:', calculations.grandTotal);
-      console.log('- Monthly Amount:', monthlyAmount);
-      console.log('- Calculated Installments:', calculatedInstallments);
-      console.log('- Current Installments:', formData.emiDetails.numberOfInstallments);
-      
       // Only update if the calculated value is different from current value
       if (calculatedInstallments !== formData.emiDetails.numberOfInstallments) {
-        console.log('Updating EMI installments from', formData.emiDetails.numberOfInstallments, 'to', calculatedInstallments);
         setFormData((prev) => ({
           ...prev,
           emiDetails: {
@@ -375,6 +414,18 @@ const InvoiceForm = ({
     }));
   };
 
+  // Handle payment details change
+  const handlePaymentDetailsChange = (field) => (event) => {
+    const value = event.target.value;
+    setFormData((prev) => ({
+      ...prev,
+      paymentDetails: {
+        ...prev.paymentDetails,
+        [field]: value,
+      },
+    }));
+  };
+
   // Handle payment status change with EMI calculation
   const handlePaymentStatusChange = (event) => {
     const newStatus = event.target.value;
@@ -383,6 +434,21 @@ const InvoiceForm = ({
         ...prev,
         paymentStatus: newStatus,
       };
+
+      // Reset payment details when changing status
+      if (newStatus === PAYMENT_STATUS.FINANCE || newStatus === PAYMENT_STATUS.BANK_TRANSFER) {
+        updatedData.paymentDetails = {
+          ...prev.paymentDetails,
+          downPayment: 0,
+          remainingBalance: calculations.grandTotal
+        };
+      } else if (newStatus === PAYMENT_STATUS.PAID) {
+        updatedData.paymentDetails = {
+          ...prev.paymentDetails,
+          downPayment: calculations.grandTotal,
+          remainingBalance: 0
+        };
+      }
 
       // If switching to EMI and we have values, calculate installments immediately
       if (newStatus === PAYMENT_STATUS.EMI && 
@@ -393,7 +459,6 @@ const InvoiceForm = ({
           ...prev.emiDetails,
           numberOfInstallments
         };
-        console.log('Payment Status Change - Calculating EMI installments:', numberOfInstallments);
       }
 
       return updatedData;
@@ -421,7 +486,6 @@ const InvoiceForm = ({
       if (field === 'monthlyAmount' && value > 0 && calculations.grandTotal > 0) {
         const numberOfInstallments = Math.ceil(calculations.grandTotal / parseFloat(value));
         updatedEmiDetails.numberOfInstallments = numberOfInstallments;
-        console.log('EMI Monthly Amount Change - Calculating installments:', numberOfInstallments);
       }
 
       return {
@@ -429,6 +493,16 @@ const InvoiceForm = ({
         emiDetails: updatedEmiDetails,
       };
     });
+  };
+
+  const handleEMIStartDateChange = (date) => {
+    setFormData((prev) => ({
+      ...prev,
+      emiDetails: {
+        ...prev.emiDetails,
+        startDate: date,
+      },
+    }));
   };
 
   // Validate form
@@ -459,6 +533,31 @@ const InvoiceForm = ({
       }
     });
 
+    // Validate finance/bank transfer fields
+    if (formData.paymentStatus === PAYMENT_STATUS.FINANCE) {
+      if (!formData.paymentDetails.financeCompany) {
+        errors.financeCompany = "Finance company is required";
+      }
+      if (parseFloat(formData.paymentDetails.downPayment) < 0) {
+        errors.downPayment = "Down payment cannot be negative";
+      }
+      if (parseFloat(formData.paymentDetails.downPayment) > calculations.grandTotal) {
+        errors.downPayment = "Down payment cannot exceed total amount";
+      }
+    }
+
+    if (formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER) {
+      if (!formData.paymentDetails.bankName) {
+        errors.bankName = "Bank name is required";
+      }
+      if (parseFloat(formData.paymentDetails.downPayment) < 0) {
+        errors.downPayment = "Down payment cannot be negative";
+      }
+      if (parseFloat(formData.paymentDetails.downPayment) > calculations.grandTotal) {
+        errors.downPayment = "Down payment cannot exceed total amount";
+      }
+    }
+
     if (formData.paymentStatus === PAYMENT_STATUS.EMI) {
       if (
         !formData.emiDetails.monthlyAmount ||
@@ -482,18 +581,7 @@ const InvoiceForm = ({
       errors.deliveryDate = "Scheduled delivery date is required";
     }
 
-    console.log("Validation errors:", errors);
     return errors;
-  };
-
-  const handleEMIStartDateChange = (date) => {
-    setFormData((prev) => ({
-      ...prev,
-      emiDetails: {
-        ...prev.emiDetails,
-        startDate: date,
-      },
-    }));
   };
 
   // Generate EMI schedule with proper installment calculation
@@ -511,11 +599,6 @@ const InvoiceForm = ({
     const startDate = new Date(formData.emiDetails.startDate);
     const totalAmount = calculations.grandTotal;
     const numberOfInstallments = parseInt(formData.emiDetails.numberOfInstallments);
-
-    console.log('Generating EMI Schedule:');
-    console.log('- Monthly Amount:', monthlyAmount);
-    console.log('- Number of Installments:', numberOfInstallments);
-    console.log('- Total Amount:', totalAmount);
 
     const schedule = [];
     for (let i = 0; i < numberOfInstallments; i++) {
@@ -535,7 +618,6 @@ const InvoiceForm = ({
       });
     }
 
-    console.log('Generated EMI Schedule:', schedule);
     return schedule;
   };
 
@@ -565,13 +647,17 @@ const InvoiceForm = ({
           : null,
     };
 
-    console.log('Submitting Invoice Data:', invoiceData);
-    console.log('EMI Details in submission:', invoiceData.emiDetails);
-
     if (onSubmit) {
       await onSubmit(invoiceData);
     }
   };
+
+  // Check if payment requires additional fields
+  const requiresPartialPayment = formData.paymentStatus === PAYMENT_STATUS.FINANCE || 
+                                 formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER;
+
+  // NEW - Get current payment category for display
+  const currentPaymentCategory = getPaymentCategory(formData.paymentStatus, formData.paymentDetails.paymentMethod);
 
   return (
     <Box component="form" onSubmit={handleSubmit}>
@@ -930,6 +1016,27 @@ const InvoiceForm = ({
               </TableContainer>
             </CardContent>
           </Card>
+
+          {/* Remarks Section */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Additional Information
+              </Typography>
+
+              <TextField
+                fullWidth
+                label="Remarks"
+                placeholder="Add any additional notes or remarks..."
+                value={formData.remarks}
+                onChange={handleChange("remarks")}
+                disabled={loading}
+                multiline
+                rows={3}
+                helperText="Optional: Add any special notes or instructions"
+              />
+            </CardContent>
+          </Card>
         </Grid>
 
         {/* Right Column */}
@@ -990,7 +1097,8 @@ const InvoiceForm = ({
           {/* Payment Options */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <PaymentIcon />
                 Payment Options
               </Typography>
 
@@ -1002,13 +1110,277 @@ const InvoiceForm = ({
                   onChange={handlePaymentStatusChange}
                   disabled={loading}
                 >
-                  <MenuItem value={PAYMENT_STATUS.PAID}>Paid in Full</MenuItem>
-                  <MenuItem value={PAYMENT_STATUS.EMI}>EMI Payment</MenuItem>
+                  <MenuItem value={PAYMENT_STATUS.PAID}>
+                    {PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.PAID]}
+                  </MenuItem>
+                  <MenuItem value={PAYMENT_STATUS.EMI}>
+                    {PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.EMI]}
+                  </MenuItem>
+                  <MenuItem value={PAYMENT_STATUS.FINANCE}>
+                    {PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.FINANCE]}
+                  </MenuItem>
+                  <MenuItem value={PAYMENT_STATUS.BANK_TRANSFER}>
+                    {PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.BANK_TRANSFER]}
+                  </MenuItem>
                   <MenuItem value={PAYMENT_STATUS.PENDING}>
-                    Payment Pending
+                    {PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.PENDING]}
+                  </MenuItem>
+                  <MenuItem value={PAYMENT_STATUS.CREDIT_CARD}>
+                    {PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.CREDIT_CARD]}
                   </MenuItem>
                 </TextField>
               </FormControl>
+
+              {/* NEW - Show current payment category */}
+              {currentPaymentCategory && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Payment Category:
+                  </Typography>
+                  <Chip
+                    label={currentPaymentCategory.replace(/_/g, ' ').toUpperCase()}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                </Box>
+              )}
+
+              {/* PAID Status - Show payment method selection */}
+              {formData.paymentStatus === PAYMENT_STATUS.PAID && (
+                <Box>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    <Typography variant="body2">
+                      Select payment method for full payment
+                    </Typography>
+                  </Alert>
+
+                  <TextField
+                    fullWidth
+                    select
+                    label="Payment Method"
+                    value={formData.paymentDetails.paymentMethod}
+                    onChange={handlePaymentDetailsChange("paymentMethod")}
+                    disabled={loading}
+                    sx={{ mb: 2 }}
+                    SelectProps={{
+                      native: true,
+                    }}
+                  >
+                    <option value={PAYMENT_METHODS.CASH}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CASH]}</option>
+                    <option value={PAYMENT_METHODS.CARD}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CARD]}</option>
+                    <option value={PAYMENT_METHODS.CREDIT_CARD}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CREDIT_CARD]}</option>
+                    <option value={PAYMENT_METHODS.UPI}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.UPI]}</option>
+                    <option value={PAYMENT_METHODS.NET_BANKING}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.NET_BANKING]}</option>
+                    <option value={PAYMENT_METHODS.CHEQUE}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CHEQUE]}</option>
+                    <option value={PAYMENT_METHODS.BANK_TRANSFER}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.BANK_TRANSFER]}</option>
+                  </TextField>
+
+                  {/* Payment Method Icons */}
+                  <Box sx={{ 
+                    mt: 2, 
+                    p: 2, 
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)', 
+                    borderRadius: 1,
+                    border: '1px solid rgba(76, 175, 80, 0.2)'
+                  }}>
+                    <Typography variant="subtitle2" color="success.main" gutterBottom>
+                      Full Payment - {PAYMENT_METHOD_DISPLAY[formData.paymentDetails.paymentMethod]}
+                    </Typography>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      {formData.paymentDetails.paymentMethod === PAYMENT_METHODS.CREDIT_CARD && <CreditCardIcon color="success" />}
+                      {formData.paymentDetails.paymentMethod === PAYMENT_METHODS.CASH && <MoneyIcon color="success" />}
+                      <Typography variant="body2" fontWeight={600}>
+                        Amount: ₹{calculations.grandTotal.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+
+              {/* Finance Payment Details */}
+              {formData.paymentStatus === PAYMENT_STATUS.FINANCE && (
+                <Box>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    <Typography variant="body2">
+                      Configure finance payment with down payment amount
+                    </Typography>
+                  </Alert>
+
+                  <TextField
+                    fullWidth
+                    label="Finance Company"
+                    placeholder="e.g., ICICI Bank, HDFC Bank"
+                    value={formData.paymentDetails.financeCompany}
+                    onChange={handlePaymentDetailsChange("financeCompany")}
+                    error={!!formErrors.financeCompany}
+                    helperText={formErrors.financeCompany}
+                    disabled={loading}
+                    sx={{ mb: 2 }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <BankIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+
+                  <TextField
+                    fullWidth
+                    label="Down Payment Amount"
+                    type="number"
+                    value={formData.paymentDetails.downPayment}
+                    onChange={handlePaymentDetailsChange("downPayment")}
+                    error={!!formErrors.downPayment}
+                    helperText={formErrors.downPayment || `Remaining: ₹${formData.paymentDetails.remainingBalance.toFixed(2)}`}
+                    disabled={loading}
+                    sx={{ mb: 2 }}
+                    inputProps={{ min: 0, max: calculations.grandTotal, step: 0.01 }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          ₹
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+
+                  <TextField
+                    fullWidth
+                    label="Payment Reference"
+                    placeholder="Finance application number or reference"
+                    value={formData.paymentDetails.paymentReference}
+                    onChange={handlePaymentDetailsChange("paymentReference")}
+                    disabled={loading}
+                    sx={{ mb: 2 }}
+                  />
+
+                  {/* Payment Breakdown */}
+                  <Box sx={{ 
+                    mt: 2, 
+                    p: 2, 
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)', 
+                    borderRadius: 1,
+                    border: '1px solid rgba(76, 175, 80, 0.2)'
+                  }}>
+                    <Typography variant="subtitle2" color="success.main" gutterBottom>
+                      Finance Payment Breakdown:
+                    </Typography>
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2">Down Payment:</Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        ₹{parseFloat(formData.paymentDetails.downPayment || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2">Remaining (Finance):</Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        ₹{formData.paymentDetails.remainingBalance.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Divider sx={{ my: 1 }} />
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2" fontWeight={600}>Total:</Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        ₹{calculations.grandTotal.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+
+              {/* Bank Transfer Payment Details */}
+              {formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER && (
+                <Box>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    <Typography variant="body2">
+                      Configure bank transfer payment with down payment amount
+                    </Typography>
+                  </Alert>
+
+                  <TextField
+                    fullWidth
+                    label="Bank Name"
+                    placeholder="e.g., State Bank of India, ICICI Bank"
+                    value={formData.paymentDetails.bankName}
+                    onChange={handlePaymentDetailsChange("bankName")}
+                    error={!!formErrors.bankName}
+                    helperText={formErrors.bankName}
+                    disabled={loading}
+                    sx={{ mb: 2 }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <BankIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+
+                  <TextField
+                    fullWidth
+                    label="Down Payment Amount"
+                    type="number"
+                    value={formData.paymentDetails.downPayment}
+                    onChange={handlePaymentDetailsChange("downPayment")}
+                    error={!!formErrors.downPayment}
+                    helperText={formErrors.downPayment || `Remaining: ₹${formData.paymentDetails.remainingBalance.toFixed(2)}`}
+                    disabled={loading}
+                    sx={{ mb: 2 }}
+                    inputProps={{ min: 0, max: calculations.grandTotal, step: 0.01 }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          ₹
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+
+                  <TextField
+                    fullWidth
+                    label="Payment Reference"
+                    placeholder="Transaction ID or reference number"
+                    value={formData.paymentDetails.paymentReference}
+                    onChange={handlePaymentDetailsChange("paymentReference")}
+                    disabled={loading}
+                    sx={{ mb: 2 }}
+                  />
+
+                  {/* Payment Breakdown */}
+                  <Box sx={{ 
+                    mt: 2, 
+                    p: 2, 
+                    backgroundColor: 'rgba(33, 150, 243, 0.1)', 
+                    borderRadius: 1,
+                    border: '1px solid rgba(33, 150, 243, 0.2)'
+                  }}>
+                    <Typography variant="subtitle2" color="primary.main" gutterBottom>
+                      Bank Transfer Payment Breakdown:
+                    </Typography>
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2">Down Payment:</Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        ₹{parseFloat(formData.paymentDetails.downPayment || 0).toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2">Remaining (Transfer):</Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        ₹{formData.paymentDetails.remainingBalance.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Divider sx={{ my: 1 }} />
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2" fontWeight={600}>Total:</Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        ₹{calculations.grandTotal.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
 
               {/* EMI Details */}
               {formData.paymentStatus === PAYMENT_STATUS.EMI && (

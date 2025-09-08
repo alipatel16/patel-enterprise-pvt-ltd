@@ -3,6 +3,8 @@ import {
   COLLECTIONS,
   PAYMENT_STATUS,
   DELIVERY_STATUS,
+  getPaymentCategory,
+  PAYMENT_METHODS
 } from "../../utils/constants/appConstants";
 import { calculateGSTWithSlab } from "../../utils/helpers/gstCalculator";
 
@@ -89,6 +91,12 @@ class SalesService extends BaseService {
         });
       }
 
+      // NEW - Determine original payment category for tracking
+      const originalPaymentCategory = getPaymentCategory(
+        invoiceData.paymentStatus, 
+        invoiceData.paymentDetails?.paymentMethod
+      );
+
       // Clean invoice data - remove undefined values and structure properly
       const cleanInvoiceData = {
         invoiceNumber,
@@ -109,6 +117,11 @@ class SalesService extends BaseService {
         totalAmount: Math.round((subtotal + totalGST) * 100) / 100,
         paymentStatus: invoiceData.paymentStatus || PAYMENT_STATUS.PENDING,
         deliveryStatus: invoiceData.deliveryStatus || DELIVERY_STATUS.PENDING,
+        remarks: invoiceData.remarks || "", // Remarks field
+        // NEW - Add original payment category for tracking
+        originalPaymentCategory: originalPaymentCategory,
+        // NEW - Add fullyPaid flag for tracking complete payments while maintaining category
+        fullyPaid: invoiceData.paymentStatus === PAYMENT_STATUS.PAID,
         status: "active",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -122,7 +135,32 @@ class SalesService extends BaseService {
           invoiceData.scheduledDeliveryDate;
       }
 
-      // Only add emiDetails if payment status is EMI and data is complete
+      // Handle payment details for finance and bank transfer
+      if (invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE || 
+          invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER) {
+        if (invoiceData.paymentDetails) {
+          cleanInvoiceData.paymentDetails = {
+            downPayment: parseFloat(invoiceData.paymentDetails.downPayment || 0),
+            remainingBalance: parseFloat(invoiceData.paymentDetails.remainingBalance || 0),
+            paymentMethod: invoiceData.paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
+            bankName: invoiceData.paymentDetails.bankName || '',
+            financeCompany: invoiceData.paymentDetails.financeCompany || '',
+            paymentReference: invoiceData.paymentDetails.paymentReference || '',
+            // Track payment history for partial payments
+            paymentHistory: [{
+              amount: parseFloat(invoiceData.paymentDetails.downPayment || 0),
+              date: new Date().toISOString(),
+              method: invoiceData.paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
+              reference: invoiceData.paymentDetails.paymentReference || '',
+              recordedBy: invoiceData.createdBy,
+              recordedByName: invoiceData.createdByName,
+              type: 'down_payment'
+            }].filter(payment => payment.amount > 0) // Only add if there's a down payment
+          };
+        }
+      }
+
+      // Handle EMI details
       if (
         invoiceData.paymentStatus === PAYMENT_STATUS.EMI &&
         invoiceData.emiDetails
@@ -223,6 +261,20 @@ class SalesService extends BaseService {
         cleanUpdates.totalAmount = cleanUpdates.grandTotal;
       }
 
+      // Handle payment details updates
+      if (cleanUpdates.paymentDetails) {
+        cleanUpdates.paymentDetails = {
+          downPayment: parseFloat(cleanUpdates.paymentDetails.downPayment || 0),
+          remainingBalance: parseFloat(cleanUpdates.paymentDetails.remainingBalance || 0),
+          paymentMethod: cleanUpdates.paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
+          bankName: cleanUpdates.paymentDetails.bankName || '',
+          financeCompany: cleanUpdates.paymentDetails.financeCompany || '',
+          paymentReference: cleanUpdates.paymentDetails.paymentReference || '',
+          // Preserve existing payment history if updating
+          paymentHistory: cleanUpdates.paymentDetails.paymentHistory || []
+        };
+      }
+
       cleanUpdates.updatedAt = new Date().toISOString();
 
       return await this.update(userType, invoiceId, cleanUpdates);
@@ -314,7 +366,7 @@ class SalesService extends BaseService {
   }
 
   /**
-   * Get sales statistics
+   * Get sales statistics - UPDATED to handle new payment types and tracking
    * @param {string} userType - User type
    * @param {Object} filters - Filter options
    * @returns {Promise<Object>} Sales statistics
@@ -338,15 +390,58 @@ class SalesService extends BaseService {
         return saleDate >= todayStart;
       });
 
+      // Calculate actual amounts paid for partial payments
+      const calculateActualAmountPaid = (sale) => {
+        if (sale.paymentStatus === PAYMENT_STATUS.FINANCE || 
+            sale.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER) {
+          return sale.paymentDetails?.downPayment || 0;
+        }
+        if (sale.paymentStatus === PAYMENT_STATUS.PAID || sale.fullyPaid) {
+          return sale.grandTotal || sale.totalAmount || 0;
+        }
+        if (sale.paymentStatus === PAYMENT_STATUS.EMI && sale.emiDetails?.schedule) {
+          return sale.emiDetails.schedule
+            .filter(emi => emi.paid)
+            .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
+        }
+        return 0;
+      };
+
+      // NEW - Calculate stats by original payment category
+      const statsByCategory = {};
+      sales.forEach(sale => {
+        const category = sale.originalPaymentCategory || 'unknown';
+        if (!statsByCategory[category]) {
+          statsByCategory[category] = {
+            count: 0,
+            totalAmount: 0,
+            paidAmount: 0
+          };
+        }
+        statsByCategory[category].count++;
+        statsByCategory[category].totalAmount += sale.grandTotal || sale.totalAmount || 0;
+        statsByCategory[category].paidAmount += calculateActualAmountPaid(sale);
+      });
+
       const stats = {
         totalSales: sales.length,
         totalAmount: sales.reduce(
-          (sum, sale) => sum + (sale.grandTotal || 0),
+          (sum, sale) => sum + (sale.grandTotal || sale.totalAmount || 0),
+          0
+        ),
+        // Actual amount collected
+        totalAmountPaid: sales.reduce(
+          (sum, sale) => sum + calculateActualAmountPaid(sale),
           0
         ),
         todaysSales: todaysSales.length,
         todaysAmount: todaysSales.reduce(
-          (sum, sale) => sum + (sale.grandTotal || 0),
+          (sum, sale) => sum + (sale.grandTotal || sale.totalAmount || 0),
+          0
+        ),
+        // Today's actual collections
+        todaysAmountPaid: todaysSales.reduce(
+          (sum, sale) => sum + calculateActualAmountPaid(sale),
           0
         ),
         pendingPayments: sales.filter(
@@ -355,12 +450,28 @@ class SalesService extends BaseService {
         pendingDeliveries: sales.filter(
           (sale) => sale.deliveryStatus === DELIVERY_STATUS.PENDING
         ).length,
+        // Updated to use fullyPaid flag instead of just paymentStatus
         paidInvoices: sales.filter(
-          (sale) => sale.paymentStatus === PAYMENT_STATUS.PAID
+          (sale) => sale.paymentStatus === PAYMENT_STATUS.PAID || sale.fullyPaid
         ).length,
         emiInvoices: sales.filter(
           (sale) => sale.paymentStatus === PAYMENT_STATUS.EMI
         ).length,
+        // Finance and Bank Transfer invoices (regardless of full payment status)
+        financeInvoices: sales.filter(
+          (sale) => sale.paymentStatus === PAYMENT_STATUS.FINANCE
+        ).length,
+        bankTransferInvoices: sales.filter(
+          (sale) => sale.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
+        ).length,
+        // Outstanding amounts
+        outstandingAmount: sales.reduce((sum, sale) => {
+          const totalAmount = sale.grandTotal || sale.totalAmount || 0;
+          const paidAmount = calculateActualAmountPaid(sale);
+          return sum + Math.max(0, totalAmount - paidAmount);
+        }, 0),
+        // NEW - Stats by original payment category
+        statsByCategory
       };
 
       return stats;
@@ -407,6 +518,70 @@ class SalesService extends BaseService {
   }
 
   /**
+   * UPDATED - Record additional payment for finance/bank transfer invoices with date selection
+   * @param {string} userType - User type
+   * @param {string} invoiceId - Invoice ID
+   * @param {number} paymentAmount - Payment amount
+   * @param {Object} paymentDetails - Payment details including date
+   * @returns {Promise<Object>} Updated invoice
+   */
+  async recordAdditionalPayment(userType, invoiceId, paymentAmount, paymentDetails = {}) {
+    try {
+      const invoice = await this.getById(userType, invoiceId);
+      
+      if (!invoice.paymentDetails) {
+        throw new Error("This invoice doesn't support additional payments");
+      }
+
+      const currentPaid = parseFloat(invoice.paymentDetails.downPayment || 0);
+      const additionalAmount = parseFloat(paymentAmount);
+      const newTotalPaid = currentPaid + additionalAmount;
+      const totalAmount = invoice.grandTotal || invoice.totalAmount || 0;
+      const newRemainingBalance = Math.max(0, totalAmount - newTotalPaid);
+
+      // NEW - Use provided payment date or current date
+      const paymentDate = paymentDetails.paymentDate || new Date().toISOString();
+
+      // Add to payment history
+      const newPaymentRecord = {
+        amount: additionalAmount,
+        date: paymentDate, // NEW - Use provided date
+        method: paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
+        reference: paymentDetails.reference || '',
+        recordedBy: paymentDetails.recordedBy,
+        recordedByName: paymentDetails.recordedByName,
+        type: 'additional_payment',
+        notes: paymentDetails.notes || ''
+      };
+
+      const updates = {
+        paymentDetails: {
+          ...invoice.paymentDetails,
+          downPayment: newTotalPaid,
+          remainingBalance: newRemainingBalance,
+          paymentHistory: [
+            ...(invoice.paymentDetails.paymentHistory || []),
+            newPaymentRecord
+          ]
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      // NEW - If fully paid, set fullyPaid flag but KEEP original payment status for tracking
+      if (newRemainingBalance === 0) {
+        updates.fullyPaid = true;
+        updates.paymentDate = paymentDate;
+        // DON'T change paymentStatus - keep it as FINANCE/BANK_TRANSFER for tracking
+      }
+
+      return await this.update(userType, invoiceId, updates);
+    } catch (error) {
+      console.error("Error recording additional payment:", error);
+      throw error;
+    }
+  }
+
+   /**
    * Update payment status
    * @param {string} userType - User type
    * @param {string} invoiceId - Invoice ID
@@ -429,6 +604,7 @@ class SalesService extends BaseService {
 
       if (paymentStatus === PAYMENT_STATUS.PAID) {
         updates.paymentDate = new Date().toISOString();
+        updates.fullyPaid = true; // NEW - Set fullyPaid flag
       }
 
       return await this.updateInvoice(userType, invoiceId, updates);
@@ -506,8 +682,9 @@ class SalesService extends BaseService {
         // Check if all EMIs are paid
         const allPaid = schedule.every((emi) => emi.paid);
         if (allPaid) {
-          updates.paymentStatus = PAYMENT_STATUS.PAID;
+          updates.fullyPaid = true; // NEW - Set fullyPaid flag instead of changing status
           updates.paymentDate = new Date().toISOString();
+          // Keep paymentStatus as EMI for tracking purposes
         }
 
         return await this.updateInvoice(userType, invoiceId, updates);
@@ -655,7 +832,7 @@ async recordInstallmentPayment(
       paymentRecord: {
         amount: paymentAmountNum,
         paymentDate: new Date().toISOString(),
-        paymentMethod: paymentDetails.paymentMethod || "cash",
+        paymentMethod: paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
         transactionId: paymentDetails.transactionId || null,
         notes: paymentDetails.notes || "",
         recordedBy: paymentDetails.recordedBy || null,
@@ -705,8 +882,9 @@ async recordInstallmentPayment(
     };
 
     if (allPaid) {
-      updates.paymentStatus = PAYMENT_STATUS.PAID;
+      updates.fullyPaid = true; // NEW - Set fullyPaid flag instead of changing status
       updates.paymentDate = new Date().toISOString();
+      // Keep paymentStatus as EMI for tracking purposes
     }
 
     return await this.update(userType, invoiceId, updates);
@@ -741,206 +919,6 @@ async getInstallmentPaymentHistory(userType, invoiceId) {
     throw error;
   }
 }
-
-  /**
-   * IMPROVED: Redistribute overpayment across ALL remaining unpaid installments proportionally
-   * @param {Array} schedule - EMI schedule array
-   * @param {number} startIndex - Index to start redistribution
-   * @param {number} overpayment - Overpayment amount
-   * @param {Object} paymentDetails - Payment details
-   */
-  redistributeOverpayment(schedule, startIndex, overpayment, paymentDetails) {
-    let remainingOverpayment = overpayment;
-
-    // First, try to pay complete installments in order
-    for (
-      let i = startIndex;
-      i < schedule.length && remainingOverpayment > 0;
-      i++
-    ) {
-      const installment = schedule[i];
-
-      if (!installment.paid) {
-        const installmentAmount = parseFloat(installment.amount);
-
-        if (remainingOverpayment >= installmentAmount) {
-          // Can pay this installment completely
-          schedule[i] = {
-            ...installment,
-            paid: true,
-            paidAmount: installmentAmount,
-            paymentDate: new Date().toISOString(),
-            paymentRecord: {
-              amount: installmentAmount,
-              paymentDate: new Date().toISOString(),
-              paymentMethod: paymentDetails.paymentMethod || "cash",
-              notes: "Auto-applied from overpayment",
-              recordedBy: paymentDetails.recordedBy,
-              recordedByName: paymentDetails.recordedByName,
-            },
-            fullyPaid: true,
-            appliedFromOverpayment: true,
-          };
-
-          remainingOverpayment -= installmentAmount;
-        } else {
-          // Partial payment of this installment - break here as we'll handle this separately
-          break;
-        }
-      }
-    }
-
-    // If there's still overpayment left, distribute proportionally across remaining unpaid installments
-    if (remainingOverpayment > 0) {
-      const unpaidInstallments = schedule
-        .slice(startIndex)
-        .map((installment, index) => ({
-          ...installment,
-          originalIndex: startIndex + index
-        }))
-        .filter((emi) => !emi.paid);
-
-      if (unpaidInstallments.length > 0) {
-        // Calculate total amount of unpaid installments
-        const totalUnpaidAmount = unpaidInstallments.reduce(
-          (sum, emi) => sum + parseFloat(emi.amount), 
-          0
-        );
-
-        // If overpayment can cover all remaining installments, pay them all
-        if (remainingOverpayment >= totalUnpaidAmount) {
-          unpaidInstallments.forEach((installment) => {
-            schedule[installment.originalIndex] = {
-              ...installment,
-              paid: true,
-              paidAmount: installment.amount,
-              paymentDate: new Date().toISOString(),
-              paymentRecord: {
-                amount: installment.amount,
-                paymentDate: new Date().toISOString(),
-                paymentMethod: paymentDetails.paymentMethod || "cash",
-                notes: "Fully paid from overpayment",
-                recordedBy: paymentDetails.recordedBy,
-                recordedByName: paymentDetails.recordedByName,
-              },
-              fullyPaid: true,
-              appliedFromOverpayment: true,
-            };
-          });
-          
-          // If there's still money left after paying all EMIs, record the excess
-          const excessAmount = remainingOverpayment - totalUnpaidAmount;
-          if (excessAmount > 0) {
-            console.log(`Excess overpayment of ${excessAmount} will be handled separately (refund/credit)`);
-          }
-        } else {
-          // Distribute overpayment proportionally across remaining installments
-          unpaidInstallments.forEach((installment) => {
-            const proportion = parseFloat(installment.amount) / totalUnpaidAmount;
-            const reductionAmount = remainingOverpayment * proportion;
-            const newAmount = Math.max(0, parseFloat(installment.amount) - reductionAmount);
-
-            schedule[installment.originalIndex] = {
-              ...installment,
-              amount: Math.round(newAmount * 100) / 100,
-              overpaymentApplied: Math.round(reductionAmount * 100) / 100,
-              originalAmount: installment.amount, // Keep track of original amount
-            };
-          });
-        }
-      }
-    }
-  }
-
-  /**
-   * IMPROVED: Redistribute shortfall across remaining installments proportionally
-   * @param {Array} schedule - EMI schedule array
-   * @param {number} startIndex - Index to start redistribution
-   * @param {number} shortfall - Shortfall amount to redistribute
-   */
-  redistributeShortfall(schedule, startIndex, shortfall) {
-    const unpaidInstallments = schedule
-      .slice(startIndex)
-      .map((installment, index) => ({
-        ...installment,
-        originalIndex: startIndex + index
-      }))
-      .filter((emi) => !emi.paid);
-
-    if (unpaidInstallments.length === 0) {
-      console.warn("No unpaid installments to redistribute shortfall");
-      return;
-    }
-
-    // Calculate total amount of unpaid installments
-    const totalUnpaidAmount = unpaidInstallments.reduce(
-      (sum, emi) => sum + parseFloat(emi.amount), 
-      0
-    );
-
-    // Distribute shortfall proportionally across remaining installments
-    unpaidInstallments.forEach((installment, index) => {
-      const proportion = parseFloat(installment.amount) / totalUnpaidAmount;
-      const additionalAmount = shortfall * proportion;
-
-      // For the last installment, add any rounding remainder
-      const isLastInstallment = index === unpaidInstallments.length - 1;
-      let finalAdditionalAmount = additionalAmount;
-      
-      if (isLastInstallment) {
-        // Calculate what has been distributed so far
-        const distributedSoFar = unpaidInstallments
-          .slice(0, -1)
-          .reduce((sum, emi) => {
-            const prop = parseFloat(emi.amount) / totalUnpaidAmount;
-            return sum + (shortfall * prop);
-          }, 0);
-        
-        // Add any remainder to the last installment
-        finalAdditionalAmount = shortfall - distributedSoFar;
-      }
-
-      schedule[installment.originalIndex] = {
-        ...installment,
-        amount: Math.round((parseFloat(installment.amount) + finalAdditionalAmount) * 100) / 100,
-        adjustedForShortfall: true,
-        shortfallAddition: Math.round(finalAdditionalAmount * 100) / 100,
-        originalAmount: installment.amount, // Keep track of original amount
-      };
-    });
-  }
-
-  /**
-   * Get installment payment history for an invoice
-   * @param {string} userType - User type
-   * @param {string} invoiceId - Invoice ID
-   * @returns {Promise<Array>} Payment history
-   */
-  // async getInstallmentPaymentHistory(userType, invoiceId) {
-  //   try {
-  //     const invoice = await this.getById(userType, invoiceId);
-
-  //     if (!invoice.emiDetails || !invoice.emiDetails.schedule) {
-  //       return [];
-  //     }
-
-  //     return invoice.emiDetails.schedule
-  //       .filter((installment) => installment.paid && installment.paymentRecord)
-  //       .map((installment) => ({
-  //         installmentNumber: installment.installmentNumber,
-  //         originalAmount: installment.originalAmount || installment.amount,
-  //         paidAmount: installment.paidAmount,
-  //         paymentDate: installment.paymentDate,
-  //         paymentRecord: installment.paymentRecord,
-  //         fullyPaid: installment.fullyPaid,
-  //         shortfallAmount: installment.shortfallAmount || 0,
-  //       }))
-  //       .sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate));
-  //   } catch (error) {
-  //     console.error("Error getting installment payment history:", error);
-  //     throw error;
-  //   }
-  // }
 
   /**
    * Get pending installments for an invoice
@@ -1036,14 +1014,8 @@ async getInstallmentPaymentHistory(userType, invoiceId) {
   }
 
   /**
-   * Get EMI summary for an invoice
-   * @param {string} userType - User type
-   * @param {string} invoiceId - Invoice ID
-   * @returns {Promise<Object>} EMI summary
+   * Get EMI summary for an invoice - FIXED VERSION
    */
-/**
- * Get EMI summary for an invoice - FIXED VERSION
- */
 async getEMISummary(userType, invoiceId) {
   try {
     const invoice = await this.getById(userType, invoiceId);

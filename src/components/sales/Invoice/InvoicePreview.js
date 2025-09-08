@@ -28,7 +28,12 @@ import {
   Phone as PhoneIcon,
   Email as EmailIcon,
   LocationOn as LocationIcon,
-  CalendarToday as CalendarIcon
+  CalendarToday as CalendarIcon,
+  Payment as PaymentIcon,
+  AccountBalance as BankIcon,
+  Money as MoneyIcon,
+  CreditCard as CardIcon,
+  Info as InfoIcon
 } from '@mui/icons-material';
 
 import { useUserType } from '../../../contexts/UserTypeContext/UserTypeContext';
@@ -36,6 +41,8 @@ import { formatCurrency, formatDate } from '../../../utils/helpers/formatHelpers
 import { 
   GST_TYPES,
   PAYMENT_STATUS,
+  PAYMENT_STATUS_DISPLAY,
+  PAYMENT_METHOD_DISPLAY,
   DELIVERY_STATUS 
 } from '../../../utils/constants/appConstants';
 
@@ -75,6 +82,15 @@ const InvoicePreview = forwardRef(({
     paymentStatus: PAYMENT_STATUS.PENDING,
     deliveryStatus: DELIVERY_STATUS.PENDING,
     includeGST: false,
+    remarks: '', // NEW
+    paymentDetails: { // NEW
+      downPayment: 0,
+      remainingBalance: 0,
+      paymentMethod: 'cash',
+      bankName: '',
+      financeCompany: '',
+      paymentReference: ''
+    },
     notes: '',
     terms: ''
   };
@@ -100,7 +116,9 @@ const InvoicePreview = forwardRef(({
       payment: {
         [PAYMENT_STATUS.PAID]: theme.palette.success.main,
         [PAYMENT_STATUS.PENDING]: theme.palette.warning.main,
-        [PAYMENT_STATUS.EMI]: theme.palette.info.main
+        [PAYMENT_STATUS.EMI]: theme.palette.info.main,
+        [PAYMENT_STATUS.FINANCE]: theme.palette.success.main,
+        [PAYMENT_STATUS.BANK_TRANSFER]: theme.palette.primary.main
       },
       delivery: {
         [DELIVERY_STATUS.DELIVERED]: theme.palette.success.main,
@@ -153,6 +171,22 @@ const InvoicePreview = forwardRef(({
       </Typography>
     </Box>
   );
+
+  // NEW - Get payment method icon
+  const getPaymentMethodIcon = (method) => {
+    const iconMap = {
+      cash: <MoneyIcon />,
+      card: <CardIcon />,
+      finance: <BankIcon />,
+      bank_transfer: <BankIcon />,
+      upi: <PaymentIcon />
+    };
+    return iconMap[method] || <PaymentIcon />;
+  };
+
+  // NEW - Check if payment is partial (finance or bank transfer)
+  const isPartialPayment = invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE || 
+                          invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER;
 
   return (
     <Box
@@ -294,7 +328,7 @@ const InvoicePreview = forwardRef(({
                     
                     <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
                       <StatusChip
-                        label={`Pay: ${invoiceData.paymentStatus}`}
+                        label={`Pay: ${PAYMENT_STATUS_DISPLAY[invoiceData.paymentStatus] || invoiceData.paymentStatus}`}
                         status={invoiceData.paymentStatus}
                         type="payment"
                       />
@@ -576,8 +610,167 @@ const InvoicePreview = forwardRef(({
             </Grid>
           </Grid>
 
-          {/* EMI Details */}
-          {invoiceData.paymentStatus === PAYMENT_STATUS.EMI && invoiceData.emiDetails && (
+          {/* NEW - Payment Details Section */}
+          {(isPartialPayment || invoiceData.paymentStatus === PAYMENT_STATUS.EMI) && (
+            <Paper 
+              elevation={0}
+              sx={{ 
+                mb: 4, 
+                p: 3, 
+                backgroundColor: alpha(getStatusColor(invoiceData.paymentStatus), 0.05),
+                border: `1px solid ${alpha(getStatusColor(invoiceData.paymentStatus), 0.2)}`,
+                borderRadius: 2
+              }}
+            >
+              <Typography variant="h6" fontWeight={600} gutterBottom sx={{ 
+                color: getStatusColor(invoiceData.paymentStatus),
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                {getPaymentMethodIcon(invoiceData.paymentDetails?.paymentMethod)}
+                Payment Details - {PAYMENT_STATUS_DISPLAY[invoiceData.paymentStatus]}
+              </Typography>
+
+              {/* Finance Payment Details */}
+              {invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE && (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem 
+                      icon={<BankIcon fontSize="small" />}
+                      label="Finance Company"
+                      value={invoiceData.paymentDetails?.financeCompany || 'Not specified'}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem 
+                      label="Payment Reference"
+                      value={invoiceData.paymentDetails?.paymentReference || 'Not provided'}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem 
+                      label="Down Payment"
+                      value={formatCurrency(invoiceData.paymentDetails?.downPayment || 0)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem 
+                      label="Remaining (Finance)"
+                      value={formatCurrency(invoiceData.paymentDetails?.remainingBalance || 0)}
+                    />
+                  </Grid>
+                </Grid>
+              )}
+
+              {/* Bank Transfer Payment Details */}
+              {invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER && (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem 
+                      icon={<BankIcon fontSize="small" />}
+                      label="Bank Name"
+                      value={invoiceData.paymentDetails?.bankName || 'Not specified'}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem 
+                      label="Payment Reference"
+                      value={invoiceData.paymentDetails?.paymentReference || 'Not provided'}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem 
+                      label="Down Payment"
+                      value={formatCurrency(invoiceData.paymentDetails?.downPayment || 0)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem 
+                      label="Remaining (Transfer)"
+                      value={formatCurrency(invoiceData.paymentDetails?.remainingBalance || 0)}
+                    />
+                  </Grid>
+                </Grid>
+              )}
+
+              {/* EMI Payment Details */}
+              {invoiceData.paymentStatus === PAYMENT_STATUS.EMI && invoiceData.emiDetails && (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem 
+                      label="Monthly EMI"
+                      value={formatCurrency(invoiceData.emiDetails.monthlyAmount)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem 
+                      label="Start Date"
+                      value={formatDate(invoiceData.emiDetails.startDate)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem 
+                      label="Installments"
+                      value={`${invoiceData.emiDetails.numberOfInstallments} months`}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem 
+                      label="Total EMI Amount"
+                      value={formatCurrency(invoiceData.grandTotal || 0)}
+                    />
+                  </Grid>
+                </Grid>
+              )}
+
+              {/* Payment Breakdown for Partial Payments */}
+              {isPartialPayment && (
+                <Box sx={{ 
+                  mt: 2, 
+                  p: 2, 
+                  backgroundColor: alpha(getStatusColor(invoiceData.paymentStatus), 0.03),
+                  borderRadius: 1,
+                  border: `1px solid ${alpha(getStatusColor(invoiceData.paymentStatus), 0.1)}`
+                }}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Payment Breakdown:
+                  </Typography>
+                  
+                  <Stack spacing={0.5}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Amount Paid:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} color="success.main">
+                        {formatCurrency(invoiceData.paymentDetails?.downPayment || 0)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Remaining Balance:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} color="warning.main">
+                        {formatCurrency(invoiceData.paymentDetails?.remainingBalance || 0)}
+                      </Typography>
+                    </Box>
+                    <Divider sx={{ my: 0.5 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" fontWeight={600}>
+                        Total Invoice:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={600} color="primary.main">
+                        {formatCurrency(invoiceData.grandTotal || 0)}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Box>
+              )}
+            </Paper>
+          )}
+
+          {/* NEW - Remarks Section */}
+          {invoiceData.remarks && (
             <Paper 
               elevation={0}
               sx={{ 
@@ -588,81 +781,18 @@ const InvoicePreview = forwardRef(({
                 borderRadius: 2
               }}
             >
-              <Typography variant="h6" fontWeight={600} gutterBottom sx={{ color: theme.palette.info.main }}>
-                EMI Payment Details
+              <Typography variant="h6" fontWeight={600} gutterBottom sx={{ 
+                color: theme.palette.info.main,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <InfoIcon />
+                Remarks
               </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <InfoItem 
-                    label="Monthly EMI"
-                    value={formatCurrency(invoiceData.emiDetails.monthlyAmount)}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <InfoItem 
-                    label="Start Date"
-                    value={formatDate(invoiceData.emiDetails.startDate)}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <InfoItem 
-                    label="Installments"
-                    value={`${invoiceData.emiDetails.numberOfInstallments} months`}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <InfoItem 
-                    label="Total EMI Amount"
-                    value={formatCurrency(invoiceData.grandTotal || 0)}
-                  />
-                </Grid>
-              </Grid>
-              
-              {/* EMI Breakdown */}
-              {invoiceData.emiDetails.numberOfInstallments > 1 && (
-                <Box sx={{ 
-                  mt: 2, 
-                  p: 2, 
-                  backgroundColor: alpha(theme.palette.info.main, 0.03),
-                  borderRadius: 1,
-                  border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`
-                }}>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    EMI Breakdown:
-                  </Typography>
-                  
-                  {(() => {
-                    const monthlyAmount = parseFloat(invoiceData.emiDetails.monthlyAmount || 0);
-                    const numberOfInstallments = parseInt(invoiceData.emiDetails.numberOfInstallments || 1);
-                    const totalAmount = invoiceData.grandTotal || 0;
-                    
-                    if (numberOfInstallments > 1) {
-                      const regularInstallments = numberOfInstallments - 1;
-                      const regularInstallmentTotal = monthlyAmount * regularInstallments;
-                      const lastInstallmentAmount = totalAmount - regularInstallmentTotal;
-                      
-                      return (
-                        <Stack spacing={0.5}>
-                          <Typography variant="body2" color="text.secondary">
-                            • First {regularInstallments} installments: {formatCurrency(monthlyAmount)} each = {formatCurrency(regularInstallmentTotal)}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            • Last installment: {formatCurrency(lastInstallmentAmount)}
-                          </Typography>
-                          <Typography variant="body2" color="success.main" fontWeight={500} sx={{ mt: 1 }}>
-                            Total matches invoice amount: {formatCurrency(totalAmount)}
-                          </Typography>
-                        </Stack>
-                      );
-                    }
-                    return (
-                      <Typography variant="body2" color="text.secondary">
-                        Single installment of {formatCurrency(totalAmount)}
-                      </Typography>
-                    );
-                  })()}
-                </Box>
-              )}
+              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                {invoiceData.remarks}
+              </Typography>
             </Paper>
           )}
 
