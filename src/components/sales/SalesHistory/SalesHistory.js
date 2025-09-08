@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -36,7 +36,9 @@ import {
   Visibility as ViewIcon,
   Delete as DeleteIcon,
   Add as AddIcon,
-  Schedule as ScheduleIcon
+  Schedule as ScheduleIcon,
+  FilterList as FilterIcon,
+  Clear as ClearIcon
 } from '@mui/icons-material';
 
 import { useSales } from '../../../contexts/SalesContext/SalesContext';
@@ -49,6 +51,7 @@ const SalesHistory = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const {
     sales,
@@ -60,6 +63,9 @@ const SalesHistory = () => {
   } = useSales();
 
   const { canDelete } = useAuth();
+
+  // Get customer ID from URL query parameter
+  const customerIdFromUrl = searchParams.get('customer');
 
   // Local state for search and filters (no debouncing to avoid focus loss)
   const [searchValue, setSearchValue] = useState('');
@@ -94,12 +100,26 @@ const SalesHistory = () => {
     localFilters.deliveryStatus,
     localFilters.sortBy,
     localFilters.sortOrder,
-    pageSize
+    pageSize,
+    customerIdFromUrl // Add customerIdFromUrl to dependencies
   ]);
+
+  // Find customer name for filtered customer
+  const filteredCustomerName = useMemo(() => {
+    if (!customerIdFromUrl || !sales.length) return null;
+    
+    const customerSale = sales.find(sale => sale.customerId === customerIdFromUrl);
+    return customerSale?.customerName || null;
+  }, [customerIdFromUrl, sales]);
 
   // Apply client-side filtering and sorting
   const filteredAndSortedSales = useMemo(() => {
     let filtered = [...sales];
+
+    // FIRST: Apply customer filter if customer ID is provided in URL
+    if (customerIdFromUrl) {
+      filtered = filtered.filter((sale) => sale.customerId === customerIdFromUrl);
+    }
 
     // Apply search filter
     if (searchValue.trim()) {
@@ -163,7 +183,7 @@ const SalesHistory = () => {
     });
 
     return filtered;
-  }, [sales, searchValue, localFilters]);
+  }, [sales, searchValue, localFilters, customerIdFromUrl]); // Add customerIdFromUrl to dependencies
 
   // Calculate client-side pagination
   const paginatedSales = useMemo(() => {
@@ -185,6 +205,14 @@ const SalesHistory = () => {
       hasMore
     };
   }, [filteredAndSortedSales.length, currentPage, pageSize]);
+
+  // Handle clearing customer filter
+  const handleClearCustomerFilter = () => {
+    // Remove customer parameter from URL
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.delete('customer');
+    setSearchParams(newSearchParams);
+  };
 
   // Handle search input change (no debouncing)
   const handleSearchChange = (value) => {
@@ -369,13 +397,39 @@ const SalesHistory = () => {
 
   return (
     <Box>
+      {/* Customer Filter Indicator */}
+      {customerIdFromUrl && filteredCustomerName && (
+        <Alert 
+          severity="info" 
+          sx={{ mb: 3 }}
+          action={
+            <Button 
+              color="inherit" 
+              size="small" 
+              onClick={handleClearCustomerFilter}
+              startIcon={<ClearIcon />}
+            >
+              Show All
+            </Button>
+          }
+          icon={<FilterIcon />}
+        >
+          <Typography variant="body2">
+            <strong>Filtered by Customer:</strong> {filteredCustomerName}
+          </Typography>
+        </Alert>
+      )}
+
       {/* Search and Filters */}
       <Box mb={3}>
         <SearchBar
           value={searchValue}
           onChange={handleSearchChange}
           onClear={handleSearchClear}
-          placeholder="Search by invoice number, customer name, or phone..."
+          placeholder={customerIdFromUrl ? 
+            `Search in ${filteredCustomerName}'s invoices...` :
+            "Search by invoice number, customer name, or phone..."
+          }
           disabled={loading}
           filters={localFilters}
           onFilterChange={handleFilterChange}
@@ -400,18 +454,26 @@ const SalesHistory = () => {
           <CardContent sx={{ textAlign: 'center', py: 6 }}>
             <ReceiptIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
             <Typography variant="h6" gutterBottom>
-              No sales found
+              {customerIdFromUrl ? 
+                `No sales found for ${filteredCustomerName}` :
+                'No sales found'
+              }
             </Typography>
             <Typography variant="body2" color="text.secondary" mb={3}>
               {searchValue || localFilters.paymentStatus || localFilters.deliveryStatus ? 
                 'Try adjusting your search criteria or filters.' :
-                'Start by creating your first invoice to track sales.'
+                customerIdFromUrl ?
+                  `${filteredCustomerName} doesn't have any sales yet. Create their first invoice to get started.` :
+                  'Start by creating your first invoice to track sales.'
               }
             </Typography>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => navigate('/sales/create')}
+              onClick={() => navigate(customerIdFromUrl ? 
+                `/sales/create?customer=${customerIdFromUrl}` : 
+                '/sales/create'
+              )}
             >
               Create Invoice
             </Button>
@@ -422,6 +484,59 @@ const SalesHistory = () => {
       {/* Sales Grid */}
       {filteredAndSortedSales.length > 0 && (
         <>
+          {/* Summary for filtered customer */}
+          {customerIdFromUrl && (
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Sales Summary for {filteredCustomerName}
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="body2" color="text.secondary">
+                      Total Invoices
+                    </Typography>
+                    <Typography variant="h6" color="primary">
+                      {filteredAndSortedSales.length}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="body2" color="text.secondary">
+                      Total Amount
+                    </Typography>
+                    <Typography variant="h6" color="success.main">
+                      {formatCurrency(
+                        filteredAndSortedSales.reduce((sum, sale) => 
+                          sum + (sale.grandTotal || sale.totalAmount || 0), 0
+                        )
+                      )}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="body2" color="text.secondary">
+                      EMI Invoices
+                    </Typography>
+                    <Typography variant="h6" color="warning.main">
+                      {filteredAndSortedSales.filter(sale => 
+                        sale.paymentStatus === PAYMENT_STATUS.EMI
+                      ).length}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="body2" color="text.secondary">
+                      Pending Deliveries
+                    </Typography>
+                    <Typography variant="h6" color="error.main">
+                      {filteredAndSortedSales.filter(sale => 
+                        sale.deliveryStatus !== DELIVERY_STATUS.DELIVERED
+                      ).length}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          )}
+
           <Grid container spacing={3}>
             {paginatedSales.map((sale) => (
               <Grid item xs={12} sm={6} lg={4} key={sale.id}>
@@ -481,12 +596,16 @@ const SalesHistory = () => {
 
                     {/* Customer Info - Fixed height section */}
                     <Box mb={2} sx={{ flex: 1, minHeight: 120 }}>
-                      <Box display="flex" alignItems="center" gap={1} mb={1}>
-                        <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" noWrap sx={{ fontSize: '0.875rem' }}>
-                          {sale.customerName}
-                        </Typography>
-                      </Box>
+                      {/* Only show customer name if not filtered by customer */}
+                      {!customerIdFromUrl && (
+                        <Box display="flex" alignItems="center" gap={1} mb={1}>
+                          <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                          <Typography variant="body2" noWrap sx={{ fontSize: '0.875rem' }}>
+                            {sale.customerName}
+                          </Typography>
+                        </Box>
+                      )}
+                      
                       {sale.customerPhone && (
                         <Box display="flex" alignItems="center" gap={1} mb={1}>
                           <PhoneIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
@@ -562,7 +681,10 @@ const SalesHistory = () => {
               pageSizeOptions={[5, 10, 25, 50]}
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
-              itemName="invoices"
+              itemName={customerIdFromUrl ? 
+                `invoices for ${filteredCustomerName}` : 
+                'invoices'
+              }
               disabled={loading}
             />
           </Box>

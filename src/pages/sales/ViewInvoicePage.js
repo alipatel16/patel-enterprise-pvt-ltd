@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -16,7 +16,10 @@ import {
   Divider,
   IconButton,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Tabs,
+  Tab,
+  Badge
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -25,18 +28,24 @@ import {
   Print as PrintIcon,
   Download as DownloadIcon,
   Receipt as ReceiptIcon,
-  Share as ShareIcon
+  Share as ShareIcon,
+  AccountBalance as EMIIcon,
+  LocalShipping as DeliveryIcon,
+  Payment as PaymentIcon
 } from '@mui/icons-material';
 
 import Layout from '../../components/common/Layout/Layout';
 import LoadingSpinner from '../../components/common/UI/LoadingSpinner';
 import ConfirmDialog from '../../components/common/UI/ConfirmDialog';
 import InvoicePreview from '../../components/sales/Invoice/InvoicePreview';
-import { SalesProvider, useSales } from '../../contexts/SalesContext/SalesContext'; // Fixed import
-import { useAuth } from '../../contexts/AuthContext/AuthContext'; // Fixed import
-import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext'; // Fixed import
+import { SalesProvider, useSales } from '../../contexts/SalesContext/SalesContext';
+import { useAuth } from '../../contexts/AuthContext/AuthContext';
+import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 import { formatCurrency, formatDate } from '../../utils/helpers/formatHelpers';
 import { USER_ROLES, PAYMENT_STATUS, DELIVERY_STATUS } from '../../utils/constants/appConstants';
+// Import the EMI Management component (adjust path as needed)
+import EMIManagement from '../../components/sales/EMI/EMIManagement';
+import InstallmentPaymentDialog from '../../components/sales/EMI/InstallmentPaymentDialog';
 
 /**
  * View Invoice page content component (wrapped in providers)
@@ -46,6 +55,7 @@ const ViewInvoicePageContent = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [searchParams] = useSearchParams();
   
   const {
     currentInvoice,
@@ -53,7 +63,9 @@ const ViewInvoicePageContent = () => {
     error,
     deleteInvoice,
     getInvoiceById,
-    clearError
+    clearError,
+    recordInstallmentPayment,
+    getPendingInstallments
   } = useSales();
   
   const { user } = useAuth();
@@ -61,6 +73,12 @@ const ViewInvoicePageContent = () => {
   
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [currentTab, setCurrentTab] = useState(0);
+  
+  // NEW: EMI Payment states
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [selectedInstallment, setSelectedInstallment] = useState(null);
+  const [pendingInstallments, setPendingInstallments] = useState([]);
   
   const themeColors = getThemeColors();
 
@@ -71,10 +89,73 @@ const ViewInvoicePageContent = () => {
     }
   }, [id, getInvoiceById]);
 
+  // Auto-switch to EMI tab when coming from notifications
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'emi' && currentInvoice?.paymentStatus === PAYMENT_STATUS.EMI) {
+      setCurrentTab(2); // EMI tab index
+    }
+  }, [currentInvoice, searchParams]);
+
+  // Load pending installments for EMI invoices
+  useEffect(() => {
+    const loadPendingInstallments = async () => {
+      if (currentInvoice && currentInvoice.paymentStatus === PAYMENT_STATUS.EMI && getPendingInstallments) {
+        try {
+          const pending = await getPendingInstallments(currentInvoice.id);
+          setPendingInstallments(pending);
+        } catch (error) {
+          console.error('Error loading pending installments:', error);
+        }
+      }
+    };
+
+    loadPendingInstallments();
+  }, [currentInvoice, getPendingInstallments]);
+
   // Clear errors on mount
   useEffect(() => {
     clearError();
   }, [clearError]);
+
+  // NEW: Handle EMI payment recording
+  const handlePaymentRecord = async (installmentNumber, paymentAmount, paymentDetails) => {
+    if (!currentInvoice || !recordInstallmentPayment) return;
+
+    try {
+      await recordInstallmentPayment(
+        currentInvoice.id, 
+        installmentNumber, 
+        paymentAmount, 
+        paymentDetails
+      );
+      
+      // Reload invoice to reflect changes
+      await getInvoiceById(id);
+      
+      // Reload pending installments
+      const pending = await getPendingInstallments(currentInvoice.id);
+      setPendingInstallments(pending);
+      
+      setPaymentDialogOpen(false);
+      setSelectedInstallment(null);
+    } catch (error) {
+      throw error; // Let dialog handle error display
+    }
+  };
+
+  // NEW: Handle quick payment click
+  const handleQuickPaymentClick = () => {
+    if (pendingInstallments.length > 0) {
+      // Get the most urgent installment (overdue or due today)
+      const urgentInstallment = pendingInstallments.find(inst => 
+        inst.isOverdue || inst.isDueToday
+      ) || pendingInstallments[0]; // or just first pending
+
+      setSelectedInstallment(urgentInstallment);
+      setPaymentDialogOpen(true);
+    }
+  };
 
   // Handle edit
   const handleEdit = () => {
@@ -102,7 +183,7 @@ const ViewInvoicePageContent = () => {
     }
   };
 
-   const breadcrumbs = [
+  const breadcrumbs = [
     {
       label: 'Sales',
       path: '/sales'
@@ -133,6 +214,11 @@ const ViewInvoicePageContent = () => {
   const canEdit = user?.role === USER_ROLES.ADMIN || 
     (user?.role === USER_ROLES.EMPLOYEE && user?.canCreateInvoices);
   const canDelete = user?.role === USER_ROLES.ADMIN;
+
+  // NEW: Get urgent installment count
+  const urgentInstallmentCount = pendingInstallments.filter(inst => 
+    inst.isOverdue || inst.isDueToday
+  ).length;
 
   if (loading) {
     return (
@@ -182,6 +268,21 @@ const ViewInvoicePageContent = () => {
     );
   }
 
+  // NEW: Define tabs based on invoice type
+  const tabs = [
+    { label: 'Invoice Details', icon: <ReceiptIcon /> },
+    { label: 'Delivery', icon: <DeliveryIcon /> }
+  ];
+
+  // Add EMI tab only for EMI invoices
+  if (currentInvoice.paymentStatus === PAYMENT_STATUS.EMI) {
+    tabs.push({
+      label: 'EMI Management',
+      icon: <EMIIcon />,
+      badge: pendingInstallments.length
+    });
+  }
+
   return (
     <Layout title="Invoice Details" breadcrumbs={breadcrumbs}>
       <Container 
@@ -193,7 +294,6 @@ const ViewInvoicePageContent = () => {
       >
         {/* Header */}
         <Box sx={{ mb: 3 }}>
-
           {/* Page Title and Actions */}
           <Box 
             sx={{ 
@@ -243,6 +343,26 @@ const ViewInvoicePageContent = () => {
               >
                 Back
               </Button>
+
+              {/* NEW: Quick EMI Payment Button - Only show for EMI invoices with pending installments */}
+              {currentInvoice.paymentStatus === PAYMENT_STATUS.EMI && 
+               pendingInstallments.length > 0 && 
+               recordInstallmentPayment && (
+                <Button
+                  variant="contained"
+                  color={urgentInstallmentCount > 0 ? 'error' : 'warning'}
+                  startIcon={<PaymentIcon />}
+                  onClick={handleQuickPaymentClick}
+                  sx={{ 
+                    flex: { xs: 1, sm: 'none' }
+                  }}
+                >
+                  {urgentInstallmentCount > 0 
+                    ? `Pay Urgent EMI (${urgentInstallmentCount})`
+                    : 'Record EMI Payment'
+                  }
+                </Button>
+              )}
               
               <Button
                 variant="outlined"
@@ -296,7 +416,7 @@ const ViewInvoicePageContent = () => {
           </Box>
 
           {/* Invoice Status */}
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
             <Chip
               label={`Payment: ${currentInvoice.paymentStatus}`}
               color={currentInvoice.paymentStatus === PAYMENT_STATUS.PAID ? 'success' : 'warning'}
@@ -313,6 +433,15 @@ const ViewInvoicePageContent = () => {
               variant="outlined"
               size={isMobile ? 'small' : 'medium'}
             />
+            {/* NEW: EMI Status Chip */}
+            {currentInvoice.paymentStatus === PAYMENT_STATUS.EMI && (
+              <Chip
+                label={`${currentInvoice.emiDetails?.schedule?.filter(emi => emi.paid)?.length || 0}/${currentInvoice.emiDetails?.schedule?.length || 0} Installments Paid`}
+                color="info"
+                variant="outlined"
+                size={isMobile ? 'small' : 'medium'}
+              />
+            )}
           </Box>
         </Box>
 
@@ -323,19 +452,109 @@ const ViewInvoicePageContent = () => {
           </Alert>
         )}
 
-        {/* Invoice Preview */}
+        {/* NEW: Tabs for different sections */}
         <Paper 
           sx={{ 
             backgroundColor: 'background.paper',
             borderRadius: 2,
-            overflow: 'hidden'
+            overflow: 'hidden',
+            mb: 3
           }}
         >
-          <InvoicePreview 
-            invoice={currentInvoice}
-            showActions={false}
-          />
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs value={currentTab} onChange={(e, newValue) => setCurrentTab(newValue)}>
+              {tabs.map((tab, index) => (
+                <Tab
+                  key={index}
+                  label={
+                    <Box display="flex" alignItems="center" gap={1}>
+                      {tab.icon}
+                      {tab.label}
+                      {tab.badge > 0 && (
+                        <Chip
+                          label={tab.badge}
+                          size="small"
+                          color={urgentInstallmentCount > 0 ? "error" : "warning"}
+                          sx={{ ml: 1, fontSize: '0.75rem', height: 20 }}
+                        />
+                      )}
+                    </Box>
+                  }
+                />
+              ))}
+            </Tabs>
+          </Box>
+
+          <Box sx={{ p: 3 }}>
+            {/* Invoice Details Tab */}
+            {currentTab === 0 && (
+              <InvoicePreview 
+                invoice={currentInvoice}
+                showActions={false}
+              />
+            )}
+
+            {/* Delivery Tab */}
+            {currentTab === 1 && (
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Delivery Information
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Status
+                    </Typography>
+                    <Typography variant="body1" fontWeight={500}>
+                      {currentInvoice.deliveryStatus}
+                    </Typography>
+                  </Grid>
+                  {currentInvoice.scheduledDeliveryDate && (
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Scheduled Date
+                      </Typography>
+                      <Typography variant="body1" fontWeight={500}>
+                        {formatDate(currentInvoice.scheduledDeliveryDate)}
+                      </Typography>
+                    </Grid>
+                  )}
+                  <Grid item xs={12}>
+                    <Typography variant="body2" color="text.secondary">
+                      Delivery Address
+                    </Typography>
+                    <Typography variant="body1" fontWeight={500}>
+                      {currentInvoice.customerAddress}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+            )}
+
+            {/* NEW: EMI Management Tab */}
+            {currentTab === 2 && currentInvoice.paymentStatus === PAYMENT_STATUS.EMI && (
+              <EMIManagement invoice={currentInvoice} />
+            )}
+          </Box>
         </Paper>
+
+        {/* NEW: Quick Payment Dialog for EMI invoices */}
+        {recordInstallmentPayment && paymentDialogOpen && selectedInstallment && (
+          <InstallmentPaymentDialog
+            open={paymentDialogOpen}
+            onClose={() => {
+              setPaymentDialogOpen(false);
+              setSelectedInstallment(null);
+            }}
+            installment={selectedInstallment}
+            invoice={{
+              id: currentInvoice.id,
+              invoiceNumber: currentInvoice.invoiceNumber,
+              customerName: currentInvoice.customerName
+            }}
+            onPaymentRecorded={handlePaymentRecord}
+          />
+        )}
 
         {/* Delete Confirmation Dialog */}
         <ConfirmDialog

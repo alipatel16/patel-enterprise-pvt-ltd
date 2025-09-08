@@ -319,7 +319,7 @@ const DashboardPage = () => {
           </Typography>
 
           <Box display="flex" alignItems="center" gap={1}>
-            <IconButton color="inherit">
+            <IconButton color="inherit" onClick={() => navigate('/notifications')}>
               <Badge badgeContent={stats.pendingEMIs + stats.pendingDeliveries} color="error">
                 <NotificationsIcon />
               </Badge>

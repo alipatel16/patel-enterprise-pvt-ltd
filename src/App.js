@@ -19,6 +19,7 @@ import LoadingSpinner from './components/common/UI/LoadingSpinner';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
+import NotificationsPage from './pages/dashboard/Notifications/NotificationsPage';
 import CustomersPage from './pages/customers/CustomersPage';
 import AddCustomerPage from './pages/customers/AddCustomerPage';
 import EditCustomerPage from './pages/customers/EditCustomerPage';
@@ -69,6 +70,8 @@ const AppContent = () => {
               isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />
             } 
           />
+
+          <Route path="/notifications" element={<NotificationsPage />} />
 
           {/* Protected routes */}
           <Route 
