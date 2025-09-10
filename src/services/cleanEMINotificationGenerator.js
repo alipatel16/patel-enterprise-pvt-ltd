@@ -1,4 +1,4 @@
-// Clean EMI Notification Generator - No duplicates, automatic cleanup
+
 import notificationService from './api/notificationService';
 import salesService from './api/salesService';
 import { formatCurrency } from '../utils/helpers/formatHelpers';
@@ -6,7 +6,7 @@ import { formatCurrency } from '../utils/helpers/formatHelpers';
 class CleanEMINotificationGenerator {
 
   /**
-   * Generate unique EMI notifications - only for unpaid, due/overdue installments
+   * Generate unique EMI notifications with due date change tracking
    * @param {string} userType - User type (electronics/furniture)
    * @param {string} adminUserId - Admin user ID
    */
@@ -40,6 +40,11 @@ class CleanEMINotificationGenerator {
       for (const sale of emiSales) {
         if (!sale.emiDetails?.schedule) continue;
 
+        // Extract customer-level due date change information
+        const customerDueDateChangeFlags = sale.customerDueDateChangeFlags || {};
+        const hasCustomerFrequentChanges = customerDueDateChangeFlags.hasFrequentChanges || false;
+        const totalCustomerChanges = customerDueDateChangeFlags.totalChanges || 0;
+
         for (const installment of sale.emiDetails.schedule) {
           const notificationKey = `${sale.id}_${installment.installmentNumber}`;
           const dueDate = new Date(installment.dueDate);
@@ -66,6 +71,11 @@ class CleanEMINotificationGenerator {
 
             let title, message, type, priority;
 
+            // Extract installment-level due date change information
+            const installmentChangeCount = installment.dueDateChangeCount || 0;
+            const hasFrequentInstallmentChanges = installment.hasFrequentDueDateChanges || false;
+            const lastDueDateChange = installment.lastDueDateChange;
+
             if (daysDiff < 0) {
               // Overdue
               const overdueDays = Math.abs(daysDiff);
@@ -87,7 +97,8 @@ class CleanEMINotificationGenerator {
               priority = 'medium';
             }
 
-            notificationsToCreate.push({
+            // Enhanced notification data with due date change tracking
+            const notificationData = {
               title,
               message,
               type,
@@ -97,6 +108,7 @@ class CleanEMINotificationGenerator {
               createdAt: new Date().toISOString(),
               read: false,
               data: {
+                // Basic EMI data
                 customerId: sale.customerId,
                 customerName: sale.customerName,
                 invoiceId: sale.id,
@@ -106,9 +118,37 @@ class CleanEMINotificationGenerator {
                 installmentNumber: installment.installmentNumber,
                 phoneNumber: sale.customerPhone,
                 isOverdue: daysDiff < 0,
-                daysDiff: Math.abs(daysDiff)
+                daysDiff: Math.abs(daysDiff),
+                
+                // NEW: Due date change tracking data
+                dueDateChangeCount: installmentChangeCount,
+                hasFrequentDueDateChanges: hasFrequentInstallmentChanges,
+                
+                // Customer-level due date change flags
+                customerDueDateChangeFlags: {
+                  totalChanges: totalCustomerChanges,
+                  hasFrequentChanges: hasCustomerFrequentChanges,
+                  flaggedForReview: customerDueDateChangeFlags.flaggedForReview || false
+                },
+                
+                // Last due date change information (if any)
+                ...(lastDueDateChange && {
+                  lastDueDateChange: {
+                    previousDueDate: lastDueDateChange.previousDueDate,
+                    newDueDate: lastDueDateChange.newDueDate,
+                    changedAt: lastDueDateChange.changedAt,
+                    reason: lastDueDateChange.reason,
+                    notes: lastDueDateChange.notes
+                  }
+                }),
+                
+                // Additional flags for notification prioritization
+                requiresAttention: hasFrequentInstallmentChanges || hasCustomerFrequentChanges,
+                riskLevel: this.calculateRiskLevel(daysDiff, installmentChangeCount, totalCustomerChanges)
               }
-            });
+            };
+
+            notificationsToCreate.push(notificationData);
           }
         }
       }
@@ -134,7 +174,19 @@ class CleanEMINotificationGenerator {
       return {
         created: notificationsToCreate.length,
         deleted: notificationsToDelete.length,
-        total: notificationsToCreate.length
+        total: notificationsToCreate.length,
+        // NEW: Analytics about due date changes
+        analytics: {
+          frequentChangeCustomers: notificationsToCreate.filter(n => 
+            n.data.customerDueDateChangeFlags?.hasFrequentChanges
+          ).length,
+          frequentChangeInstallments: notificationsToCreate.filter(n => 
+            n.data.hasFrequentDueDateChanges
+          ).length,
+          highRiskNotifications: notificationsToCreate.filter(n => 
+            n.data.riskLevel === 'high'
+          ).length
+        }
       };
 
     } catch (error) {
@@ -144,7 +196,34 @@ class CleanEMINotificationGenerator {
   }
 
   /**
-   * Generate delivery notifications - only for pending/scheduled deliveries
+   * Calculate risk level based on overdue status and due date change frequency
+   * @param {number} daysDiff - Days difference from due date
+   * @param {number} installmentChangeCount - Number of changes for this installment
+   * @param {number} totalCustomerChanges - Total changes for the customer
+   * @returns {string} Risk level: 'low', 'medium', 'high', 'critical'
+   */
+  calculateRiskLevel(daysDiff, installmentChangeCount, totalCustomerChanges) {
+    // Critical: Overdue + frequent changes
+    if (daysDiff < 0 && (installmentChangeCount >= 3 || totalCustomerChanges >= 5)) {
+      return 'critical';
+    }
+    
+    // High: Overdue OR many changes
+    if (daysDiff < 0 || installmentChangeCount >= 3 || totalCustomerChanges >= 5) {
+      return 'high';
+    }
+    
+    // Medium: Due today/soon with some changes
+    if (daysDiff <= 1 && (installmentChangeCount >= 2 || totalCustomerChanges >= 3)) {
+      return 'medium';
+    }
+    
+    // Low: Normal scenario
+    return 'low';
+  }
+
+  /**
+   * Generate delivery notifications - enhanced version
    * @param {string} userType - User type
    * @param {string} adminUserId - Admin user ID
    */
@@ -300,7 +379,7 @@ class CleanEMINotificationGenerator {
   }
 
   /**
-   * Main method - Generate all notifications cleanly with LOCKING
+   * Main method - Generate all notifications with enhanced tracking
    * @param {string} userType - User type
    * @param {string} adminUserId - Admin user ID
    */
@@ -309,7 +388,7 @@ class CleanEMINotificationGenerator {
     if (this.isGenerating) {
       console.log('⏸️ Generation already in progress, skipping...');
       return { 
-        emi: { created: 0, deleted: 0 },
+        emi: { created: 0, deleted: 0, analytics: {} },
         delivery: { created: 0 },
         cleanup: { delivered: 0 },
         total: 0,
@@ -322,7 +401,7 @@ class CleanEMINotificationGenerator {
     if ((now - this.lastGenerationTime) < 10000) {
       console.log('⏸️ Too soon since last generation, skipping...');
       return { 
-        emi: { created: 0, deleted: 0 },
+        emi: { created: 0, deleted: 0, analytics: {} },
         delivery: { created: 0 },
         cleanup: { delivered: 0 },
         total: 0,
@@ -334,7 +413,7 @@ class CleanEMINotificationGenerator {
       this.isGenerating = true;
       this.lastGenerationTime = now;
       
-      console.log('🚀 Starting LOCKED generation process...');
+      console.log('🚀 Starting enhanced generation with due date change tracking...');
 
       const [emiResult, deliveryResult, cleanupCount] = await Promise.all([
         this.generateEMINotifications(userType, adminUserId),
@@ -345,7 +424,8 @@ class CleanEMINotificationGenerator {
       const result = {
         emi: {
           created: emiResult.created,
-          deleted: emiResult.deleted
+          deleted: emiResult.deleted,
+          analytics: emiResult.analytics
         },
         delivery: {
           created: deliveryResult.created
@@ -353,18 +433,69 @@ class CleanEMINotificationGenerator {
         cleanup: {
           delivered: cleanupCount
         },
-        total: emiResult.created + deliveryResult.created
+        total: emiResult.created + deliveryResult.created,
+        // NEW: Overall analytics
+        summary: {
+          totalNotifications: emiResult.created + deliveryResult.created,
+          highRiskCustomers: emiResult.analytics?.frequentChangeCustomers || 0,
+          criticalNotifications: emiResult.analytics?.highRiskNotifications || 0
+        }
       };
 
-      console.log('✅ LOCKED generation completed:', result);
+      console.log('✅ Enhanced generation completed:', result);
       return result;
 
     } catch (error) {
-      console.error('❌ Error in LOCKED generation:', error);
+      console.error('❌ Error in enhanced generation:', error);
       throw error;
     } finally {
       // ALWAYS release the lock
       this.isGenerating = false;
+    }
+  }
+
+  /**
+   * Get notifications statistics including due date change analytics
+   * @param {string} userType - User type
+   * @param {string} adminUserId - Admin user ID
+   */
+  async getNotificationAnalytics(userType, adminUserId) {
+    try {
+      const notifications = await notificationService.getNotifications(userType, adminUserId);
+      const emiNotifications = notifications.filter(n => 
+        n.type === 'emi_due' || n.type === 'emi_overdue'
+      );
+
+      const analytics = {
+        total: emiNotifications.length,
+        overdue: emiNotifications.filter(n => n.type === 'emi_overdue').length,
+        dueToday: emiNotifications.filter(n => 
+          n.type === 'emi_due' && n.data?.daysDiff === 0
+        ).length,
+        dueSoon: emiNotifications.filter(n => 
+          n.type === 'emi_due' && n.data?.daysDiff > 0
+        ).length,
+        // NEW: Due date change analytics
+        frequentChangeCustomers: new Set(
+          emiNotifications
+            .filter(n => n.data?.customerDueDateChangeFlags?.hasFrequentChanges)
+            .map(n => n.data.customerId)
+        ).size,
+        frequentChangeInstallments: emiNotifications.filter(n => 
+          n.data?.hasFrequentDueDateChanges
+        ).length,
+        highRiskNotifications: emiNotifications.filter(n => 
+          n.data?.riskLevel === 'high' || n.data?.riskLevel === 'critical'
+        ).length,
+        flaggedForReview: emiNotifications.filter(n => 
+          n.data?.customerDueDateChangeFlags?.flaggedForReview
+        ).length
+      };
+
+      return analytics;
+    } catch (error) {
+      console.error('Error getting notification analytics:', error);
+      throw error;
     }
   }
 

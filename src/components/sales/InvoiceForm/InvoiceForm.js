@@ -26,11 +26,13 @@ import {
   CircularProgress,
   MenuItem,
   Chip,
-  InputAdornment
+  InputAdornment,
+  Tooltip,
 } from "@mui/material";
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
+  Edit as EditIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
   Receipt as ReceiptIcon,
@@ -38,30 +40,25 @@ import {
   Payment as PaymentIcon,
   AccountBalance as BankIcon,
   AttachMoney as MoneyIcon,
-  CreditCard as CreditCardIcon
+  CreditCard as CreditCardIcon,
+  Info as InfoIcon,
 } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 
 import { useCustomer } from "../../../contexts/CustomerContext/CustomerContext";
 import { useEmployee } from "../../../contexts/EmployeeContext/EmployeeContext";
-import { calculateGSTWithSlab } from "../../../utils/helpers/gstCalculator";
+import { calculateItemWithGST } from "../../../utils/helpers/gstCalculator";
 import {
   PAYMENT_STATUS,
   PAYMENT_STATUS_DISPLAY,
   PAYMENT_METHODS,
   PAYMENT_METHOD_DISPLAY,
   DELIVERY_STATUS,
-  getPaymentCategory
+  getPaymentCategory,
 } from "../../../utils/constants/appConstants";
 
-// GST Tax Slabs - Define inline to avoid import issues
-const GST_TAX_SLABS = [
-  { rate: 0, description: "Nil rated" },
-  { rate: 5, description: "Essential goods" },
-  { rate: 12, description: "Standard goods" },
-  { rate: 18, description: "Most goods and services" },
-  { rate: 28, description: "Luxury and sin goods" },
-];
+// Import the new ItemModal component
+import ItemModal from "./ItemModal";
 
 // Helper function to safely parse dates
 const parseDate = (dateValue) => {
@@ -70,16 +67,18 @@ const parseDate = (dateValue) => {
   return isNaN(date.getTime()) ? null : date;
 };
 
+// GST Tax Slabs
+const GST_TAX_SLABS = [
+  { rate: 0, description: "Nil rated" },
+  { rate: 5, description: "Essential goods" },
+  { rate: 12, description: "Standard goods" },
+  { rate: 18, description: "Most goods and services" },
+  { rate: 28, description: "Luxury and sin goods" },
+];
+
 /**
- * InvoiceForm component for creating and editing invoices
- * @param {Object} props
- * @param {Object} props.invoice - Existing invoice data (for edit mode)
- * @param {boolean} props.isEdit - Whether this is edit mode
- * @param {Function} props.onSubmit - Submit callback
- * @param {Function} props.onCancel - Cancel callback
- * @param {boolean} props.loading - Loading state
- * @param {string} props.error - Error message
- * @returns {React.ReactElement}
+ * Enhanced InvoiceForm component with ItemModal for mobile-friendly item management
+ * Clean, modular implementation
  */
 const InvoiceForm = ({
   invoice = null,
@@ -91,6 +90,14 @@ const InvoiceForm = ({
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
+  const [showBulkPricing, setShowBulkPricing] = useState(false);
+  const [bulkPricing, setBulkPricing] = useState({
+    totalPrice: 0,
+    gstSlab: 18,
+    isPriceInclusive: false,
+  });
+  const [bulkPricingApplied, setBulkPricingApplied] = useState(false);
 
   const { getCustomerSuggestions } = useCustomer();
   const { getEmployeeSuggestions } = useEmployee();
@@ -105,20 +112,19 @@ const InvoiceForm = ({
     customerState: "",
     salesPersonId: "",
     salesPersonName: "",
-    items: [{ name: "", description: "", quantity: 1, rate: 0, gstSlab: 18 }],
+    items: [],
     includeGST: true,
     paymentStatus: PAYMENT_STATUS.PAID,
     deliveryStatus: DELIVERY_STATUS.DELIVERED,
     scheduledDeliveryDate: null,
-    remarks: "", // Remarks field
-    // Payment details for partial payments
+    remarks: "",
     paymentDetails: {
       downPayment: 0,
       remainingBalance: 0,
       paymentMethod: PAYMENT_METHODS.CASH,
       bankName: "",
       financeCompany: "",
-      paymentReference: ""
+      paymentReference: "",
     },
     emiDetails: {
       monthlyAmount: 0,
@@ -139,6 +145,10 @@ const InvoiceForm = ({
     itemTotals: [],
   });
 
+  // Item modal state
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [editingItemIndex, setEditingItemIndex] = useState(null);
+
   // Store selected customer and employee for autocomplete
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -146,7 +156,6 @@ const InvoiceForm = ({
   // Initialize form data for edit
   useEffect(() => {
     if (isEdit && invoice) {
-      // Safely parse dates to avoid Invalid time value error
       const saleDate = parseDate(invoice.saleDate) || new Date();
       const scheduledDeliveryDate = parseDate(invoice.scheduledDeliveryDate);
       const emiStartDate = parseDate(invoice.emiDetails?.startDate);
@@ -160,9 +169,14 @@ const InvoiceForm = ({
         customerState: invoice.customerState || "",
         salesPersonId: invoice.salesPersonId || "",
         salesPersonName: invoice.salesPersonName || "",
-        items: invoice.items || [
-          { name: "", description: "", quantity: 1, rate: 0, gstSlab: 18 },
-        ],
+        items: (invoice.items || []).map((item) => ({
+          name: item.name || "",
+          description: item.description || "",
+          quantity: item.quantity || 1,
+          rate: item.rate || 0,
+          gstSlab: item.gstSlab || 18,
+          isPriceInclusive: item.isPriceInclusive || false,
+        })),
         includeGST: invoice.includeGST !== false,
         paymentStatus: invoice.paymentStatus || PAYMENT_STATUS.PAID,
         deliveryStatus: invoice.deliveryStatus || DELIVERY_STATUS.DELIVERED,
@@ -171,17 +185,33 @@ const InvoiceForm = ({
         paymentDetails: {
           downPayment: invoice.paymentDetails?.downPayment || 0,
           remainingBalance: invoice.paymentDetails?.remainingBalance || 0,
-          paymentMethod: invoice.paymentDetails?.paymentMethod || PAYMENT_METHODS.CASH,
+          paymentMethod:
+            invoice.paymentDetails?.paymentMethod || PAYMENT_METHODS.CASH,
           bankName: invoice.paymentDetails?.bankName || "",
           financeCompany: invoice.paymentDetails?.financeCompany || "",
-          paymentReference: invoice.paymentDetails?.paymentReference || ""
+          paymentReference: invoice.paymentDetails?.paymentReference || "",
         },
         emiDetails: {
           monthlyAmount: invoice.emiDetails?.monthlyAmount || 0,
           startDate: emiStartDate,
           numberOfInstallments: invoice.emiDetails?.numberOfInstallments || 1,
         },
+        // FIX: Check for bulk pricing details and set them
+        bulkPricingDetails: invoice.bulkPricingDetails || null,
       });
+
+      // FIX: Auto-populate bulk pricing if it exists in the invoice
+      if (invoice.bulkPricingDetails || invoice.bulkPricingApplied) {
+        const bulkDetails = invoice.bulkPricingDetails;
+        if (bulkDetails) {
+          setBulkPricing({
+            totalPrice: bulkDetails.totalPrice || 0,
+            gstSlab: bulkDetails.gstSlab || 18,
+            isPriceInclusive: bulkDetails.isPriceInclusive || false,
+          });
+          setBulkPricingApplied(true);
+        }
+      }
 
       // Set up autocomplete selections for edit mode
       if (invoice.customerId && invoice.customerName) {
@@ -205,41 +235,124 @@ const InvoiceForm = ({
     }
   }, [isEdit, invoice]);
 
-  // Calculate totals when items or GST settings change
+  // Bulk pricing handlers
+  const handleBulkPricingToggle = () => {
+    setShowBulkPricing(!showBulkPricing);
+    if (!showBulkPricing) {
+      // When opening bulk pricing, set current total as starting point
+      setBulkPricing((prev) => ({
+        ...prev,
+        totalPrice: calculations.grandTotal || 0,
+      }));
+    }
+  };
+
+  const handleBulkPricingChange = (field) => (event) => {
+    const value =
+      event.target.type === "checkbox"
+        ? event.target.checked
+        : parseFloat(event.target.value) || 0;
+    setBulkPricing((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const applyBulkPricing = () => {
+    if (formData.items.length === 0 || bulkPricing.totalPrice <= 0) return;
+
+    setBulkPricingApplied(true);
+    setFormData((prev) => ({
+      ...prev,
+      bulkPricingDetails: {
+        totalPrice: bulkPricing.totalPrice,
+        gstSlab: bulkPricing.gstSlab,
+        isPriceInclusive: bulkPricing.isPriceInclusive,
+      },
+    }));
+    setShowBulkPricing(false);
+  };
+
+  const clearBulkPricing = () => {
+    setBulkPricingApplied(false);
+    setFormData((prev) => {
+      const newData = { ...prev };
+      delete newData.bulkPricingDetails;
+      return newData;
+    });
+  };
+
   useEffect(() => {
     const calculateTotals = () => {
       let subtotal = 0;
       let totalGST = 0;
       const itemTotals = [];
 
-      formData.items.forEach((item, index) => {
-        if (item.quantity && item.rate) {
-          const itemTotal = parseFloat(item.quantity) * parseFloat(item.rate);
-          const gstCalc = calculateGSTWithSlab(
-            itemTotal,
-            formData.customerState,
-            formData.includeGST,
-            item.gstSlab || 18
-          );
+      if (bulkPricingApplied && formData.bulkPricingDetails) {
+        // Use bulk pricing - ignore individual item calculations
+        const bulkDetails = formData.bulkPricingDetails;
 
-          subtotal += gstCalc.baseAmount;
-          totalGST += gstCalc.totalGstAmount;
-
-          itemTotals[index] = {
-            baseAmount: gstCalc.baseAmount,
-            gstAmount: gstCalc.totalGstAmount,
-            totalAmount: gstCalc.totalAmount,
-            gstSlab: item.gstSlab || 18,
-          };
+        if (!formData.includeGST || bulkDetails.gstSlab === 0) {
+          // No GST
+          subtotal = bulkDetails.totalPrice;
+          totalGST = 0;
+        } else if (bulkDetails.isPriceInclusive) {
+          // GST included in bulk price
+          const baseAmount =
+            bulkDetails.totalPrice / (1 + bulkDetails.gstSlab / 100);
+          subtotal = Math.round(baseAmount * 100) / 100;
+          totalGST =
+            Math.round((bulkDetails.totalPrice - baseAmount) * 100) / 100;
         } else {
+          // GST to be added to bulk price
+          subtotal = bulkDetails.totalPrice;
+          totalGST =
+            Math.round(
+              ((bulkDetails.totalPrice * bulkDetails.gstSlab) / 100) * 100
+            ) / 100;
+        }
+
+        // Set empty item totals since we're using bulk pricing
+        formData.items.forEach((item, index) => {
           itemTotals[index] = {
             baseAmount: 0,
             gstAmount: 0,
             totalAmount: 0,
-            gstSlab: item.gstSlab || 18,
+            bulkPricing: true,
           };
-        }
-      });
+        });
+      } else {
+        // Regular individual item calculation
+        formData.items.forEach((item, index) => {
+          if (item.quantity && item.rate) {
+            const itemCalc = calculateItemWithGST(
+              item,
+              formData.customerState,
+              formData.includeGST
+            );
+
+            subtotal += itemCalc.baseAmount;
+            totalGST += itemCalc.gstAmount;
+
+            itemTotals[index] = {
+              baseAmount: itemCalc.baseAmount,
+              gstAmount: itemCalc.gstAmount,
+              totalAmount: itemCalc.totalAmount,
+              gstSlab: itemCalc.gstSlab,
+              isPriceInclusive: itemCalc.isPriceInclusive,
+              gstBreakdown: itemCalc.gstBreakdown,
+            };
+          } else {
+            itemTotals[index] = {
+              baseAmount: 0,
+              gstAmount: 0,
+              totalAmount: 0,
+              gstSlab: item.gstSlab || 18,
+              isPriceInclusive: item.isPriceInclusive || false,
+            };
+          }
+        });
+      }
 
       setCalculations({
         subtotal: Math.round(subtotal * 100) / 100,
@@ -250,48 +363,69 @@ const InvoiceForm = ({
     };
 
     calculateTotals();
-  }, [formData.items, formData.customerState, formData.includeGST]);
+  }, [
+    formData.items,
+    formData.customerState,
+    formData.includeGST,
+    bulkPricingApplied,
+    formData.bulkPricingDetails,
+  ]);
 
   // Auto-calculate remaining balance for finance/bank transfer
   useEffect(() => {
-    if (formData.paymentStatus === PAYMENT_STATUS.FINANCE || 
-        formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER) {
+    if (
+      formData.paymentStatus === PAYMENT_STATUS.FINANCE ||
+      formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
+    ) {
       const downPayment = parseFloat(formData.paymentDetails.downPayment) || 0;
-      const remainingBalance = Math.max(0, calculations.grandTotal - downPayment);
-      
-      setFormData(prev => ({
+      const remainingBalance = Math.max(
+        0,
+        calculations.grandTotal - downPayment
+      );
+
+      setFormData((prev) => ({
         ...prev,
         paymentDetails: {
           ...prev.paymentDetails,
-          remainingBalance: Math.round(remainingBalance * 100) / 100
-        }
+          remainingBalance: Math.round(remainingBalance * 100) / 100,
+        },
       }));
     }
-  }, [calculations.grandTotal, formData.paymentDetails.downPayment, formData.paymentStatus]);
+  }, [
+    calculations.grandTotal,
+    formData.paymentDetails.downPayment,
+    formData.paymentStatus,
+  ]);
 
   // Auto-calculate EMI installments when relevant values change
   useEffect(() => {
-    if (formData.paymentStatus === PAYMENT_STATUS.EMI && 
-        formData.emiDetails.monthlyAmount > 0 && 
-        calculations.grandTotal > 0) {
-      
+    if (
+      formData.paymentStatus === PAYMENT_STATUS.EMI &&
+      formData.emiDetails.monthlyAmount > 0 &&
+      calculations.grandTotal > 0
+    ) {
       const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
-      const calculatedInstallments = Math.ceil(calculations.grandTotal / monthlyAmount);
-      
-      // Only update if the calculated value is different from current value
+      const calculatedInstallments = Math.ceil(
+        calculations.grandTotal / monthlyAmount
+      );
+
       if (calculatedInstallments !== formData.emiDetails.numberOfInstallments) {
         setFormData((prev) => ({
           ...prev,
           emiDetails: {
             ...prev.emiDetails,
-            numberOfInstallments: calculatedInstallments
-          }
+            numberOfInstallments: calculatedInstallments,
+          },
         }));
       }
     }
-  }, [calculations.grandTotal, formData.paymentStatus, formData.emiDetails.monthlyAmount]);
+  }, [
+    calculations.grandTotal,
+    formData.paymentStatus,
+    formData.emiDetails.monthlyAmount,
+  ]);
 
-  // Handle customer search
+  // Customer search and selection handlers
   const handleCustomerSearch = async (searchTerm) => {
     if (!searchTerm || searchTerm.length < 2) {
       setCustomerOptions([]);
@@ -309,7 +443,6 @@ const InvoiceForm = ({
     }
   };
 
-  // Handle customer selection
   const handleCustomerSelect = (customer) => {
     setSelectedCustomer(customer);
     if (customer) {
@@ -322,7 +455,6 @@ const InvoiceForm = ({
         customerState: customer.state || "",
       }));
     } else {
-      // Clear customer data when selection is cleared
       setFormData((prev) => ({
         ...prev,
         customerId: "",
@@ -334,7 +466,7 @@ const InvoiceForm = ({
     }
   };
 
-  // Handle employee search
+  // Employee search and selection handlers
   const handleEmployeeSearch = async (searchTerm) => {
     if (!searchTerm || searchTerm.length < 2) {
       setEmployeeOptions([]);
@@ -352,7 +484,6 @@ const InvoiceForm = ({
     }
   };
 
-  // Handle employee selection
   const handleEmployeeSelect = (employee) => {
     setSelectedEmployee(employee);
     if (employee) {
@@ -362,7 +493,6 @@ const InvoiceForm = ({
         salesPersonName: employee.name,
       }));
     } else {
-      // Clear employee data when selection is cleared
       setFormData((prev) => ({
         ...prev,
         salesPersonId: "",
@@ -371,38 +501,63 @@ const InvoiceForm = ({
     }
   };
 
-  // Handle item changes
-  const handleItemChange = (index, field, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      items: prev.items.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item
-      ),
-    }));
+  // Item management handlers
+  const handleAddItem = () => {
+    setEditingItemIndex(null);
+    setItemModalOpen(true);
   };
 
-  // Add new item row
-  const addItemRow = () => {
-    setFormData((prev) => ({
-      ...prev,
-      items: [
-        ...prev.items,
-        { name: "", description: "", quantity: 1, rate: 0, gstSlab: 18 },
-      ],
-    }));
+  const handleEditItem = (index) => {
+    setEditingItemIndex(index);
+    setItemModalOpen(true);
   };
 
-  // Remove item row
-  const removeItemRow = (index) => {
-    if (formData.items.length > 1) {
-      setFormData((prev) => ({
+  const handleItemModalClose = () => {
+    setItemModalOpen(false);
+    setEditingItemIndex(null);
+  };
+
+  const handleItemSave = (itemData) => {
+    setFormData((prev) => {
+      const newItems = [...prev.items];
+
+      if (editingItemIndex !== null) {
+        newItems[editingItemIndex] = {
+          name: itemData.name,
+          description: itemData.description,
+          quantity: itemData.quantity,
+          rate: itemData.rate,
+          gstSlab: itemData.gstSlab,
+          isPriceInclusive: itemData.isPriceInclusive,
+        };
+      } else {
+        newItems.push({
+          name: itemData.name,
+          description: itemData.description,
+          quantity: itemData.quantity,
+          rate: itemData.rate,
+          gstSlab: itemData.gstSlab,
+          isPriceInclusive: itemData.isPriceInclusive,
+        });
+      }
+
+      return {
         ...prev,
-        items: prev.items.filter((_, i) => i !== index),
-      }));
-    }
+        items: newItems,
+      };
+    });
+
+    handleItemModalClose();
   };
 
-  // Handle form field changes
+  const handleRemoveItem = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index),
+    }));
+  };
+
+  // Form field change handlers
   const handleChange = (field) => (event) => {
     const value =
       event.target.type === "checkbox"
@@ -414,7 +569,6 @@ const InvoiceForm = ({
     }));
   };
 
-  // Handle payment details change
   const handlePaymentDetailsChange = (field) => (event) => {
     const value = event.target.value;
     setFormData((prev) => ({
@@ -426,7 +580,6 @@ const InvoiceForm = ({
     }));
   };
 
-  // Handle payment status change with EMI calculation
   const handlePaymentStatusChange = (event) => {
     const newStatus = event.target.value;
     setFormData((prev) => {
@@ -435,29 +588,34 @@ const InvoiceForm = ({
         paymentStatus: newStatus,
       };
 
-      // Reset payment details when changing status
-      if (newStatus === PAYMENT_STATUS.FINANCE || newStatus === PAYMENT_STATUS.BANK_TRANSFER) {
+      if (
+        newStatus === PAYMENT_STATUS.FINANCE ||
+        newStatus === PAYMENT_STATUS.BANK_TRANSFER
+      ) {
         updatedData.paymentDetails = {
           ...prev.paymentDetails,
           downPayment: 0,
-          remainingBalance: calculations.grandTotal
+          remainingBalance: calculations.grandTotal,
         };
       } else if (newStatus === PAYMENT_STATUS.PAID) {
         updatedData.paymentDetails = {
           ...prev.paymentDetails,
           downPayment: calculations.grandTotal,
-          remainingBalance: 0
+          remainingBalance: 0,
         };
       }
 
-      // If switching to EMI and we have values, calculate installments immediately
-      if (newStatus === PAYMENT_STATUS.EMI && 
-          prev.emiDetails.monthlyAmount > 0 && 
-          calculations.grandTotal > 0) {
-        const numberOfInstallments = Math.ceil(calculations.grandTotal / parseFloat(prev.emiDetails.monthlyAmount));
+      if (
+        newStatus === PAYMENT_STATUS.EMI &&
+        prev.emiDetails.monthlyAmount > 0 &&
+        calculations.grandTotal > 0
+      ) {
+        const numberOfInstallments = Math.ceil(
+          calculations.grandTotal / parseFloat(prev.emiDetails.monthlyAmount)
+        );
         updatedData.emiDetails = {
           ...prev.emiDetails,
-          numberOfInstallments
+          numberOfInstallments,
         };
       }
 
@@ -465,7 +623,6 @@ const InvoiceForm = ({
     });
   };
 
-  // Handle date changes
   const handleDateChange = (field) => (date) => {
     setFormData((prev) => ({
       ...prev,
@@ -473,7 +630,6 @@ const InvoiceForm = ({
     }));
   };
 
-  // Handle EMI details change with immediate calculation
   const handleEMIChange = (field) => (event) => {
     const value = event.target.value;
     setFormData((prev) => {
@@ -482,9 +638,14 @@ const InvoiceForm = ({
         [field]: value,
       };
 
-      // Auto-calculate numberOfInstallments when monthlyAmount changes
-      if (field === 'monthlyAmount' && value > 0 && calculations.grandTotal > 0) {
-        const numberOfInstallments = Math.ceil(calculations.grandTotal / parseFloat(value));
+      if (
+        field === "monthlyAmount" &&
+        value > 0 &&
+        calculations.grandTotal > 0
+      ) {
+        const numberOfInstallments = Math.ceil(
+          calculations.grandTotal / parseFloat(value)
+        );
         updatedEmiDetails.numberOfInstallments = numberOfInstallments;
       }
 
@@ -505,7 +666,7 @@ const InvoiceForm = ({
     }));
   };
 
-  // Validate form
+  // Form validation
   const validateForm = () => {
     const errors = {};
 
@@ -528,12 +689,12 @@ const InvoiceForm = ({
       if (!item.quantity || parseFloat(item.quantity) <= 0) {
         errors[`item_${index}_quantity`] = "Valid quantity is required";
       }
-      if (!item.rate || parseFloat(item.rate) <= 0) {
-        errors[`item_${index}_rate`] = "Valid rate is required";
+      if (parseFloat(item.rate) < 0) {
+        errors[`item_${index}_rate`] = "Rate cannot be negative";
       }
     });
 
-    // Validate finance/bank transfer fields
+    // Validate payment details
     if (formData.paymentStatus === PAYMENT_STATUS.FINANCE) {
       if (!formData.paymentDetails.financeCompany) {
         errors.financeCompany = "Finance company is required";
@@ -541,7 +702,10 @@ const InvoiceForm = ({
       if (parseFloat(formData.paymentDetails.downPayment) < 0) {
         errors.downPayment = "Down payment cannot be negative";
       }
-      if (parseFloat(formData.paymentDetails.downPayment) > calculations.grandTotal) {
+      if (
+        parseFloat(formData.paymentDetails.downPayment) >
+        calculations.grandTotal
+      ) {
         errors.downPayment = "Down payment cannot exceed total amount";
       }
     }
@@ -553,7 +717,10 @@ const InvoiceForm = ({
       if (parseFloat(formData.paymentDetails.downPayment) < 0) {
         errors.downPayment = "Down payment cannot be negative";
       }
-      if (parseFloat(formData.paymentDetails.downPayment) > calculations.grandTotal) {
+      if (
+        parseFloat(formData.paymentDetails.downPayment) >
+        calculations.grandTotal
+      ) {
         errors.downPayment = "Down payment cannot exceed total amount";
       }
     }
@@ -584,7 +751,7 @@ const InvoiceForm = ({
     return errors;
   };
 
-  // Generate EMI schedule with proper installment calculation
+  // Generate EMI schedule
   const generateEMISchedule = () => {
     if (
       formData.paymentStatus !== PAYMENT_STATUS.EMI ||
@@ -598,7 +765,9 @@ const InvoiceForm = ({
     const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
     const startDate = new Date(formData.emiDetails.startDate);
     const totalAmount = calculations.grandTotal;
-    const numberOfInstallments = parseInt(formData.emiDetails.numberOfInstallments);
+    const numberOfInstallments = parseInt(
+      formData.emiDetails.numberOfInstallments
+    );
 
     const schedule = [];
     for (let i = 0; i < numberOfInstallments; i++) {
@@ -621,7 +790,7 @@ const InvoiceForm = ({
     return schedule;
   };
 
-  // Handle form submission
+  // Form submission
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -632,7 +801,6 @@ const InvoiceForm = ({
       return;
     }
 
-    // Prepare invoice data
     const invoiceData = {
       ...formData,
       saleDate: formData.saleDate.toISOString(),
@@ -645,6 +813,9 @@ const InvoiceForm = ({
               schedule: generateEMISchedule(),
             }
           : null,
+      // FIX: Include bulk pricing information in submission
+      bulkPricingApplied,
+      bulkPricingDetails: bulkPricingApplied ? formData.bulkPricingDetails : null,
     };
 
     if (onSubmit) {
@@ -652,16 +823,13 @@ const InvoiceForm = ({
     }
   };
 
-  // Check if payment requires additional fields
-  const requiresPartialPayment = formData.paymentStatus === PAYMENT_STATUS.FINANCE || 
-                                 formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER;
-
-  // NEW - Get current payment category for display
-  const currentPaymentCategory = getPaymentCategory(formData.paymentStatus, formData.paymentDetails.paymentMethod);
+  const currentPaymentCategory = getPaymentCategory(
+    formData.paymentStatus,
+    formData.paymentDetails.paymentMethod
+  );
 
   return (
     <Box component="form" onSubmit={handleSubmit}>
-      {/* Error Alert */}
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
@@ -684,7 +852,6 @@ const InvoiceForm = ({
               </Typography>
 
               <Grid container spacing={3}>
-                {/* Sale Date */}
                 <Grid item xs={12} sm={6}>
                   <DatePicker
                     label="Sale Date"
@@ -700,7 +867,6 @@ const InvoiceForm = ({
                   />
                 </Grid>
 
-                {/* GST Toggle */}
                 <Grid item xs={12} sm={6}>
                   <FormControlLabel
                     control={
@@ -732,14 +898,13 @@ const InvoiceForm = ({
               )}
 
               <Grid container spacing={3}>
-                {/* Customer Search */}
                 <Grid item xs={12}>
                   <Autocomplete
                     options={customerOptions}
                     getOptionLabel={(option) => option.label || ""}
                     loading={customerLoading}
                     value={selectedCustomer}
-                    isOptionEqualToValue={(option, value) => 
+                    isOptionEqualToValue={(option, value) =>
                       option.id === value.id
                     }
                     onInputChange={(event, value) =>
@@ -759,7 +924,6 @@ const InvoiceForm = ({
                   />
                 </Grid>
 
-                {/* Customer Info (Auto-populated) */}
                 {formData.customerId && (
                   <>
                     <Grid item xs={12} sm={6}>
@@ -817,9 +981,7 @@ const InvoiceForm = ({
                 getOptionLabel={(option) => option.label || ""}
                 loading={employeeLoading}
                 value={selectedEmployee}
-                isOptionEqualToValue={(option, value) => 
-                  option.id === value.id
-                }
+                isOptionEqualToValue={(option, value) => option.id === value.id}
                 onInputChange={(event, value) => handleEmployeeSearch(value)}
                 onChange={(event, value) => handleEmployeeSelect(value)}
                 disabled={loading}
@@ -836,7 +998,7 @@ const InvoiceForm = ({
             </CardContent>
           </Card>
 
-          {/* Items */}
+          {/* Items - Enhanced with Modal */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Box
@@ -848,8 +1010,10 @@ const InvoiceForm = ({
                 <Typography variant="h6">Items</Typography>
                 <Button
                   startIcon={<AddIcon />}
-                  onClick={addItemRow}
+                  onClick={handleAddItem}
                   disabled={loading}
+                  variant="contained"
+                  size={isMobile ? "small" : "medium"}
                 >
                   Add Item
                 </Button>
@@ -861,161 +1025,321 @@ const InvoiceForm = ({
                 </Alert>
               )}
 
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ width: '30%', minWidth: 200 }}>Item Name *</TableCell>
-                      <TableCell sx={{ width: '25%', minWidth: 150 }}>Description</TableCell>
-                      <TableCell sx={{ width: '10%', minWidth: 80 }}>Qty *</TableCell>
-                      <TableCell sx={{ width: '15%', minWidth: 100 }}>Rate *</TableCell>
-                      {formData.includeGST && <TableCell sx={{ width: '10%', minWidth: 80 }}>GST %</TableCell>}
-                      <TableCell sx={{ width: '15%', minWidth: 100 }}>Total</TableCell>
-                      <TableCell sx={{ width: '5%', minWidth: 50 }}></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {formData.items.map((item, index) => (
-                      <TableRow key={index}>
-                        <TableCell>
-                          <TextField
-                            fullWidth
-                            size="medium"
-                            placeholder="Enter item name..."
-                            value={item.name}
-                            onChange={(e) =>
-                              handleItemChange(index, "name", e.target.value)
-                            }
-                            error={!!formErrors[`item_${index}_name`]}
-                            disabled={loading}
-                            sx={{
-                              '& .MuiInputBase-root': {
-                                fontSize: '0.875rem',
-                              }
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <TextField
-                            fullWidth
-                            size="medium"
-                            placeholder="Item description..."
-                            value={item.description}
-                            onChange={(e) =>
-                              handleItemChange(
-                                index,
-                                "description",
-                                e.target.value
-                              )
-                            }
-                            disabled={loading}
-                            multiline
-                            maxRows={2}
-                            sx={{
-                              '& .MuiInputBase-root': {
-                                fontSize: '0.875rem',
-                              }
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <TextField
-                            fullWidth
-                            size="medium"
-                            type="number"
-                            placeholder="Qty"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              handleItemChange(
-                                index,
-                                "quantity",
-                                e.target.value
-                              )
-                            }
-                            error={!!formErrors[`item_${index}_quantity`]}
-                            disabled={loading}
-                            inputProps={{ min: 1 }}
-                            sx={{
-                              '& .MuiInputBase-root': {
-                                fontSize: '0.875rem',
-                              }
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <TextField
-                            fullWidth
-                            size="medium"
-                            type="number"
-                            placeholder="Rate"
-                            value={item.rate}
-                            onChange={(e) =>
-                              handleItemChange(index, "rate", e.target.value)
-                            }
-                            error={!!formErrors[`item_${index}_rate`]}
-                            disabled={loading}
-                            inputProps={{ min: 0, step: 0.01 }}
-                            sx={{
-                              '& .MuiInputBase-root': {
-                                fontSize: '0.875rem',
-                              }
-                            }}
-                          />
-                        </TableCell>
+              {formData.items.length > 0 ? (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Item</TableCell>
+                        <TableCell align="center">Qty</TableCell>
+                        <TableCell align="right">Rate</TableCell>
                         {formData.includeGST && (
-                          <TableCell>
-                            <TextField
-                              fullWidth
-                              size="medium"
-                              select
-                              value={item.gstSlab || 18}
-                              onChange={(e) =>
-                                handleItemChange(
-                                  index,
-                                  "gstSlab",
-                                  parseFloat(e.target.value)
-                                )
-                              }
-                              disabled={loading}
-                              sx={{
-                                '& .MuiInputBase-root': {
-                                  fontSize: '0.875rem',
-                                }
-                              }}
-                            >
-                              {GST_TAX_SLABS.map((slab) => (
-                                <MenuItem key={slab.rate} value={slab.rate}>
-                                  {slab.rate}%
-                                </MenuItem>
-                              ))}
-                            </TextField>
-                          </TableCell>
+                          <TableCell align="center">GST</TableCell>
                         )}
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={600} color="primary.main">
-                            ₹
-                            {calculations.itemTotals[
-                              index
-                            ]?.totalAmount?.toFixed(2) || "0.00"}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <IconButton
-                            size="small"
-                            onClick={() => removeItemRow(index)}
-                            disabled={formData.items.length === 1 || loading}
-                            color="error"
-                          >
-                            <DeleteIcon />
-                          </IconButton>
+                        <TableCell align="right">Total</TableCell>
+                        <TableCell align="center" width={80}>
+                          Actions
                         </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                    </TableHead>
+                    <TableBody>
+                      {formData.items.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell>
+                            <Box>
+                              <Typography variant="body2" fontWeight={600}>
+                                {item.name || "Unnamed Item"}
+                              </Typography>
+                              {item.description && (
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
+                                  {item.description}
+                                </Typography>
+                              )}
+                              {bulkPricingApplied && (
+                                <Box sx={{ mt: 0.5 }}>
+                                  <Chip
+                                    size="small"
+                                    label="Bulk Pricing Applied"
+                                    color="success"
+                                    variant="outlined"
+                                    sx={{ fontSize: "0.7rem", height: 20 }}
+                                  />
+                                </Box>
+                              )}
+                            </Box>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Typography variant="body2">
+                              {item.quantity}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="body2">
+                              {bulkPricingApplied ? (
+                                <Chip
+                                  size="small"
+                                  label="Bulk"
+                                  color="success"
+                                  variant="outlined"
+                                />
+                              ) : parseFloat(item.rate) === 0 ? (
+                                <Chip
+                                  size="small"
+                                  label="TBD"
+                                  color="warning"
+                                  variant="outlined"
+                                />
+                              ) : (
+                                `₹${parseFloat(item.rate).toFixed(2)}`
+                              )}
+                            </Typography>
+                          </TableCell>
+                          {formData.includeGST && (
+                            <TableCell align="center">
+                              <Typography variant="body2">
+                                {bulkPricingApplied
+                                  ? `${
+                                      formData.bulkPricingDetails?.gstSlab || 18
+                                    }%`
+                                  : `${item.gstSlab}%`}
+                              </Typography>
+                            </TableCell>
+                          )}
+                          <TableCell align="right">
+                            <Typography
+                              variant="body2"
+                              fontWeight={600}
+                              color="primary.main"
+                            >
+                              {bulkPricingApplied ? (
+                                <Chip
+                                  size="small"
+                                  label="See Total Below"
+                                  color="info"
+                                  variant="outlined"
+                                />
+                              ) : (
+                                `₹${
+                                  calculations.itemTotals[
+                                    index
+                                  ]?.totalAmount?.toFixed(2) || "0.00"
+                                }`
+                              )}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box display="flex" gap={0.5}>
+                              {!bulkPricingApplied && (
+                                <>
+                                  <Tooltip title="Edit item">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleEditItem(index)}
+                                      disabled={loading}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Delete item">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleRemoveItem(index)}
+                                      disabled={loading}
+                                      color="error"
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </>
+                              )}
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Alert severity="info" icon={<InfoIcon />}>
+                  No items added yet. Click "Add Item" to get started.
+                </Alert>
+              )}
             </CardContent>
           </Card>
+
+          {/* Bulk Pricing Section */}
+          {formData.items.length > 0 && (
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Box
+                  display="flex"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  mb={2}
+                >
+                  <Typography variant="h6">Bulk Pricing</Typography>
+                  <Box display="flex" gap={1}>
+                    {bulkPricingApplied && (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={clearBulkPricing}
+                        color="error"
+                        startIcon={<CancelIcon />}
+                      >
+                        Remove Bulk Pricing
+                      </Button>
+                    )}
+                    {!bulkPricingApplied && (
+                      <Button
+                        variant={showBulkPricing ? "outlined" : "contained"}
+                        size="small"
+                        onClick={handleBulkPricingToggle}
+                        startIcon={
+                          showBulkPricing ? <CancelIcon /> : <MoneyIcon />
+                        }
+                      >
+                        {showBulkPricing ? "Cancel" : "Set Bulk Price"}
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+
+                {bulkPricingApplied && (
+                  <Alert severity="success" sx={{ mb: 2 }}>
+                    <Typography variant="body2">
+                      <strong>Bulk Pricing Active:</strong> Total invoice amount
+                      is ₹{formData.bulkPricingDetails?.totalPrice}
+                      {formData.bulkPricingDetails?.isPriceInclusive
+                        ? " (inclusive of GST)"
+                        : " (exclusive of GST)"}
+                      at {formData.bulkPricingDetails?.gstSlab}% GST rate.
+                    </Typography>
+                  </Alert>
+                )}
+
+                {showBulkPricing && !bulkPricingApplied && (
+                  <Box>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      <Typography variant="body2">
+                        Set the total price for the entire invoice. This will
+                        replace individual item pricing.
+                      </Typography>
+                    </Alert>
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          label="Total Invoice Price"
+                          type="number"
+                          value={bulkPricing.totalPrice}
+                          onChange={handleBulkPricingChange("totalPrice")}
+                          inputProps={{ min: 0, step: 0.01 }}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                ₹
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                      </Grid>
+
+                      <Grid item xs={12} sm={3}>
+                        <TextField
+                          fullWidth
+                          select
+                          label="GST Slab"
+                          value={bulkPricing.gstSlab}
+                          onChange={handleBulkPricingChange("gstSlab")}
+                        >
+                          {GST_TAX_SLABS.map((slab) => (
+                            <MenuItem key={slab.rate} value={slab.rate}>
+                              {slab.rate}% - {slab.description}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+
+                      <Grid item xs={12} sm={3}>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={bulkPricing.isPriceInclusive}
+                              onChange={handleBulkPricingChange(
+                                "isPriceInclusive"
+                              )}
+                            />
+                          }
+                          label="Price Inclusive of GST"
+                          sx={{ mt: 1 }}
+                        />
+                      </Grid>
+
+                      <Grid item xs={12} sm={2}>
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          onClick={applyBulkPricing}
+                          disabled={bulkPricing.totalPrice <= 0}
+                          sx={{ mt: 1 }}
+                        >
+                          Apply
+                        </Button>
+                      </Grid>
+                    </Grid>
+
+                    {bulkPricing.totalPrice > 0 && (
+                      <Box
+                        sx={{
+                          mt: 2,
+                          p: 2,
+                          backgroundColor: "rgba(25, 118, 210, 0.1)",
+                          borderRadius: 1,
+                          border: "1px solid rgba(25, 118, 210, 0.2)",
+                        }}
+                      >
+                        <Typography
+                          variant="subtitle2"
+                          color="primary"
+                          gutterBottom
+                        >
+                          Bulk Pricing Preview:
+                        </Typography>
+                        <Box
+                          display="flex"
+                          justifyContent="space-between"
+                          mb={1}
+                        >
+                          <Typography variant="body2">
+                            Total Invoice Amount:
+                          </Typography>
+                          <Typography variant="body2" fontWeight={600}>
+                            ₹{bulkPricing.totalPrice.toFixed(2)}
+                          </Typography>
+                        </Box>
+                        <Box display="flex" justifyContent="space-between">
+                          <Typography variant="body2">
+                            GST Treatment:
+                          </Typography>
+                          <Typography variant="body2" fontWeight={600}>
+                            {bulkPricing.isPriceInclusive
+                              ? "Inclusive"
+                              : "Exclusive"}{" "}
+                            ({bulkPricing.gstSlab}%)
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Remarks Section */}
           <Card sx={{ mb: 3 }}>
@@ -1039,7 +1363,7 @@ const InvoiceForm = ({
           </Card>
         </Grid>
 
-        {/* Right Column */}
+        {/* Right Column - Use existing payment and delivery components */}
         <Grid item xs={12} lg={4}>
           {/* Calculation Summary */}
           <Card sx={{ mb: 3 }}>
@@ -1094,10 +1418,14 @@ const InvoiceForm = ({
             </CardContent>
           </Card>
 
-          {/* Payment Options */}
+          {/* Payment Options - All existing functionality preserved */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography
+                variant="h6"
+                gutterBottom
+                sx={{ display: "flex", alignItems: "center", gap: 1 }}
+              >
                 <PaymentIcon />
                 Payment Options
               </Typography>
@@ -1131,14 +1459,19 @@ const InvoiceForm = ({
                 </TextField>
               </FormControl>
 
-              {/* NEW - Show current payment category */}
               {currentPaymentCategory && (
                 <Box sx={{ mb: 2 }}>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    gutterBottom
+                  >
                     Payment Category:
                   </Typography>
                   <Chip
-                    label={currentPaymentCategory.replace(/_/g, ' ').toUpperCase()}
+                    label={currentPaymentCategory
+                      .replace(/_/g, " ")
+                      .toUpperCase()}
                     size="small"
                     color="primary"
                     variant="outlined"
@@ -1167,29 +1500,57 @@ const InvoiceForm = ({
                       native: true,
                     }}
                   >
-                    <option value={PAYMENT_METHODS.CASH}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CASH]}</option>
-                    <option value={PAYMENT_METHODS.CARD}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CARD]}</option>
-                    <option value={PAYMENT_METHODS.CREDIT_CARD}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CREDIT_CARD]}</option>
-                    <option value={PAYMENT_METHODS.UPI}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.UPI]}</option>
-                    <option value={PAYMENT_METHODS.NET_BANKING}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.NET_BANKING]}</option>
-                    <option value={PAYMENT_METHODS.CHEQUE}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CHEQUE]}</option>
-                    <option value={PAYMENT_METHODS.BANK_TRANSFER}>{PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.BANK_TRANSFER]}</option>
+                    <option value={PAYMENT_METHODS.CASH}>
+                      {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CASH]}
+                    </option>
+                    <option value={PAYMENT_METHODS.CARD}>
+                      {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CARD]}
+                    </option>
+                    <option value={PAYMENT_METHODS.CREDIT_CARD}>
+                      {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CREDIT_CARD]}
+                    </option>
+                    <option value={PAYMENT_METHODS.UPI}>
+                      {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.UPI]}
+                    </option>
+                    <option value={PAYMENT_METHODS.NET_BANKING}>
+                      {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.NET_BANKING]}
+                    </option>
+                    <option value={PAYMENT_METHODS.CHEQUE}>
+                      {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CHEQUE]}
+                    </option>
+                    <option value={PAYMENT_METHODS.BANK_TRANSFER}>
+                      {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.BANK_TRANSFER]}
+                    </option>
                   </TextField>
 
-                  {/* Payment Method Icons */}
-                  <Box sx={{ 
-                    mt: 2, 
-                    p: 2, 
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)', 
-                    borderRadius: 1,
-                    border: '1px solid rgba(76, 175, 80, 0.2)'
-                  }}>
-                    <Typography variant="subtitle2" color="success.main" gutterBottom>
-                      Full Payment - {PAYMENT_METHOD_DISPLAY[formData.paymentDetails.paymentMethod]}
+                  <Box
+                    sx={{
+                      mt: 2,
+                      p: 2,
+                      backgroundColor: "rgba(76, 175, 80, 0.1)",
+                      borderRadius: 1,
+                      border: "1px solid rgba(76, 175, 80, 0.2)",
+                    }}
+                  >
+                    <Typography
+                      variant="subtitle2"
+                      color="success.main"
+                      gutterBottom
+                    >
+                      Full Payment -{" "}
+                      {
+                        PAYMENT_METHOD_DISPLAY[
+                          formData.paymentDetails.paymentMethod
+                        ]
+                      }
                     </Typography>
                     <Box display="flex" alignItems="center" gap={1}>
-                      {formData.paymentDetails.paymentMethod === PAYMENT_METHODS.CREDIT_CARD && <CreditCardIcon color="success" />}
-                      {formData.paymentDetails.paymentMethod === PAYMENT_METHODS.CASH && <MoneyIcon color="success" />}
+                      {formData.paymentDetails.paymentMethod ===
+                        PAYMENT_METHODS.CREDIT_CARD && (
+                        <CreditCardIcon color="success" />
+                      )}
+                      {formData.paymentDetails.paymentMethod ===
+                        PAYMENT_METHODS.CASH && <MoneyIcon color="success" />}
                       <Typography variant="body2" fontWeight={600}>
                         Amount: ₹{calculations.grandTotal.toFixed(2)}
                       </Typography>
@@ -1233,15 +1594,22 @@ const InvoiceForm = ({
                     value={formData.paymentDetails.downPayment}
                     onChange={handlePaymentDetailsChange("downPayment")}
                     error={!!formErrors.downPayment}
-                    helperText={formErrors.downPayment || `Remaining: ₹${formData.paymentDetails.remainingBalance.toFixed(2)}`}
+                    helperText={
+                      formErrors.downPayment ||
+                      `Remaining: ₹${formData.paymentDetails.remainingBalance.toFixed(
+                        2
+                      )}`
+                    }
                     disabled={loading}
                     sx={{ mb: 2 }}
-                    inputProps={{ min: 0, max: calculations.grandTotal, step: 0.01 }}
+                    inputProps={{
+                      min: 0,
+                      max: calculations.grandTotal,
+                      step: 0.01,
+                    }}
                     InputProps={{
                       startAdornment: (
-                        <InputAdornment position="start">
-                          ₹
-                        </InputAdornment>
+                        <InputAdornment position="start">₹</InputAdornment>
                       ),
                     }}
                   />
@@ -1256,32 +1624,44 @@ const InvoiceForm = ({
                     sx={{ mb: 2 }}
                   />
 
-                  {/* Payment Breakdown */}
-                  <Box sx={{ 
-                    mt: 2, 
-                    p: 2, 
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)', 
-                    borderRadius: 1,
-                    border: '1px solid rgba(76, 175, 80, 0.2)'
-                  }}>
-                    <Typography variant="subtitle2" color="success.main" gutterBottom>
+                  <Box
+                    sx={{
+                      mt: 2,
+                      p: 2,
+                      backgroundColor: "rgba(76, 175, 80, 0.1)",
+                      borderRadius: 1,
+                      border: "1px solid rgba(76, 175, 80, 0.2)",
+                    }}
+                  >
+                    <Typography
+                      variant="subtitle2"
+                      color="success.main"
+                      gutterBottom
+                    >
                       Finance Payment Breakdown:
                     </Typography>
                     <Box display="flex" justifyContent="space-between" mb={1}>
                       <Typography variant="body2">Down Payment:</Typography>
                       <Typography variant="body2" fontWeight={600}>
-                        ₹{parseFloat(formData.paymentDetails.downPayment || 0).toFixed(2)}
+                        ₹
+                        {parseFloat(
+                          formData.paymentDetails.downPayment || 0
+                        ).toFixed(2)}
                       </Typography>
                     </Box>
                     <Box display="flex" justifyContent="space-between" mb={1}>
-                      <Typography variant="body2">Remaining (Finance):</Typography>
+                      <Typography variant="body2">
+                        Remaining (Finance):
+                      </Typography>
                       <Typography variant="body2" fontWeight={600}>
                         ₹{formData.paymentDetails.remainingBalance.toFixed(2)}
                       </Typography>
                     </Box>
                     <Divider sx={{ my: 1 }} />
                     <Box display="flex" justifyContent="space-between">
-                      <Typography variant="body2" fontWeight={600}>Total:</Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        Total:
+                      </Typography>
                       <Typography variant="body2" fontWeight={600}>
                         ₹{calculations.grandTotal.toFixed(2)}
                       </Typography>
@@ -1325,15 +1705,22 @@ const InvoiceForm = ({
                     value={formData.paymentDetails.downPayment}
                     onChange={handlePaymentDetailsChange("downPayment")}
                     error={!!formErrors.downPayment}
-                    helperText={formErrors.downPayment || `Remaining: ₹${formData.paymentDetails.remainingBalance.toFixed(2)}`}
+                    helperText={
+                      formErrors.downPayment ||
+                      `Remaining: ₹${formData.paymentDetails.remainingBalance.toFixed(
+                        2
+                      )}`
+                    }
                     disabled={loading}
                     sx={{ mb: 2 }}
-                    inputProps={{ min: 0, max: calculations.grandTotal, step: 0.01 }}
+                    inputProps={{
+                      min: 0,
+                      max: calculations.grandTotal,
+                      step: 0.01,
+                    }}
                     InputProps={{
                       startAdornment: (
-                        <InputAdornment position="start">
-                          ₹
-                        </InputAdornment>
+                        <InputAdornment position="start">₹</InputAdornment>
                       ),
                     }}
                   />
@@ -1348,32 +1735,44 @@ const InvoiceForm = ({
                     sx={{ mb: 2 }}
                   />
 
-                  {/* Payment Breakdown */}
-                  <Box sx={{ 
-                    mt: 2, 
-                    p: 2, 
-                    backgroundColor: 'rgba(33, 150, 243, 0.1)', 
-                    borderRadius: 1,
-                    border: '1px solid rgba(33, 150, 243, 0.2)'
-                  }}>
-                    <Typography variant="subtitle2" color="primary.main" gutterBottom>
+                  <Box
+                    sx={{
+                      mt: 2,
+                      p: 2,
+                      backgroundColor: "rgba(33, 150, 243, 0.1)",
+                      borderRadius: 1,
+                      border: "1px solid rgba(33, 150, 243, 0.2)",
+                    }}
+                  >
+                    <Typography
+                      variant="subtitle2"
+                      color="primary.main"
+                      gutterBottom
+                    >
                       Bank Transfer Payment Breakdown:
                     </Typography>
                     <Box display="flex" justifyContent="space-between" mb={1}>
                       <Typography variant="body2">Down Payment:</Typography>
                       <Typography variant="body2" fontWeight={600}>
-                        ₹{parseFloat(formData.paymentDetails.downPayment || 0).toFixed(2)}
+                        ₹
+                        {parseFloat(
+                          formData.paymentDetails.downPayment || 0
+                        ).toFixed(2)}
                       </Typography>
                     </Box>
                     <Box display="flex" justifyContent="space-between" mb={1}>
-                      <Typography variant="body2">Remaining (Transfer):</Typography>
+                      <Typography variant="body2">
+                        Remaining (Transfer):
+                      </Typography>
                       <Typography variant="body2" fontWeight={600}>
                         ₹{formData.paymentDetails.remainingBalance.toFixed(2)}
                       </Typography>
                     </Box>
                     <Divider sx={{ my: 1 }} />
                     <Box display="flex" justifyContent="space-between">
-                      <Typography variant="body2" fontWeight={600}>Total:</Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        Total:
+                      </Typography>
                       <Typography variant="body2" fontWeight={600}>
                         ₹{calculations.grandTotal.toFixed(2)}
                       </Typography>
@@ -1413,62 +1812,99 @@ const InvoiceForm = ({
                     }}
                   />
 
-                  {/* Display calculated EMI details */}
-                  {formData.emiDetails.monthlyAmount > 0 && calculations.grandTotal > 0 && (
-                    <Box sx={{ 
-                      mt: 2, 
-                      p: 2, 
-                      backgroundColor: 'rgba(25, 118, 210, 0.1)', 
-                      borderRadius: 1,
-                      border: '1px solid rgba(25, 118, 210, 0.2)'
-                    }}>
-                      <Typography variant="subtitle2" color="primary" gutterBottom>
-                        EMI Calculation Summary:
-                      </Typography>
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        <strong>Invoice Total:</strong> ₹{calculations.grandTotal.toFixed(2)}
-                      </Typography>
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        <strong>Monthly EMI:</strong> ₹{parseFloat(formData.emiDetails.monthlyAmount).toFixed(2)}
-                      </Typography>
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        <strong>Number of Installments:</strong> {formData.emiDetails.numberOfInstallments} months
-                      </Typography>
-                      
-                      {/* Calculate correct EMI breakdown */}
-                      {(() => {
-                        const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
-                        const numberOfInstallments = formData.emiDetails.numberOfInstallments;
-                        const totalAmount = calculations.grandTotal;
-                        
-                        if (numberOfInstallments > 1) {
-                          const regularInstallments = numberOfInstallments - 1;
-                          const regularInstallmentTotal = monthlyAmount * regularInstallments;
-                          const lastInstallmentAmount = totalAmount - regularInstallmentTotal;
-                          
-                          return (
-                            <>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                                • First {regularInstallments} installments: ₹{monthlyAmount.toFixed(2)} each = ₹{regularInstallmentTotal.toFixed(2)}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                                • Last installment: ₹{lastInstallmentAmount.toFixed(2)}
-                              </Typography>
-                            </>
+                  {formData.emiDetails.monthlyAmount > 0 &&
+                    calculations.grandTotal > 0 && (
+                      <Box
+                        sx={{
+                          mt: 2,
+                          p: 2,
+                          backgroundColor: "rgba(25, 118, 210, 0.1)",
+                          borderRadius: 1,
+                          border: "1px solid rgba(25, 118, 210, 0.2)",
+                        }}
+                      >
+                        <Typography
+                          variant="subtitle2"
+                          color="primary"
+                          gutterBottom
+                        >
+                          EMI Calculation Summary:
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>Invoice Total:</strong> ₹
+                          {calculations.grandTotal.toFixed(2)}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>Monthly EMI:</strong> ₹
+                          {parseFloat(
+                            formData.emiDetails.monthlyAmount
+                          ).toFixed(2)}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>Number of Installments:</strong>{" "}
+                          {formData.emiDetails.numberOfInstallments} months
+                        </Typography>
+
+                        {(() => {
+                          const monthlyAmount = parseFloat(
+                            formData.emiDetails.monthlyAmount
                           );
-                        }
-                        return null;
-                      })()}
-                      
-                      <Typography variant="body2" color="success.main" fontWeight={600}>
-                        <strong>Total EMI Amount:</strong> ₹{calculations.grandTotal.toFixed(2)}
-                      </Typography>
-                      
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, fontStyle: 'italic' }}>
-                        Note: Last installment amount is adjusted to match invoice total
-                      </Typography>
-                    </Box>
-                  )}
+                          const numberOfInstallments =
+                            formData.emiDetails.numberOfInstallments;
+                          const totalAmount = calculations.grandTotal;
+
+                          if (numberOfInstallments > 1) {
+                            const regularInstallments =
+                              numberOfInstallments - 1;
+                            const regularInstallmentTotal =
+                              monthlyAmount * regularInstallments;
+                            const lastInstallmentAmount =
+                              totalAmount - regularInstallmentTotal;
+
+                            return (
+                              <>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{ display: "block", mb: 1 }}
+                                >
+                                  • First {regularInstallments} installments: ₹
+                                  {monthlyAmount.toFixed(2)} each = ₹
+                                  {regularInstallmentTotal.toFixed(2)}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{ display: "block", mb: 1 }}
+                                >
+                                  • Last installment: ₹
+                                  {lastInstallmentAmount.toFixed(2)}
+                                </Typography>
+                              </>
+                            );
+                          }
+                          return null;
+                        })()}
+
+                        <Typography
+                          variant="body2"
+                          color="success.main"
+                          fontWeight={600}
+                        >
+                          <strong>Total EMI Amount:</strong> ₹
+                          {calculations.grandTotal.toFixed(2)}
+                        </Typography>
+
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ display: "block", mt: 1, fontStyle: "italic" }}
+                        >
+                          Note: Last installment amount is adjusted to match
+                          invoice total
+                        </Typography>
+                      </Box>
+                    )}
                 </Box>
               )}
             </CardContent>
@@ -1499,7 +1935,6 @@ const InvoiceForm = ({
                 </TextField>
               </FormControl>
 
-              {/* Scheduled Delivery Date */}
               {formData.deliveryStatus === DELIVERY_STATUS.SCHEDULED && (
                 <DatePicker
                   label="Scheduled Delivery Date"
@@ -1554,6 +1989,19 @@ const InvoiceForm = ({
           </Card>
         </Grid>
       </Grid>
+
+      {/* Item Modal */}
+      <ItemModal
+        open={itemModalOpen}
+        onClose={handleItemModalClose}
+        onSave={handleItemSave}
+        item={
+          editingItemIndex !== null ? formData.items[editingItemIndex] : null
+        }
+        customerState={formData.customerState}
+        includeGST={formData.includeGST}
+        loading={loading}
+      />
     </Box>
   );
 };

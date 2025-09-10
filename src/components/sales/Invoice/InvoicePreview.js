@@ -82,8 +82,8 @@ const InvoicePreview = forwardRef(({
     paymentStatus: PAYMENT_STATUS.PENDING,
     deliveryStatus: DELIVERY_STATUS.PENDING,
     includeGST: false,
-    remarks: '', // NEW
-    paymentDetails: { // NEW
+    remarks: '',
+    paymentDetails: {
       downPayment: 0,
       remainingBalance: 0,
       paymentMethod: 'cash',
@@ -96,6 +96,32 @@ const InvoicePreview = forwardRef(({
   };
 
   const invoiceData = { ...defaultInvoice, ...invoice };
+
+  // FIX: Helper function to get the correct display rate for an item
+  const getItemDisplayRate = (item) => {
+    // If the item has baseAmount, use that for price-inclusive items
+    if (item.baseAmount !== undefined) {
+      return item.isPriceInclusive ? item.baseAmount : item.rate;
+    }
+    // Fallback to the original rate
+    return item.rate || 0;
+  };
+
+  // FIX: Helper function to get the correct total amount for an item
+  const getItemTotalAmount = (item) => {
+    // If item has totalAmount calculated, use that
+    if (item.totalAmount !== undefined) {
+      return item.totalAmount;
+    }
+    // Otherwise calculate from quantity and rate
+    return (item.quantity || 0) * (item.rate || 0);
+  };
+
+  // FIX: Check if this invoice uses bulk pricing
+  const isBulkPricingInvoice = invoiceData.bulkPricingApplied || 
+    (invoiceData.bulkPricingDetails && 
+     invoiceData.items && 
+     invoiceData.items.some(item => item.bulkPricing));
 
   // Company details (would typically come from settings)
   const companyDetails = {
@@ -172,7 +198,7 @@ const InvoicePreview = forwardRef(({
     </Box>
   );
 
-  // NEW - Get payment method icon
+  // Get payment method icon
   const getPaymentMethodIcon = (method) => {
     const iconMap = {
       cash: <MoneyIcon />,
@@ -184,7 +210,7 @@ const InvoicePreview = forwardRef(({
     return iconMap[method] || <PaymentIcon />;
   };
 
-  // NEW - Check if payment is partial (finance or bank transfer)
+  // Check if payment is partial (finance or bank transfer)
   const isPartialPayment = invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE || 
                           invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER;
 
@@ -446,6 +472,14 @@ const InvoicePreview = forwardRef(({
             <Box sx={{ p: 2, backgroundColor: alpha(themeColors.primary, 0.05) }}>
               <Typography variant="h6" fontWeight={600} sx={{ color: themeColors.primary }}>
                 Invoice Items
+                {isBulkPricingInvoice && (
+                  <Chip
+                    label="Bulk Pricing Applied"
+                    size="small"
+                    color="success"
+                    sx={{ ml: 2 }}
+                  />
+                )}
               </Typography>
             </Box>
             
@@ -478,14 +512,53 @@ const InvoicePreview = forwardRef(({
                               {item.description}
                             </Typography>
                           )}
+                          {/* FIX: Show pricing information for clarity */}
+                          {item.isPriceInclusive && !isBulkPricingInvoice && (
+                            <Box sx={{ mt: 0.5 }}>
+                              <Chip
+                                size="small"
+                                label="Price Incl. GST"
+                                color="info"
+                                variant="outlined"
+                                sx={{ fontSize: "0.7rem", height: 18 }}
+                              />
+                            </Box>
+                          )}
                         </TableCell>
                         <TableCell align="right">{item.quantity}</TableCell>
-                        <TableCell align="right">{formatCurrency(item.rate)}</TableCell>
+                        <TableCell align="right">
+                          {/* FIX: Show correct rate based on pricing type */}
+                          {isBulkPricingInvoice ? (
+                            <Chip
+                              size="small"
+                              label="Bulk"
+                              color="success"
+                              variant="outlined"
+                            />
+                          ) : (
+                            formatCurrency(getItemDisplayRate(item))
+                          )}
+                        </TableCell>
                         {invoiceData.includeGST && (
-                          <TableCell align="right">{item.gstSlab || 18}%</TableCell>
+                          <TableCell align="right">
+                            {isBulkPricingInvoice ? 
+                              `${invoiceData.bulkPricingDetails?.gstSlab || 18}%` :
+                              `${item.gstSlab || 18}%`
+                            }
+                          </TableCell>
                         )}
                         <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          {formatCurrency((item.quantity || 0) * (item.rate || 0))}
+                          {/* FIX: Show correct total amount */}
+                          {isBulkPricingInvoice ? (
+                            <Chip
+                              size="small"
+                              label="See Total Below"
+                              color="info"
+                              variant="outlined"
+                            />
+                          ) : (
+                            formatCurrency(getItemTotalAmount(item))
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -522,7 +595,12 @@ const InvoicePreview = forwardRef(({
                             {index + 1}. {item.name}
                           </Typography>
                           <Typography variant="h6" fontWeight={700} color="primary.main">
-                            {formatCurrency((item.quantity || 0) * (item.rate || 0))}
+                            {/* FIX: Use correct total amount */}
+                            {isBulkPricingInvoice ? (
+                              <Chip size="small" label="Bulk Pricing" color="success" />
+                            ) : (
+                              formatCurrency(getItemTotalAmount(item))
+                            )}
                           </Typography>
                         </Box>
                         
@@ -539,15 +617,40 @@ const InvoicePreview = forwardRef(({
                           </Grid>
                           <Grid item xs={4}>
                             <Typography variant="caption" color="text.secondary">Rate</Typography>
-                            <Typography variant="body2" fontWeight={500}>{formatCurrency(item.rate)}</Typography>
+                            <Typography variant="body2" fontWeight={500}>
+                              {/* FIX: Show correct rate */}
+                              {isBulkPricingInvoice ? (
+                                <Chip size="small" label="Bulk" color="success" />
+                              ) : (
+                                formatCurrency(getItemDisplayRate(item))
+                              )}
+                            </Typography>
                           </Grid>
                           {invoiceData.includeGST && (
                             <Grid item xs={4}>
                               <Typography variant="caption" color="text.secondary">GST</Typography>
-                              <Typography variant="body2" fontWeight={500}>{item.gstSlab || 18}%</Typography>
+                              <Typography variant="body2" fontWeight={500}>
+                                {isBulkPricingInvoice ? 
+                                  `${invoiceData.bulkPricingDetails?.gstSlab || 18}%` :
+                                  `${item.gstSlab || 18}%`
+                                }
+                              </Typography>
                             </Grid>
                           )}
                         </Grid>
+
+                        {/* FIX: Show pricing information for mobile */}
+                        {item.isPriceInclusive && !isBulkPricingInvoice && (
+                          <Box sx={{ mt: 1 }}>
+                            <Chip
+                              size="small"
+                              label="Price Inclusive of GST"
+                              color="info"
+                              variant="outlined"
+                              sx={{ fontSize: "0.7rem" }}
+                            />
+                          </Box>
+                        )}
                       </Paper>
                     ))}
                   </Stack>
@@ -610,7 +713,7 @@ const InvoicePreview = forwardRef(({
             </Grid>
           </Grid>
 
-          {/* NEW - Payment Details Section */}
+          {/* Payment Details Section */}
           {(isPartialPayment || invoiceData.paymentStatus === PAYMENT_STATUS.EMI) && (
             <Paper 
               elevation={0}
@@ -769,7 +872,7 @@ const InvoicePreview = forwardRef(({
             </Paper>
           )}
 
-          {/* NEW - Remarks Section */}
+          {/* Remarks Section */}
           {invoiceData.remarks && (
             <Paper 
               elevation={0}

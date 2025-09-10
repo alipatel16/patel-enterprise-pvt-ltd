@@ -28,7 +28,8 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction
+  ListItemSecondaryAction,
+  Badge
 } from '@mui/material';
 import {
   Payment as PaymentIcon,
@@ -41,16 +42,18 @@ import {
   CalendarToday as CalendarIcon,
   AccountBalance as BankIcon,
   TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon
+  TrendingDown as TrendingDownIcon,
+  Flag as FlagIcon
 } from '@mui/icons-material';
 
 import { useSales } from '../../../contexts/SalesContext/SalesContext';
 import { formatCurrency, formatDate } from '../../../utils/helpers/formatHelpers';
 import InstallmentPaymentDialog from './InstallmentPaymentDialog';
+import DueDateChangeDialog from './DueDateChangeDialog'; // New import
 
 /**
  * EMI Management Component for viewing and managing installment payments
- * Now mobile responsive and shows correct overpayment amounts
+ * Now includes due date change tracking and highlights
  */
 const EMIManagement = ({ invoice }) => {
   const theme = useTheme();
@@ -62,6 +65,7 @@ const EMIManagement = ({ invoice }) => {
     getInstallmentPaymentHistory,
     getPendingInstallments,
     getEMISummary,
+    updateInstallmentDueDate, // Add this method
     loading 
   } = useSales();
 
@@ -69,6 +73,7 @@ const EMIManagement = ({ invoice }) => {
   const [pendingInstallments, setPendingInstallments] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [dueDateDialogOpen, setDueDateDialogOpen] = useState(false); // New state
   const [selectedInstallment, setSelectedInstallment] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -116,9 +121,31 @@ const EMIManagement = ({ invoice }) => {
     }
   };
 
+  // New: Handle due date change
+  const handleDueDateChange = async (installmentNumber, newDueDate, changeDetails) => {
+    try {
+      await updateInstallmentDueDate(invoice.id, installmentNumber, newDueDate, changeDetails);
+      
+      // Reload data to reflect changes
+      await loadEMIData();
+      
+      setDueDateDialogOpen(false);
+      setSelectedInstallment(null);
+    } catch (err) {
+      throw err; // Let dialog handle error display
+    }
+  };
+
   const handlePaymentClick = (installment) => {
     setSelectedInstallment(installment);
     setPaymentDialogOpen(true);
+    setMenuAnchor(null);
+  };
+
+  // New: Handle due date change click
+  const handleDueDateChangeClick = (installment) => {
+    setSelectedInstallment(installment);
+    setDueDateDialogOpen(true);
     setMenuAnchor(null);
   };
 
@@ -161,11 +188,35 @@ const EMIManagement = ({ invoice }) => {
     }
   };
 
-  // Mobile-friendly pending installments list
+  // New: Get due date change indicator
+  const getDueDateChangeIndicator = (installment) => {
+    const changeCount = installment.dueDateChangeCount || 0;
+    
+    if (changeCount === 0) return null;
+    
+    return (
+      <Tooltip title={`Due date changed ${changeCount} time${changeCount > 1 ? 's' : ''}`}>
+        <Badge
+          badgeContent={changeCount}
+          color={changeCount >= 3 ? 'error' : changeCount >= 2 ? 'warning' : 'info'}
+          sx={{ ml: 1 }}
+        >
+          <HistoryIcon 
+            fontSize="small" 
+            color={changeCount >= 3 ? 'error' : changeCount >= 2 ? 'warning' : 'action'}
+          />
+        </Badge>
+      </Tooltip>
+    );
+  };
+
+  // Mobile-friendly pending installments list with due date change indicators
   const renderPendingInstallmentsMobile = () => (
     <List>
       {pendingInstallments.map((installment) => {
         const statusConfig = getInstallmentStatusConfig(installment);
+        const changeCount = installment.dueDateChangeCount || 0;
+        const hasFrequentChanges = installment.hasFrequentDueDateChanges;
         
         return (
           <ListItem 
@@ -175,11 +226,16 @@ const EMIManagement = ({ invoice }) => {
                 ? theme.palette.error.light + '10' 
                 : installment.isDueToday 
                 ? theme.palette.warning.light + '10'
+                : hasFrequentChanges
+                ? theme.palette.warning.light + '05' // Subtle highlight for frequent changes
                 : 'transparent',
               borderRadius: 1,
               mb: 1,
               border: '1px solid',
-              borderColor: theme.palette.divider
+              borderColor: hasFrequentChanges 
+                ? theme.palette.warning.main
+                : theme.palette.divider,
+              borderLeftWidth: hasFrequentChanges ? '4px' : '1px'
             }}
           >
             <ListItemText
@@ -188,12 +244,27 @@ const EMIManagement = ({ invoice }) => {
                   <Typography variant="subtitle2" fontWeight={600}>
                     Installment #{installment.installmentNumber}
                   </Typography>
+                  
                   <Chip
                     label={statusConfig.label}
                     color={statusConfig.color}
                     size="small"
                     icon={statusConfig.icon}
                   />
+                  
+                  {/* Due date change indicator */}
+                  {getDueDateChangeIndicator(installment)}
+                  
+                  {/* Frequent changes flag */}
+                  {hasFrequentChanges && (
+                    <Chip
+                      label={`${changeCount} Changes`}
+                      size="small"
+                      color="warning"
+                      icon={<FlagIcon />}
+                      sx={{ fontSize: '0.625rem' }}
+                    />
+                  )}
                 </Box>
               }
               secondary={
@@ -203,7 +274,23 @@ const EMIManagement = ({ invoice }) => {
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     <strong>Due Date:</strong> {formatDate(installment.dueDate)}
+                    {installment.dueDateUpdated && (
+                      <Chip 
+                        label="Modified" 
+                        size="small" 
+                        color="info" 
+                        sx={{ ml: 1, fontSize: '0.625rem' }} 
+                      />
+                    )}
                   </Typography>
+                  
+                  {/* Show last change info for frequent changers */}
+                  {hasFrequentChanges && installment.lastDueDateChange && (
+                    <Typography variant="caption" color="warning.main">
+                      Last changed: {formatDate(installment.lastDueDateChange.changedAt)} 
+                      ({installment.lastDueDateChange.reason})
+                    </Typography>
+                  )}
                 </Stack>
               }
             />
@@ -231,7 +318,122 @@ const EMIManagement = ({ invoice }) => {
     </List>
   );
 
-  // Mobile-friendly payment history
+  // Enhanced desktop table with due date change indicators
+  const renderPendingInstallmentsDesktop = () => (
+    <TableContainer component={Paper} variant="outlined">
+      <Table size={isTablet ? "small" : "medium"}>
+        <TableHead>
+          <TableRow>
+            <TableCell>Installment #</TableCell>
+            <TableCell>Due Date</TableCell>
+            <TableCell align="right">Amount</TableCell>
+            <TableCell>Status</TableCell>
+            <TableCell align="center">Changes</TableCell>
+            <TableCell align="center">Actions</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {pendingInstallments.map((installment) => {
+            const statusConfig = getInstallmentStatusConfig(installment);
+            const changeCount = installment.dueDateChangeCount || 0;
+            const hasFrequentChanges = installment.hasFrequentDueDateChanges;
+            
+            return (
+              <TableRow 
+                key={installment.installmentNumber}
+                sx={{
+                  backgroundColor: installment.isOverdue 
+                    ? theme.palette.error.light + '10' 
+                    : installment.isDueToday 
+                    ? theme.palette.warning.light + '10'
+                    : hasFrequentChanges
+                    ? theme.palette.warning.light + '05'
+                    : 'transparent',
+                  borderLeft: hasFrequentChanges 
+                    ? `3px solid ${theme.palette.warning.main}`
+                    : 'none'
+                }}
+              >
+                <TableCell>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" fontWeight={500}>
+                      #{installment.installmentNumber}
+                    </Typography>
+                    {hasFrequentChanges && (
+                      <FlagIcon fontSize="small" color="warning" />
+                    )}
+                  </Box>
+                </TableCell>
+                <TableCell>
+                  <Box>
+                    <Typography variant="body2">
+                      {formatDate(installment.dueDate)}
+                    </Typography>
+                    {installment.dueDateUpdated && (
+                      <Chip 
+                        label="Modified" 
+                        size="small" 
+                        color="info" 
+                        sx={{ fontSize: '0.625rem', mt: 0.5 }} 
+                      />
+                    )}
+                  </Box>
+                </TableCell>
+                <TableCell align="right">
+                  <Typography variant="body2" fontWeight={500}>
+                    {formatCurrency(installment.amount)}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Chip
+                    label={statusConfig.label}
+                    color={statusConfig.color}
+                    size="small"
+                    icon={statusConfig.icon}
+                  />
+                </TableCell>
+                <TableCell align="center">
+                  {changeCount > 0 ? (
+                    <Tooltip title={`Due date changed ${changeCount} times`}>
+                      <Chip
+                        label={changeCount}
+                        size="small"
+                        color={changeCount >= 3 ? 'error' : changeCount >= 2 ? 'warning' : 'info'}
+                        icon={<HistoryIcon />}
+                      />
+                    </Tooltip>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      -
+                    </Typography>
+                  )}
+                </TableCell>
+                <TableCell align="center">
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<PaymentIcon />}
+                    onClick={() => handlePaymentClick(installment)}
+                    sx={{ mr: 1 }}
+                  >
+                    Pay
+                  </Button>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => handleMenuOpen(e, installment)}
+                  >
+                    <MoreVertIcon fontSize="small" />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+
+  // Enhanced payment history with original/paid amount tracking
   const renderPaymentHistoryMobile = () => (
     <List>
       {paymentHistory.map((payment, index) => (
@@ -269,7 +471,6 @@ const EMIManagement = ({ invoice }) => {
                   </Typography>
                 </Box>
                 
-                {/* Show original installment amount if different from paid amount */}
                 {payment.originalAmount && payment.paidAmount !== payment.originalAmount && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="body2" color="text.secondary">
@@ -281,7 +482,6 @@ const EMIManagement = ({ invoice }) => {
                   </Box>
                 )}
                 
-                {/* Show overpayment or shortfall */}
                 {payment.paidAmount > payment.originalAmount && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="body2" color="success.main">
@@ -358,6 +558,23 @@ const EMIManagement = ({ invoice }) => {
 
   return (
     <Box>
+      {/* Customer Due Date Change Warning */}
+      {invoice.customerDueDateChangeFlags?.hasFrequentChanges && (
+        <Alert 
+          severity="warning" 
+          sx={{ mb: 3 }}
+          icon={<FlagIcon />}
+        >
+          <Typography variant="subtitle2" gutterBottom>
+            Frequent Due Date Changes Detected
+          </Typography>
+          <Typography variant="body2">
+            This customer has requested {invoice.customerDueDateChangeFlags.totalChanges} due date changes. 
+            {invoice.customerDueDateChangeFlags.flaggedForReview && ' Account flagged for management review.'}
+          </Typography>
+        </Alert>
+      )}
+
       {/* EMI Summary Card */}
       {emiSummary && (
         <Card sx={{ mb: 3 }}>
@@ -430,7 +647,6 @@ const EMIManagement = ({ invoice }) => {
               </Grid>
             </Grid>
 
-            {/* Progress Bar */}
             <Box mt={3}>
               <Box display="flex" justifyContent="space-between" mb={1}>
                 <Typography variant="body2" color="text.secondary">
@@ -468,80 +684,7 @@ const EMIManagement = ({ invoice }) => {
               )}
             </Box>
 
-            {isMobile ? renderPendingInstallmentsMobile() : (
-              <TableContainer component={Paper} variant="outlined">
-                <Table size={isTablet ? "small" : "medium"}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Installment #</TableCell>
-                      <TableCell>Due Date</TableCell>
-                      <TableCell align="right">Amount</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell align="center">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {pendingInstallments.map((installment) => {
-                      const statusConfig = getInstallmentStatusConfig(installment);
-                      
-                      return (
-                        <TableRow 
-                          key={installment.installmentNumber}
-                          sx={{
-                            backgroundColor: installment.isOverdue 
-                              ? theme.palette.error.light + '10' 
-                              : installment.isDueToday 
-                              ? theme.palette.warning.light + '10'
-                              : 'transparent'
-                          }}
-                        >
-                          <TableCell>
-                            <Typography variant="body2" fontWeight={500}>
-                              #{installment.installmentNumber}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2">
-                              {formatDate(installment.dueDate)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography variant="body2" fontWeight={500}>
-                              {formatCurrency(installment.amount)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={statusConfig.label}
-                              color={statusConfig.color}
-                              size="small"
-                              icon={statusConfig.icon}
-                            />
-                          </TableCell>
-                          <TableCell align="center">
-                            <Button
-                              variant="contained"
-                              size="small"
-                              startIcon={<PaymentIcon />}
-                              onClick={() => handlePaymentClick(installment)}
-                              sx={{ mr: 1 }}
-                            >
-                              Pay
-                            </Button>
-                            <IconButton
-                              size="small"
-                              onClick={(e) => handleMenuOpen(e, installment)}
-                            >
-                              <MoreVertIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
+            {isMobile ? renderPendingInstallmentsMobile() : renderPendingInstallmentsDesktop()}
           </CardContent>
         </Card>
       )}
@@ -585,14 +728,12 @@ const EMIManagement = ({ invoice }) => {
                               {formatCurrency(payment.paidAmount)}
                             </Typography>
                             
-                            {/* Show original amount if different from paid amount */}
                             {payment.originalAmount && payment.paidAmount !== payment.originalAmount && (
                               <Typography variant="caption" color="text.secondary">
                                 Original: {formatCurrency(payment.originalAmount)}
                               </Typography>
                             )}
                             
-                            {/* Show overpayment indicator */}
                             {payment.paidAmount > payment.originalAmount && (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <TrendingUpIcon fontSize="small" color="success" />
@@ -602,7 +743,6 @@ const EMIManagement = ({ invoice }) => {
                               </Box>
                             )}
                             
-                            {/* Show shortfall if any */}
                             {payment.shortfallAmount > 0 && (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <TrendingDownIcon fontSize="small" color="warning" />
@@ -641,7 +781,6 @@ const EMIManagement = ({ invoice }) => {
         </Card>
       )}
 
-      {/* No pending installments */}
       {pendingInstallments.length === 0 && (
         <Alert severity="success" icon={<CheckCircleIcon />}>
           All installments have been paid! This EMI plan is complete.
@@ -660,6 +799,18 @@ const EMIManagement = ({ invoice }) => {
         onPaymentRecorded={handlePaymentRecord}
       />
 
+      {/* Due Date Change Dialog */}
+      <DueDateChangeDialog
+        open={dueDateDialogOpen}
+        onClose={() => {
+          setDueDateDialogOpen(false);
+          setSelectedInstallment(null);
+        }}
+        installment={selectedInstallment}
+        invoice={invoice}
+        onDueDateChanged={handleDueDateChange}
+      />
+
       {/* Action Menu */}
       <Menu
         anchorEl={menuAnchor}
@@ -674,11 +825,11 @@ const EMIManagement = ({ invoice }) => {
               </ListItemIcon>
               Record Payment
             </MenuItem>
-            <MenuItem onClick={handleMenuClose}>
+            <MenuItem onClick={() => handleDueDateChangeClick(selectedInstallment)}>
               <ListItemIcon>
                 <CalendarIcon fontSize="small" />
               </ListItemIcon>
-              Update Due Date
+              Change Due Date
             </MenuItem>
           </>
         )}

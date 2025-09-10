@@ -22,7 +22,8 @@ import {
   Stack,
   Card,
   CardContent,
-  useMediaQuery
+  useMediaQuery,
+  Badge
 } from '@mui/material';
 import {
   Payment as PaymentIcon,
@@ -35,7 +36,9 @@ import {
   Message as MessageIcon,
   Check as MarkIcon,
   AccountBalance as BankIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Flag as FlagIcon,
+  History as HistoryIcon
 } from '@mui/icons-material';
 
 import { formatCurrency, formatDate } from '../../../utils/helpers/formatHelpers';
@@ -44,7 +47,7 @@ import { useSales } from '../../../contexts/SalesContext/SalesContext';
 import InstallmentPaymentDialog from '../../sales/EMI/InstallmentPaymentDialog';
 
 /**
- * Mobile Responsive EMI Notifications Component - Only shows due/overdue EMI notifications
+ * Mobile Responsive EMI Notifications Component with Due Date Change Warnings
  */
 const CleanEMINotifications = () => {
   const navigate = useNavigate();
@@ -176,41 +179,272 @@ const CleanEMINotifications = () => {
     }
   }, [theme]);
 
-  // Render mobile-friendly EMI item
-  const renderMobileEMIItem = useCallback((emi, config) => (
-    <Card 
-      key={emi.id}
-      sx={{ 
-        mb: 2,
-        backgroundColor: emi.read ? 'transparent' : config.bgColor,
-        borderLeft: emi.read ? 'none' : `4px solid ${config.color}`,
-        cursor: 'pointer',
-        '&:hover': {
-          backgroundColor: alpha(config.color, 0.08)
-        }
-      }}
-      onClick={() => handleEMIClick(emi)}
-    >
-      <CardContent sx={{ pb: 2 }}>
-        {/* Header with customer name and status */}
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 2 }}>
-          <Avatar
-            sx={{
-              width: 40,
-              height: 40,
-              backgroundColor: config.bgColor,
-              color: config.color
+  // New: Check if customer has frequent due date changes
+  const hasFrequentDueDateChanges = useCallback((emi) => {
+    return emi.data?.hasFrequentDueDateChanges || 
+           emi.data?.customerDueDateChangeFlags?.hasFrequentChanges ||
+           (emi.data?.dueDateChangeCount && emi.data.dueDateChangeCount >= 3);
+  }, []);
+
+  // New: Get due date change warning text
+  const getDueDateChangeWarning = useCallback((emi) => {
+    const hasFrequentChanges = hasFrequentDueDateChanges(emi);
+    
+    if (!hasFrequentChanges) return null;
+
+    const changeCount = emi.data?.dueDateChangeCount || 
+                       emi.data?.customerDueDateChangeFlags?.totalChanges || 3;
+    
+    return `Due date changed ${changeCount}+ times`;
+  }, [hasFrequentDueDateChanges]);
+
+  // Render mobile-friendly EMI item with due date change warnings
+  const renderMobileEMIItem = useCallback((emi, config) => {
+    const hasFrequentChanges = hasFrequentDueDateChanges(emi);
+    const dueDateWarning = getDueDateChangeWarning(emi);
+    
+    return (
+      <Card 
+        key={emi.id}
+        sx={{ 
+          mb: 2,
+          backgroundColor: emi.read ? 'transparent' : config.bgColor,
+          borderLeft: emi.read ? 'none' : `4px solid ${config.color}`,
+          // Add subtle warning border for frequent changes
+          border: hasFrequentChanges 
+            ? `1px solid ${theme.palette.warning.main}` 
+            : '1px solid transparent',
+          cursor: 'pointer',
+          '&:hover': {
+            backgroundColor: alpha(config.color, 0.08)
+          }
+        }}
+        onClick={() => handleEMIClick(emi)}
+      >
+        <CardContent sx={{ pb: 2 }}>
+          {/* Header with customer name and status */}
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 2 }}>
+            <Avatar
+              sx={{
+                width: 40,
+                height: 40,
+                backgroundColor: config.bgColor,
+                color: config.color
+              }}
+            >
+              {config.icon}
+            </Avatar>
+            
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography variant="subtitle2" fontWeight={600} noWrap>
+                {emi.data?.customerName || 'Unknown Customer'}
+              </Typography>
+              
+              {/* New: Due date change warning text */}
+              {hasFrequentChanges && dueDateWarning && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                  <FlagIcon fontSize="small" color="warning" />
+                  <Typography 
+                    variant="caption" 
+                    color="warning.main" 
+                    fontWeight={500}
+                    sx={{ fontSize: '0.625rem' }}
+                  >
+                    {dueDateWarning}
+                  </Typography>
+                </Box>
+              )}
+              
+              <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} flexWrap="wrap">
+                <Chip
+                  label={config.label}
+                  size="small"
+                  sx={{
+                    backgroundColor: config.bgColor,
+                    color: config.color,
+                    fontSize: '0.625rem'
+                  }}
+                />
+
+                {config.status === 'overdue' && (
+                  <Chip
+                    label="OVERDUE"
+                    size="small"
+                    color="error"
+                    sx={{ fontSize: '0.625rem', fontWeight: 600 }}
+                  />
+                )}
+
+                {/* New: Frequent changes chip */}
+                {hasFrequentChanges && (
+                  <Chip
+                    label="FREQUENT CHANGES"
+                    size="small"
+                    color="warning"
+                    icon={<HistoryIcon />}
+                    sx={{ fontSize: '0.625rem', fontWeight: 600 }}
+                  />
+                )}
+              </Stack>
+            </Box>
+            
+            <IconButton
+              size="small"
+              onClick={(e) => handleMenuOpen(e, emi)}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              <MoreVertIcon fontSize="small" />
+            </IconButton>
+          </Box>
+
+          {/* EMI Details */}
+          <Stack spacing={1} sx={{ mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body2" color="text.secondary">
+                EMI Amount:
+              </Typography>
+              <Typography variant="body2" fontWeight={500}>
+                {formatCurrency(emi.data?.amount)}
+              </Typography>
+            </Box>
+            
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body2" color="text.secondary">
+                Due Date:
+              </Typography>
+              <Typography variant="body2">
+                {formatDate(emi.data?.dueDate)}
+              </Typography>
+            </Box>
+            
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="body2" color="text.secondary">
+                Invoice:
+              </Typography>
+              <Typography variant="body2">
+                #{emi.data?.invoiceNumber} • Installment #{emi.data?.installmentNumber}
+              </Typography>
+            </Box>
+            
+            {emi.data?.phoneNumber && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <PhoneIcon fontSize="small" />
+                <Typography variant="body2">
+                  {emi.data.phoneNumber}
+                </Typography>
+              </Box>
+            )}
+          </Stack>
+
+          {/* Quick Actions */}
+          <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+            {recordInstallmentPayment && (
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<BankIcon />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedEMI(emi);
+                  setPaymentDialogOpen(true);
+                }}
+                fullWidth={isMobile}
+              >
+                Record Payment
+              </Button>
+            )}
+
+            {emi.data?.phoneNumber && (
+              <>
+                <Tooltip title="Call Customer">
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(`tel:${emi.data?.phoneNumber}`);
+                    }}
+                  >
+                    <PhoneIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                
+                <Tooltip title="Send SMS">
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const message = `Reminder: Your EMI of ${formatCurrency(emi.data?.amount)} is due on ${formatDate(emi.data?.dueDate)}`;
+                      window.open(`sms:${emi.data?.phoneNumber}?body=${encodeURIComponent(message)}`);
+                    }}
+                  >
+                    <MessageIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
+    );
+  }, [isMobile, recordInstallmentPayment, handleMenuOpen, handleEMIClick, hasFrequentDueDateChanges, getDueDateChangeWarning, theme]);
+
+  // Render desktop EMI item with due date change warnings
+  const renderDesktopEMIItem = useCallback((emi, config) => {
+    const hasFrequentChanges = hasFrequentDueDateChanges(emi);
+    const dueDateWarning = getDueDateChangeWarning(emi);
+    
+    return (
+      <ListItem
+        key={emi.id}
+        onClick={() => handleEMIClick(emi)}
+        sx={{
+          cursor: 'pointer',
+          backgroundColor: emi.read ? 'transparent' : config.bgColor,
+          borderLeft: emi.read ? 'none' : `3px solid ${config.color}`,
+          // Add subtle warning border for frequent changes
+          border: hasFrequentChanges 
+            ? `1px solid ${theme.palette.warning.main}` 
+            : '1px solid transparent',
+          mb: 1,
+          borderRadius: 1,
+          '&:hover': {
+            backgroundColor: alpha(config.color, 0.08)
+          }
+        }}
+      >
+        <ListItemIcon>
+          <Badge
+            badgeContent={hasFrequentChanges ? <FlagIcon fontSize="small" /> : null}
+            color="warning"
+            sx={{ 
+              '& .MuiBadge-badge': { 
+                backgroundColor: 'transparent',
+                color: theme.palette.warning.main,
+                right: -2,
+                top: 2
+              }
             }}
           >
-            {config.icon}
-          </Avatar>
-          
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="subtitle2" fontWeight={600} noWrap>
-              {emi.data?.customerName || 'Unknown Customer'}
-            </Typography>
-            
-            <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} flexWrap="wrap">
+            <Avatar
+              sx={{
+                width: 40,
+                height: 40,
+                backgroundColor: config.bgColor,
+                color: config.color
+              }}
+            >
+              {config.icon}
+            </Avatar>
+          </Badge>
+        </ListItemIcon>
+
+        <ListItemText
+          primary={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+              <Typography variant="subtitle2" fontWeight={500}>
+                {emi.data?.customerName || 'Unknown Customer'}
+              </Typography>
+              
               <Chip
                 label={config.label}
                 size="small"
@@ -229,90 +463,88 @@ const CleanEMINotifications = () => {
                   sx={{ fontSize: '0.625rem', fontWeight: 600 }}
                 />
               )}
-            </Stack>
-          </Box>
-          
-          <IconButton
-            size="small"
-            onClick={(e) => handleMenuOpen(e, emi)}
-            sx={{ alignSelf: 'flex-start' }}
-          >
-            <MoreVertIcon fontSize="small" />
-          </IconButton>
-        </Box>
 
-        {/* EMI Details */}
-        <Stack spacing={1} sx={{ mb: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2" color="text.secondary">
-              EMI Amount:
-            </Typography>
-            <Typography variant="body2" fontWeight={500}>
-              {formatCurrency(emi.data?.amount)}
-            </Typography>
-          </Box>
-          
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2" color="text.secondary">
-              Due Date:
-            </Typography>
-            <Typography variant="body2">
-              {formatDate(emi.data?.dueDate)}
-            </Typography>
-          </Box>
-          
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="body2" color="text.secondary">
-              Invoice:
-            </Typography>
-            <Typography variant="body2">
-              #{emi.data?.invoiceNumber} • Installment #{emi.data?.installmentNumber}
-            </Typography>
-          </Box>
-          
-          {emi.data?.phoneNumber && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <PhoneIcon fontSize="small" />
-              <Typography variant="body2">
-                {emi.data.phoneNumber}
-              </Typography>
+              {/* New: Frequent changes chip */}
+              {hasFrequentChanges && (
+                <Chip
+                  label="FREQUENT CHANGES"
+                  size="small"
+                  color="warning"
+                  icon={<HistoryIcon />}
+                  sx={{ fontSize: '0.625rem', fontWeight: 600 }}
+                />
+              )}
             </Box>
-          )}
-        </Stack>
+          }
+          secondary={
+            <Box>
+              {/* New: Due date change warning text */}
+              {hasFrequentChanges && dueDateWarning && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                  <FlagIcon fontSize="small" color="warning" />
+                  <Typography 
+                    variant="caption" 
+                    color="warning.main" 
+                    fontWeight={500}
+                  >
+                    {dueDateWarning}
+                  </Typography>
+                </Box>
+              )}
+              
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                EMI Amount: {formatCurrency(emi.data?.amount)}
+              </Typography>
+              
+              <Typography variant="caption" color="text.secondary">
+                Due Date: {formatDate(emi.data?.dueDate)} • 
+                Invoice #{emi.data?.invoiceNumber} • 
+                Installment #{emi.data?.installmentNumber}
+              </Typography>
+              
+              {emi.data?.phoneNumber && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                  <PhoneIcon fontSize="small" />
+                  <Typography variant="caption">
+                    {emi.data.phoneNumber}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          }
+        />
 
-        {/* Quick Actions */}
-        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-          {recordInstallmentPayment && (
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<BankIcon />}
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedEMI(emi);
-                setPaymentDialogOpen(true);
-              }}
-              fullWidth={isMobile}
-            >
-              Record Payment
-            </Button>
-          )}
+        <ListItemSecondaryAction>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {recordInstallmentPayment && (
+              <Tooltip title="Record Payment">
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedEMI(emi);
+                    setPaymentDialogOpen(true);
+                  }}
+                  color="primary"
+                >
+                  <BankIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
 
-          {emi.data?.phoneNumber && (
-            <>
-              <Tooltip title="Call Customer">
+            {emi.data?.phoneNumber && (
+              <>
                 <IconButton
                   size="small"
                   onClick={(e) => {
                     e.stopPropagation();
                     window.open(`tel:${emi.data?.phoneNumber}`);
                   }}
+                  title="Call Customer"
                 >
                   <PhoneIcon fontSize="small" />
                 </IconButton>
-              </Tooltip>
-              
-              <Tooltip title="Send SMS">
+                
                 <IconButton
                   size="small"
                   onClick={(e) => {
@@ -320,152 +552,24 @@ const CleanEMINotifications = () => {
                     const message = `Reminder: Your EMI of ${formatCurrency(emi.data?.amount)} is due on ${formatDate(emi.data?.dueDate)}`;
                     window.open(`sms:${emi.data?.phoneNumber}?body=${encodeURIComponent(message)}`);
                   }}
+                  title="Send SMS"
                 >
                   <MessageIcon fontSize="small" />
                 </IconButton>
-              </Tooltip>
-            </>
-          )}
-        </Stack>
-      </CardContent>
-    </Card>
-  ), [isMobile, recordInstallmentPayment, handleMenuOpen, handleEMIClick]);
+              </>
+            )}
 
-  // Render desktop EMI item
-  const renderDesktopEMIItem = useCallback((emi, config) => (
-    <ListItem
-      key={emi.id}
-      onClick={() => handleEMIClick(emi)}
-      sx={{
-        cursor: 'pointer',
-        backgroundColor: emi.read ? 'transparent' : config.bgColor,
-        borderLeft: emi.read ? 'none' : `3px solid ${config.color}`,
-        mb: 1,
-        borderRadius: 1,
-        '&:hover': {
-          backgroundColor: alpha(config.color, 0.08)
-        }
-      }}
-    >
-      <ListItemIcon>
-        <Avatar
-          sx={{
-            width: 40,
-            height: 40,
-            backgroundColor: config.bgColor,
-            color: config.color
-          }}
-        >
-          {config.icon}
-        </Avatar>
-      </ListItemIcon>
-
-      <ListItemText
-        primary={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-            <Typography variant="subtitle2" fontWeight={500}>
-              {emi.data?.customerName || 'Unknown Customer'}
-            </Typography>
-            
-            <Chip
-              label={config.label}
+            <IconButton
               size="small"
-              sx={{
-                backgroundColor: config.bgColor,
-                color: config.color,
-                fontSize: '0.625rem'
-              }}
-            />
-
-            {config.status === 'overdue' && (
-              <Chip
-                label="OVERDUE"
-                size="small"
-                color="error"
-                sx={{ fontSize: '0.625rem', fontWeight: 600 }}
-              />
-            )}
+              onClick={(e) => handleMenuOpen(e, emi)}
+            >
+              <MoreVertIcon fontSize="small" />
+            </IconButton>
           </Box>
-        }
-        secondary={
-          <Box>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              EMI Amount: {formatCurrency(emi.data?.amount)}
-            </Typography>
-            
-            <Typography variant="caption" color="text.secondary">
-              Due Date: {formatDate(emi.data?.dueDate)} • 
-              Invoice #{emi.data?.invoiceNumber} • 
-              Installment #{emi.data?.installmentNumber}
-            </Typography>
-            
-            {emi.data?.phoneNumber && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                <PhoneIcon fontSize="small" />
-                <Typography variant="caption">
-                  {emi.data.phoneNumber}
-                </Typography>
-              </Box>
-            )}
-          </Box>
-        }
-      />
-
-      <ListItemSecondaryAction>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {recordInstallmentPayment && (
-            <Tooltip title="Record Payment">
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedEMI(emi);
-                  setPaymentDialogOpen(true);
-                }}
-                color="primary"
-              >
-                <BankIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
-
-          {emi.data?.phoneNumber && (
-            <>
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.open(`tel:${emi.data?.phoneNumber}`);
-                }}
-                title="Call Customer"
-              >
-                <PhoneIcon fontSize="small" />
-              </IconButton>
-              
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const message = `Reminder: Your EMI of ${formatCurrency(emi.data?.amount)} is due on ${formatDate(emi.data?.dueDate)}`;
-                  window.open(`sms:${emi.data?.phoneNumber}?body=${encodeURIComponent(message)}`);
-                }}
-                title="Send SMS"
-              >
-                <MessageIcon fontSize="small" />
-              </IconButton>
-            </>
-          )}
-
-          <IconButton
-            size="small"
-            onClick={(e) => handleMenuOpen(e, emi)}
-          >
-            <MoreVertIcon fontSize="small" />
-          </IconButton>
-        </Box>
-      </ListItemSecondaryAction>
-    </ListItem>
-  ), [recordInstallmentPayment, handleMenuOpen, handleEMIClick]);
+        </ListItemSecondaryAction>
+      </ListItem>
+    );
+  }, [recordInstallmentPayment, handleMenuOpen, handleEMIClick, hasFrequentDueDateChanges, getDueDateChangeWarning, theme]);
 
   // Render EMI group
   const renderEMIGroup = useCallback((title, emis, showEmpty = true) => {
@@ -555,7 +659,7 @@ const CleanEMINotifications = () => {
 
   return (
     <Box sx={{ p: isMobile ? 2 : 3 }}>
-      {/* Summary Alert */}
+      {/* Enhanced Summary Alert with due date change warnings */}
       {(groupedEMIs.overdue.length > 0 || groupedEMIs.dueToday.length > 0) && (
         <Alert 
           severity={groupedEMIs.overdue.length > 0 ? 'error' : 'warning'}
@@ -581,6 +685,20 @@ const CleanEMINotifications = () => {
             {groupedEMIs.dueToday.length > 0 && 
               `${groupedEMIs.dueToday.length} payment${groupedEMIs.dueToday.length > 1 ? 's' : ''} due today`}
           </Typography>
+          
+          {/* New: Show count of customers with frequent due date changes */}
+          {(() => {
+            const frequentChangeCustomers = emiNotifications.filter(hasFrequentDueDateChanges).length;
+            if (frequentChangeCustomers > 0) {
+              return (
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  <FlagIcon fontSize="small" sx={{ mr: 0.5, verticalAlign: 'middle' }} />
+                  {frequentChangeCustomers} customer{frequentChangeCustomers > 1 ? 's' : ''} with frequent due date changes
+                </Typography>
+              );
+            }
+            return null;
+          })()}
         </Alert>
       )}
 

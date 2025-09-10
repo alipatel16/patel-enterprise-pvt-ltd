@@ -8,9 +8,7 @@ import salesService from "../../services/api/salesService";
 import { useUserType } from "../UserTypeContext/UserTypeContext";
 import { useAuth } from "../AuthContext/AuthContext";
 
-import {
-  PAYMENT_STATUS,
-} from '../../utils/constants/appConstants';
+import { PAYMENT_STATUS } from "../../utils/constants/appConstants";
 
 // Initial state - simplified for client-side filtering
 const initialState = {
@@ -489,7 +487,7 @@ export const SalesProvider = ({ children }) => {
     dispatch({ type: SALES_ACTIONS.SET_CURRENT_INVOICE, payload: invoice });
   }, []);
 
- const recordInstallmentPayment = useCallback(
+  const recordInstallmentPayment = useCallback(
     async (
       invoiceId,
       installmentNumber,
@@ -527,14 +525,22 @@ export const SalesProvider = ({ children }) => {
         // IMPORTANT: Auto-cleanup notifications for this paid installment
         try {
           // Import the notification generator dynamically to avoid circular imports
-          const { default: emiNotificationGenerator } = await import('../services/emiNotificationGenerator');
-          
+          const { default: emiNotificationGenerator } = await import(
+            "../../services/emiNotificationGenerator"
+          );
+
           // Clean up any notifications for this specific paid installment
-          await emiNotificationGenerator.cleanupPaidInstallmentNotifications(userType, user?.uid);
-          
-          console.log('Auto-cleaned up notifications for paid installment');
+          await emiNotificationGenerator.cleanupPaidInstallmentNotifications(
+            userType,
+            user?.uid
+          );
+
+          console.log("Auto-cleaned up notifications for paid installment");
         } catch (notificationError) {
-          console.warn('Could not cleanup notifications automatically:', notificationError);
+          console.warn(
+            "Could not cleanup notifications automatically:",
+            notificationError
+          );
           // Don't fail the payment recording if notification cleanup fails
         }
 
@@ -579,34 +585,6 @@ export const SalesProvider = ({ children }) => {
       } catch (error) {
         dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
         return [];
-      }
-    },
-    [userType]
-  );
-
-  // Update installment due date
-  const updateInstallmentDueDate = useCallback(
-    async (invoiceId, installmentNumber, newDueDate) => {
-      if (!userType || !invoiceId) {
-        return null;
-      }
-
-      try {
-        dispatch({ type: SALES_ACTIONS.SET_LOADING, payload: true });
-
-        const updatedInvoice = await salesService.updateInstallmentDueDate(
-          userType,
-          invoiceId,
-          installmentNumber,
-          newDueDate
-        );
-
-        dispatch({ type: SALES_ACTIONS.UPDATE_SALE, payload: updatedInvoice });
-
-        return updatedInvoice;
-      } catch (error) {
-        dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
-        return null;
       }
     },
     [userType]
@@ -681,6 +659,122 @@ export const SalesProvider = ({ children }) => {
       return [];
     }
   }, [userType, state.sales]);
+
+  /**
+ * FIXED: Update installment due date with proper notification refresh
+ * @param {string} invoiceId - Invoice ID
+ * @param {number} installmentNumber - Installment number
+ * @param {string} newDueDate - New due date
+ * @param {Object} changeDetails - Change details (reason, changedBy, etc.)
+ * @returns {Promise<Object>} Updated invoice
+ */
+const updateInstallmentDueDate = useCallback(
+  async (invoiceId, installmentNumber, newDueDate, changeDetails = {}) => {
+    if (!userType || !invoiceId) {
+      dispatch({
+        type: SALES_ACTIONS.SET_ERROR,
+        payload: "Invalid parameters",
+      });
+      return null;
+    }
+
+    try {
+      dispatch({ type: SALES_ACTIONS.SET_LOADING, payload: true });
+
+      // Add changed by info from context
+      const changeDetailsWithMeta = {
+        ...changeDetails,
+        changedBy: user?.uid,
+        changedByName: user?.name || user?.displayName,
+      };
+
+      console.log('🔄 Updating due date for installment', installmentNumber);
+
+      const updatedInvoice = await salesService.updateInstallmentDueDate(
+        userType,
+        invoiceId,
+        installmentNumber,
+        newDueDate,
+        changeDetailsWithMeta
+      );
+
+      dispatch({ type: SALES_ACTIONS.UPDATE_SALE, payload: updatedInvoice });
+
+      console.log('✅ Due date updated successfully');
+
+      // CRITICAL FIX: Proper notification regeneration with error handling
+      try {
+        console.log('🔔 Starting notification regeneration...');
+        
+        // Dynamic import with proper error handling
+        const enhancedEMIGenerator = await import('../../services/enhancedEMINotificationGenerator');
+        const generator = enhancedEMIGenerator.default;
+        
+        if (!generator) {
+          throw new Error('Enhanced EMI generator not found');
+        }
+        
+        // First, clear old notifications to ensure fresh data
+        console.log('🧹 Clearing old notifications...');
+        await generator.clearAllNotifications(userType, user?.uid);
+        
+        // Then generate fresh notifications with updated due dates
+        console.log('🚀 Generating fresh notifications...');
+        const result = await generator.generateAllNotifications(userType, user?.uid);
+        
+        console.log('✅ Notification regeneration completed:', {
+          created: result.total,
+          emiNotifications: result.emi?.created || 0,
+          deliveryNotifications: result.delivery?.created || 0
+        });
+
+        // CRITICAL FIX: Force refresh notifications in the UI
+        // Dispatch a custom action to trigger notification refresh
+        if (window.dispatchEvent) {
+          const notificationUpdateEvent = new CustomEvent('emi-notification-update', {
+            detail: {
+              type: 'due-date-change',
+              invoiceId,
+              installmentNumber,
+              result
+            }
+          });
+          window.dispatchEvent(notificationUpdateEvent);
+          console.log('📡 Notification update event dispatched');
+        }
+
+        // Additional fallback: Direct notification context refresh if available
+        if (window.refreshNotifications && typeof window.refreshNotifications === 'function') {
+          console.log('🔄 Triggering direct notification refresh...');
+          await window.refreshNotifications();
+        }
+        
+      } catch (notificationError) {
+        console.error('❌ Notification regeneration failed:', notificationError);
+        
+        // Don't fail the due date update, but show warning
+        console.warn('Due date was updated but notifications may not reflect the change immediately');
+        console.warn('Please manually refresh notifications or the page to see updated due dates');
+        
+        // Optionally, you could dispatch an error or warning action here
+        dispatch({
+          type: SALES_ACTIONS.SET_ERROR,
+          payload: 'Due date updated but notifications may need manual refresh'
+        });
+      }
+
+      return updatedInvoice;
+    } catch (error) {
+      console.error('❌ Error updating installment due date:', error);
+      dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
+      return null;
+    } finally {
+      dispatch({ type: SALES_ACTIONS.SET_LOADING, payload: false });
+    }
+  },
+  [userType, user]
+);
+
   // Context value
   const value = {
     // State
