@@ -256,7 +256,7 @@ const LoginPage = () => {
           </Box>
 
           {/* Footer */}
-          <Box mt={4}>
+          {/* <Box mt={4}>
             <Divider sx={{ mb: 3 }} />
             
             <Typography 
@@ -279,7 +279,7 @@ const LoginPage = () => {
                 Contact Administrator
               </Link>
             </Typography>
-          </Box>
+          </Box> */}
         </Paper>
 
         {/* App Info */}

@@ -25,7 +25,8 @@ import {
   useTheme,
   useMediaQuery,
   Avatar,
-  Tooltip
+  Tooltip,
+  Paper
 } from '@mui/material';
 import {
   Receipt as ReceiptIcon,
@@ -101,6 +102,12 @@ const SalesHistory = () => {
     sortOrder: 'desc'
   });
 
+  // NEW - Date range filter state
+  const [dateFilters, setDateFilters] = useState({
+    fromDate: null,
+    toDate: null
+  });
+
   // Client-side pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -139,7 +146,9 @@ const SalesHistory = () => {
     localFilters.sortBy,
     localFilters.sortOrder,
     pageSize,
-    customerIdFromUrl
+    customerIdFromUrl,
+    dateFilters.fromDate, // NEW
+    dateFilters.toDate // NEW
   ]);
 
   // Find customer name for filtered customer
@@ -193,6 +202,33 @@ const SalesHistory = () => {
       );
     }
 
+    // NEW - Apply date range filter
+    if (dateFilters.fromDate || dateFilters.toDate) {
+      filtered = filtered.filter((sale) => {
+        const saleDate = new Date(sale.saleDate || sale.createdAt);
+        
+        // Check from date
+        if (dateFilters.fromDate) {
+          const fromDate = new Date(dateFilters.fromDate);
+          fromDate.setHours(0, 0, 0, 0); // Start of day
+          if (saleDate < fromDate) {
+            return false;
+          }
+        }
+        
+        // Check to date
+        if (dateFilters.toDate) {
+          const toDate = new Date(dateFilters.toDate);
+          toDate.setHours(23, 59, 59, 999); // End of day
+          if (saleDate > toDate) {
+            return false;
+          }
+        }
+        
+        return true;
+      });
+    }
+
     // Apply sorting
     filtered.sort((a, b) => {
       let aValue = a[localFilters.sortBy] || '';
@@ -228,7 +264,7 @@ const SalesHistory = () => {
     });
 
     return filtered;
-  }, [sales, searchValue, localFilters, customerIdFromUrl]);
+  }, [sales, searchValue, localFilters, customerIdFromUrl, dateFilters]);
 
   // Calculate client-side pagination
   const paginatedSales = useMemo(() => {
@@ -272,6 +308,22 @@ const SalesHistory = () => {
   // Handle filter change
   const handleFilterChange = (newFilters) => {
     setLocalFilters(prev => ({ ...prev, ...newFilters }));
+  };
+
+  // NEW - Handle date filter changes
+  const handleDateFilterChange = (field) => (date) => {
+    setDateFilters(prev => ({
+      ...prev,
+      [field]: date
+    }));
+  };
+
+  // NEW - Clear date filters
+  const handleClearDateFilters = () => {
+    setDateFilters({
+      fromDate: null,
+      toDate: null
+    });
   };
 
   // Handle sort change
@@ -645,6 +697,85 @@ const SalesHistory = () => {
           showFilters
           showSort
         />
+
+        {/* NEW - Date Range Filters */}
+        <Paper 
+          elevation={1} 
+          sx={{ 
+            p: 2, 
+            mt: 2, 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2, 
+            flexWrap: 'wrap',
+            backgroundColor: 'background.paper'
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={1}>
+            <DateRangeIcon sx={{ color: 'text.secondary' }} />
+            <Typography variant="body2" fontWeight={500} color="text.secondary">
+              Date Range:
+            </Typography>
+          </Box>
+
+          <DatePicker
+            label="From Date"
+            value={dateFilters.fromDate}
+            onChange={handleDateFilterChange('fromDate')}
+            disabled={loading}
+            maxDate={dateFilters.toDate || new Date()}
+            slotProps={{
+              textField: {
+                size: 'small',
+                sx: { minWidth: { xs: '140px', sm: '160px' } }
+              },
+            }}
+          />
+
+          <DatePicker
+            label="To Date"
+            value={dateFilters.toDate}
+            onChange={handleDateFilterChange('toDate')}
+            disabled={loading}
+            minDate={dateFilters.fromDate}
+            maxDate={new Date()}
+            slotProps={{
+              textField: {
+                size: 'small',
+                sx: { minWidth: { xs: '140px', sm: '160px' } }
+              },
+            }}
+          />
+
+          {(dateFilters.fromDate || dateFilters.toDate) && (
+            <Button
+              size="small"
+              onClick={handleClearDateFilters}
+              startIcon={<ClearIcon />}
+              sx={{ ml: 1 }}
+            >
+              Clear Dates
+            </Button>
+          )}
+
+          {/* Date Range Summary */}
+          {(dateFilters.fromDate || dateFilters.toDate) && (
+            <Box sx={{ ml: 'auto' }}>
+              <Chip
+                label={
+                  dateFilters.fromDate && dateFilters.toDate
+                    ? `${formatDate(dateFilters.fromDate)} - ${formatDate(dateFilters.toDate)}`
+                    : dateFilters.fromDate
+                    ? `From ${formatDate(dateFilters.fromDate)}`
+                    : `Until ${formatDate(dateFilters.toDate)}`
+                }
+                size="small"
+                color="primary"
+                variant="outlined"
+              />
+            </Box>
+          )}
+        </Paper>
       </Box>
 
       {/* Error Alert */}
@@ -666,7 +797,7 @@ const SalesHistory = () => {
               }
             </Typography>
             <Typography variant="body2" color="text.secondary" mb={3}>
-              {searchValue || localFilters.paymentStatus || localFilters.deliveryStatus || localFilters.originalPaymentCategory ? 
+              {searchValue || localFilters.paymentStatus || localFilters.deliveryStatus || localFilters.originalPaymentCategory || dateFilters.fromDate || dateFilters.toDate ? 
                 'Try adjusting your search criteria or filters.' :
                 customerIdFromUrl ?
                   `${filteredCustomerName} doesn't have any sales yet. Create their first invoice to get started.` :
@@ -696,6 +827,21 @@ const SalesHistory = () => {
               <CardContent>
                 <Typography variant="h6" gutterBottom>
                   Sales Summary for {filteredCustomerName}
+                  {(dateFilters.fromDate || dateFilters.toDate) && (
+                    <Chip
+                      label={
+                        dateFilters.fromDate && dateFilters.toDate
+                          ? `${formatDate(dateFilters.fromDate)} - ${formatDate(dateFilters.toDate)}`
+                          : dateFilters.fromDate
+                          ? `From ${formatDate(dateFilters.fromDate)}`
+                          : `Until ${formatDate(dateFilters.toDate)}`
+                      }
+                      size="small"
+                      color="primary"
+                      variant="outlined"
+                      sx={{ ml: 2 }}
+                    />
+                  )}
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={6} sm={3}>

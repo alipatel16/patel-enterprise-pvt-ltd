@@ -102,7 +102,7 @@ class DatabaseService {
         where: whereClause = [],
         orderBy: orderByField = "createdAt",
         orderDirection = "desc",
-        limit: limitCount = 50,
+        limit: limitCount = null,
       } = options;
 
       let q = ref(this.db, collectionPath);

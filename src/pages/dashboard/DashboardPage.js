@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Container,
@@ -26,8 +26,8 @@ import {
   useTheme,
   useMediaQuery,
   Fab,
-  Chip
-} from '@mui/material';
+  Chip,
+} from "@mui/material";
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
@@ -42,23 +42,28 @@ import {
   Store as StoreIcon,
   TrendingUp as TrendingUpIcon,
   AttachMoney as MoneyIcon,
-  Schedule as ScheduleIcon
-} from '@mui/icons-material';
+  Schedule as ScheduleIcon,
+  AccessTime as AttendanceIcon,
+  Assessment as ReportsIcon,
+  Analytics as AnalyticsIcon, // NEW - Added for Employee Sales Analytics
+  EmojiEvents as TrophyIcon, // NEW - Added for Employee Sales Analytics
+} from "@mui/icons-material";
 
-import { useAuth } from '../../contexts/AuthContext/AuthContext';
-import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
-import LoadingSpinner from '../../components/common/UI/LoadingSpinner';
+import { useAuth } from "../../contexts/AuthContext/AuthContext";
+import { useUserType } from "../../contexts/UserTypeContext/UserTypeContext";
+import { USER_ROLES } from "../../utils/constants/appConstants";
+import LoadingSpinner from "../../components/common/UI/LoadingSpinner";
 
 const DRAWER_WIDTH = 240;
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   const { user, signOut, canManageEmployees } = useAuth();
   const { getDisplayName, getAppTitle, getThemeColors } = useUserType();
-  
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [stats, setStats] = useState({
@@ -67,7 +72,7 @@ const DashboardPage = () => {
     totalSales: 0,
     pendingEMIs: 0,
     pendingDeliveries: 0,
-    todaySales: 0
+    todaySales: 0,
   });
 
   const themeColors = getThemeColors();
@@ -90,111 +95,125 @@ const DashboardPage = () => {
   const handleLogout = async () => {
     try {
       await signOut();
-      navigate('/login');
+      navigate("/login");
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     }
   };
 
-  // Navigation items
+  // Navigation items - Updated with employee sales analytics
   const navigationItems = [
-    { 
-      label: 'Dashboard', 
-      icon: DashboardIcon, 
-      path: '/dashboard',
-      active: true
+    {
+      label: "Dashboard",
+      icon: DashboardIcon,
+      path: "/dashboard",
+      active: true,
     },
-    { 
-      label: 'Customers', 
-      icon: PeopleIcon, 
-      path: '/customers' 
+    {
+      label: "Customers",
+      icon: PeopleIcon,
+      path: "/customers",
     },
-    { 
-      label: 'Employees', 
-      icon: BadgeIcon, 
-      path: '/employees',
+    {
+      label: "Employees",
+      icon: BadgeIcon,
+      path: "/employees",
+      adminOnly: true,
+    },
+    // Employee attendance for employees only
+    {
+      label: "Attendance",
+      icon: AttendanceIcon,
+      path: "/attendance",
+      employeeOnly: true,
+    },
+    {
+      label: "Create Invoice",
+      icon: ReceiptIcon,
+      path: "/sales/create",
+    },
+    {
+      label: "Sales History",
+      icon: HistoryIcon,
+      path: "/sales/history",
+    },
+    // Employee Reports for admin only
+    {
+      label: "Employee Reports",
+      icon: ReportsIcon,
+      path: '/reports/employees',
       adminOnly: true
-    },
-    { 
-      label: 'Create Invoice', 
-      icon: ReceiptIcon, 
-      path: '/sales/create' 
-    },
-    { 
-      label: 'Sales History', 
-      icon: HistoryIcon, 
-      path: '/sales/history' 
     }
   ];
 
   // Stats cards data
   const statsCards = [
     {
-      title: 'Total Customers',
+      title: "Total Customers",
       value: stats.totalCustomers,
       icon: PeopleIcon,
       color: themeColors.primary,
-      action: () => navigate('/customers')
+      action: () => navigate("/customers"),
     },
     {
-      title: 'Total Sales',
+      title: "Total Sales",
       value: `₹${stats.totalSales.toLocaleString()}`,
       icon: TrendingUpIcon,
-      color: '#4caf50',
-      action: () => navigate('/sales/history')
+      color: "#4caf50",
+      action: () => navigate("/sales/history"),
     },
     {
-      title: 'Today\'s Sales',
+      title: "Today's Sales",
       value: `₹${stats.todaySales.toLocaleString()}`,
       icon: MoneyIcon,
-      color: '#ff9800',
-      action: () => navigate('/sales/create')
+      color: "#ff9800",
+      action: () => navigate("/sales/create"),
     },
     {
-      title: 'Pending EMIs',
+      title: "Pending EMIs",
       value: stats.pendingEMIs,
       icon: ScheduleIcon,
-      color: '#f44336',
+      color: "#f44336",
       badge: stats.pendingEMIs > 0,
-      action: () => navigate('/sales/history?filter=pending-emi')
-    }
+      action: () => navigate("/sales/history?filter=pending-emi"),
+    },
   ];
 
   // Add employees card for admin users
   if (canManageEmployees()) {
     statsCards.splice(1, 0, {
-      title: 'Total Employees',
+      title: "Total Employees",
       value: stats.totalEmployees,
       icon: BadgeIcon,
       color: themeColors.secondary,
-      action: () => navigate('/employees')
+      action: () => navigate("/employees"),
     });
   }
 
   // Drawer content
   const DrawerContent = () => (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <Toolbar>
         <Box display="flex" alignItems="center" gap={2} width="100%">
           <StoreIcon sx={{ color: themeColors.primary }} />
           <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography 
-              variant="h6" 
-              noWrap 
-              sx={{ 
-                fontSize: '1rem', 
+            <Typography
+              variant="h6"
+              noWrap
+              sx={{
+                fontSize: "1rem",
                 fontWeight: 600,
-                lineHeight: 1.2
+                lineHeight: 1.2,
               }}
             >
               {getDisplayName()}
             </Typography>
-            <Typography 
-              variant="caption" 
+            <Typography
+              variant="caption"
               color="text.secondary"
-              sx={{ 
-                display: 'block',
-                lineHeight: 1
+              sx={{
+                display: "block",
+                lineHeight: 1,
               }}
             >
               Management
@@ -206,7 +225,13 @@ const DashboardPage = () => {
 
       <List sx={{ mt: 1, flex: 1 }}>
         {navigationItems.map((item) => {
+          // Filter based on user role
           if (item.adminOnly && !canManageEmployees()) {
+            return null;
+          }
+
+          // Show attendance only for employees (not admins)
+          if (item.employeeOnly && user?.role === USER_ROLES.ADMIN) {
             return null;
           }
 
@@ -222,33 +247,33 @@ const DashboardPage = () => {
                 sx={{
                   mx: 1,
                   borderRadius: 2,
-                  '&.Mui-selected': {
+                  "&.Mui-selected": {
                     backgroundColor: `${themeColors.primary}15`,
                     border: `1px solid ${themeColors.primary}30`,
-                    '& .MuiListItemIcon-root': {
+                    "& .MuiListItemIcon-root": {
                       color: themeColors.primary,
                     },
-                    '& .MuiListItemText-primary': {
+                    "& .MuiListItemText-primary": {
                       color: themeColors.primary,
                       fontWeight: 600,
                     },
                   },
-                  '&:hover': {
+                  "&:hover": {
                     backgroundColor: `${themeColors.primary}08`,
                   },
-                  '&.Mui-selected:hover': {
+                  "&.Mui-selected:hover": {
                     backgroundColor: `${themeColors.primary}20`,
-                  }
+                  },
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 40 }}>
                   <Icon />
                 </ListItemIcon>
-                <ListItemText 
+                <ListItemText
                   primary={item.label}
                   primaryTypographyProps={{
-                    fontSize: '0.875rem',
-                    fontWeight: item.active ? 600 : 500
+                    fontSize: "0.875rem",
+                    fontWeight: item.active ? 600 : 500,
                   }}
                 />
               </ListItemButton>
@@ -261,15 +286,15 @@ const DashboardPage = () => {
       <Box sx={{ p: 2 }}>
         <Divider sx={{ mb: 2 }} />
         <Box display="flex" alignItems="center" gap={2}>
-          <Avatar 
-            sx={{ 
-              width: 32, 
-              height: 32, 
+          <Avatar
+            sx={{
+              width: 32,
+              height: 32,
               bgcolor: themeColors.primary,
-              fontSize: '0.875rem'
+              fontSize: "0.875rem",
             }}
           >
-            {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+            {user?.name?.charAt(0)?.toUpperCase() || "U"}
           </Avatar>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="body2" noWrap fontWeight={600}>
@@ -280,10 +305,10 @@ const DashboardPage = () => {
                 label={user?.role}
                 size="small"
                 variant="outlined"
-                sx={{ 
-                  fontSize: '0.75rem', 
+                sx={{
+                  fontSize: "0.75rem",
                   height: 20,
-                  '& .MuiChip-label': { px: 1 }
+                  "& .MuiChip-label": { px: 1 },
                 }}
               />
             </Box>
@@ -294,7 +319,7 @@ const DashboardPage = () => {
   );
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: "flex" }}>
       {/* App Bar */}
       <AppBar
         position="fixed"
@@ -309,32 +334,38 @@ const DashboardPage = () => {
             aria-label="open drawer"
             edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { md: 'none' } }}
+            sx={{ mr: 2, display: { md: "none" } }}
           >
             <MenuIcon />
           </IconButton>
-          
+
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             {getAppTitle()} - Dashboard
           </Typography>
 
           <Box display="flex" alignItems="center" gap={1}>
-            <IconButton color="inherit" onClick={() => navigate('/notifications')}>
-              <Badge badgeContent={stats.pendingEMIs + stats.pendingDeliveries} color="error">
+            <IconButton
+              color="inherit"
+              onClick={() => navigate("/notifications")}
+            >
+              <Badge
+                badgeContent={stats.pendingEMIs + stats.pendingDeliveries}
+                color="error"
+              >
                 <NotificationsIcon />
               </Badge>
             </IconButton>
-            
+
             <IconButton color="inherit" onClick={handleProfileMenuOpen}>
-              <Avatar 
-                sx={{ 
-                  width: 32, 
-                  height: 32, 
-                  bgcolor: 'secondary.main',
-                  fontSize: '0.875rem'
+              <Avatar
+                sx={{
+                  width: 32,
+                  height: 32,
+                  bgcolor: "secondary.main",
+                  fontSize: "0.875rem",
                 }}
               >
-                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                {user?.name?.charAt(0)?.toUpperCase() || "U"}
               </Avatar>
             </IconButton>
           </Box>
@@ -354,8 +385,8 @@ const DashboardPage = () => {
             keepMounted: true, // Better open performance on mobile.
           }}
           sx={{
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
+            "& .MuiDrawer-paper": {
+              boxSizing: "border-box",
               width: DRAWER_WIDTH,
             },
           }}
@@ -371,29 +402,30 @@ const DashboardPage = () => {
           flexGrow: 1,
           p: 3,
           width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
-          mt: 8
+          mt: 8,
         }}
       >
         <Container maxWidth="xl">
           {/* Welcome Section */}
           <Box mb={4}>
-            <Typography 
-              variant="h4" 
-              component="h1" 
+            <Typography
+              variant="h4"
+              component="h1"
               gutterBottom
               sx={{
                 fontWeight: 700,
-                fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' }
+                fontSize: { xs: "1.5rem", sm: "2rem", md: "2.125rem" },
               }}
             >
               Welcome back, {user?.name}!
             </Typography>
-            <Typography 
-              variant="body1" 
+            <Typography
+              variant="body1"
               color="text.secondary"
-              sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+              sx={{ fontSize: { xs: "0.875rem", sm: "1rem" } }}
             >
-              Here's what's happening in your {getDisplayName().toLowerCase()} showroom today.
+              Here's what's happening in your {getDisplayName().toLowerCase()}{" "}
+              showroom today.
             </Typography>
           </Box>
 
@@ -405,24 +437,40 @@ const DashboardPage = () => {
                 <Grid item xs={12} sm={6} md={4} lg={3} key={index}>
                   <Card
                     sx={{
-                      cursor: 'pointer',
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
-                        transform: 'translateY(-4px)',
-                        boxShadow: 6
-                      }
+                      cursor: "pointer",
+                      transition: "all 0.3s ease",
+                      "&:hover": {
+                        transform: "translateY(-4px)",
+                        boxShadow: 6,
+                      },
                     }}
                     onClick={card.action}
                   >
                     <CardContent>
-                      <Box display="flex" alignItems="center" justifyContent="space-between">
+                      <Box
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="space-between"
+                      >
                         <Box>
-                          <Typography color="textSecondary" gutterBottom variant="body2">
+                          <Typography
+                            color="textSecondary"
+                            gutterBottom
+                            variant="body2"
+                          >
                             {card.title}
                           </Typography>
-                          <Typography variant="h5" component="h2" fontWeight="bold">
+                          <Typography
+                            variant="h5"
+                            component="h2"
+                            fontWeight="bold"
+                          >
                             {card.badge ? (
-                              <Badge badgeContent={card.value} color="error" max={999}>
+                              <Badge
+                                badgeContent={card.value}
+                                color="error"
+                                max={999}
+                              >
                                 <span>{card.value}</span>
                               </Badge>
                             ) : (
@@ -433,7 +481,7 @@ const DashboardPage = () => {
                         <Box
                           sx={{
                             p: 1,
-                            borderRadius: '50%',
+                            borderRadius: "50%",
                             backgroundColor: `${card.color}15`,
                           }}
                         >
@@ -461,7 +509,7 @@ const DashboardPage = () => {
                         fullWidth
                         variant="contained"
                         startIcon={<AddIcon />}
-                        onClick={() => navigate('/customers/add')}
+                        onClick={() => navigate("/customers/add")}
                         sx={{ mb: 1 }}
                       >
                         Add Customer
@@ -472,7 +520,7 @@ const DashboardPage = () => {
                         fullWidth
                         variant="contained"
                         startIcon={<ReceiptIcon />}
-                        onClick={() => navigate('/sales/create')}
+                        onClick={() => navigate("/sales/create")}
                         sx={{ mb: 1 }}
                       >
                         Create Invoice
@@ -484,9 +532,36 @@ const DashboardPage = () => {
                           fullWidth
                           variant="outlined"
                           startIcon={<BadgeIcon />}
-                          onClick={() => navigate('/employees/add')}
+                          onClick={() => navigate("/employees/add")}
                         >
                           Add Employee
+                        </Button>
+                      </Grid>
+                    )}
+                    {/* NEW: Employee Sales Analytics for admin only */}
+                    {canManageEmployees() && (
+                      <Grid item xs={12} sm={6}>
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          startIcon={<TrophyIcon />}
+                          onClick={() => navigate("/analytics/employee-sales")}
+                          sx={{ mb: 1 }}
+                        >
+                          Employee Analytics
+                        </Button>
+                      </Grid>
+                    )}
+                    {/* Attendance quick action for employees */}
+                    {user?.role === USER_ROLES.EMPLOYEE && (
+                      <Grid item xs={12} sm={6}>
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          startIcon={<AttendanceIcon />}
+                          onClick={() => navigate("/attendance")}
+                        >
+                          My Attendance
                         </Button>
                       </Grid>
                     )}
@@ -495,11 +570,24 @@ const DashboardPage = () => {
                         fullWidth
                         variant="outlined"
                         startIcon={<HistoryIcon />}
-                        onClick={() => navigate('/sales/history')}
+                        onClick={() => navigate("/sales/history")}
                       >
                         View Sales
                       </Button>
                     </Grid>
+                    {/* Employee Reports quick action for admins */}
+                    {canManageEmployees() && (
+                      <Grid item xs={12} sm={6}>
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          startIcon={<ReportsIcon />}
+                          onClick={() => navigate('/reports/employees')}
+                        >
+                          Employee Reports
+                        </Button>
+                      </Grid>
+                    )}
                   </Grid>
                 </CardContent>
               </Card>
@@ -549,11 +637,11 @@ const DashboardPage = () => {
           color="primary"
           aria-label="add"
           sx={{
-            position: 'fixed',
+            position: "fixed",
             bottom: 16,
             right: 16,
           }}
-          onClick={() => navigate('/sales/create')}
+          onClick={() => navigate("/sales/create")}
         >
           <AddIcon />
         </Fab>

@@ -119,7 +119,7 @@ export const useNotifications = () => {
       console.log('🤖 Auto-generating notifications with enhanced system...');
 
       // UPDATED: Import enhanced generator instead of clean one
-      const { default: enhancedEMIGenerator } = await import('../services/enhancedEMINotificationGenerator');
+      const { default: enhancedEMIGenerator } = await import('../services/cleanEMINotificationGenerator');
       
       // Generate all notifications (EMI + Delivery + cleanup) with due date change tracking
       const result = await enhancedEMIGenerator.generateAllNotifications(userType, user.uid);

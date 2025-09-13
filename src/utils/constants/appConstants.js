@@ -7,7 +7,10 @@ export const USER_TYPES = {
 // User Roles
 export const USER_ROLES = {
   ADMIN: 'admin',
-  EMPLOYEE: 'employee'
+  EMPLOYEE: 'employee',
+
+  MANAGER: 'manager',
+  INTERN: 'intern'
 };
 
 // Customer Types
@@ -149,7 +152,52 @@ export const COLLECTIONS = {
   EMPLOYEES: 'employees',
   SALES: 'sales',
   INVOICES: 'invoices',
-  USERS: 'users'
+  USERS: 'users',
+  ATTENDANCE: 'attendance',
+  PENALTIES: 'penalties',
+  PENALTY_SETTINGS: 'penalty_settings',
+  SETTINGS: 'settings',
+  NOTIFICATIONS: 'notifications',
+  AUDIT_LOGS: 'audit_logs'
+};
+
+export const PERMISSIONS = {
+  // Customer permissions
+  VIEW_CUSTOMER: 'view_customer',
+  CREATE_CUSTOMER: 'create_customer',
+  EDIT_CUSTOMER: 'edit_customer',
+  DELETE_CUSTOMER: 'delete_customer',
+  
+  // Employee permissions
+  VIEW_EMPLOYEE: 'view_employee',
+  CREATE_EMPLOYEE: 'create_employee',
+  EDIT_EMPLOYEE: 'edit_employee',
+  DELETE_EMPLOYEE: 'delete_employee',
+  
+  // Sales permissions
+  VIEW_INVOICE: 'view_invoice',
+  CREATE_INVOICE: 'create_invoice',
+  EDIT_INVOICE: 'edit_invoice',
+  DELETE_INVOICE: 'delete_invoice',
+  
+  // Attendance permissions - NEW
+  VIEW_OWN_ATTENDANCE: 'view_own_attendance',
+  MANAGE_OWN_ATTENDANCE: 'manage_own_attendance',
+  VIEW_ALL_ATTENDANCE: 'view_all_attendance',
+  MANAGE_ALL_ATTENDANCE: 'manage_all_attendance',
+  EXPORT_ATTENDANCE_REPORTS: 'export_attendance_reports',
+  
+  // Reports permissions
+  VIEW_SALES_REPORTS: 'view_sales_reports',
+  VIEW_CUSTOMER_REPORTS: 'view_customer_reports',
+  VIEW_EMPLOYEE_REPORTS: 'view_employee_reports',
+  VIEW_ATTENDANCE_REPORTS: 'view_attendance_reports', // NEW
+  
+  // System permissions
+  MANAGE_SETTINGS: 'manage_settings',
+  MANAGE_NOTIFICATIONS: 'manage_notifications',
+  MANAGE_EMPLOYEE_PERMISSIONS: 'manage_employee_permissions',
+  VIEW_AUDIT_LOGS: 'view_audit_logs'
 };
 
 // Form Validation Messages
@@ -169,15 +217,25 @@ export const DATE_FORMATS = {
   DATETIME: 'dd/MM/yyyy HH:mm'
 };
 
-// App Theme Colors
+// App Colors based on business type
 export const APP_COLORS = {
   ELECTRONICS: {
     primary: '#1976d2',
-    secondary: '#dc004e'
+    secondary: '#dc004e',
+    accent: '#00bcd4',
+    success: '#4caf50',
+    warning: '#ff9800',
+    error: '#f44336',
+    background: '#f5f5f5'
   },
   FURNITURE: {
-    primary: '#8b4513',
-    secondary: '#ff6f00'
+    primary: '#8d6e63',
+    secondary: '#ff8a65',
+    accent: '#81c784',
+    success: '#4caf50',
+    warning: '#ff9800',
+    error: '#f44336',
+    background: '#fafafa'
   }
 };
 
@@ -188,3 +246,302 @@ export const GST_TAX_SLABS = [
   { rate: 18, description: 'Most goods and services' },
   { rate: 28, description: 'Luxury and sin goods' }
 ];
+
+// Role Configuration with updated permissions
+export const ROLE_CONFIG = {
+  [USER_ROLES.ADMIN]: {
+    label: 'Administrator',
+    description: 'Full system access',
+    color: '#f44336',
+    permissions: Object.values(PERMISSIONS) // All permissions
+  },
+  [USER_ROLES.MANAGER]: {
+    label: 'Manager',
+    description: 'Team management and reports',
+    color: '#ff9800',
+    permissions: [
+      PERMISSIONS.VIEW_CUSTOMER,
+      PERMISSIONS.CREATE_CUSTOMER,
+      PERMISSIONS.EDIT_CUSTOMER,
+      PERMISSIONS.VIEW_EMPLOYEE,
+      PERMISSIONS.VIEW_INVOICE,
+      PERMISSIONS.CREATE_INVOICE,
+      PERMISSIONS.EDIT_INVOICE,
+      PERMISSIONS.VIEW_OWN_ATTENDANCE,
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE,
+      PERMISSIONS.VIEW_ALL_ATTENDANCE, // NEW - Managers can view team attendance
+      PERMISSIONS.VIEW_SALES_REPORTS,
+      PERMISSIONS.VIEW_CUSTOMER_REPORTS,
+      PERMISSIONS.VIEW_EMPLOYEE_REPORTS,
+      PERMISSIONS.VIEW_ATTENDANCE_REPORTS // NEW
+    ]
+  },
+  [USER_ROLES.EMPLOYEE]: {
+    label: 'Employee',
+    description: 'Basic operations and own attendance',
+    color: '#4caf50',
+    permissions: [
+      PERMISSIONS.VIEW_CUSTOMER,
+      PERMISSIONS.CREATE_CUSTOMER,
+      PERMISSIONS.EDIT_CUSTOMER,
+      PERMISSIONS.VIEW_INVOICE,
+      PERMISSIONS.CREATE_INVOICE,
+      PERMISSIONS.EDIT_INVOICE,
+      PERMISSIONS.VIEW_OWN_ATTENDANCE, // NEW
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE // NEW
+    ]
+  },
+  [USER_ROLES.INTERN]: {
+    label: 'Intern',
+    description: 'Limited access and own attendance',
+    color: '#9c27b0',
+    permissions: [
+      PERMISSIONS.VIEW_CUSTOMER,
+      PERMISSIONS.VIEW_INVOICE,
+      PERMISSIONS.VIEW_OWN_ATTENDANCE, // NEW
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE // NEW
+    ]
+  }
+};
+
+// Attendance Status Constants - NEW
+export const ATTENDANCE_STATUS = {
+  NOT_CHECKED_IN: 'not_checked_in',
+  CHECKED_IN: 'checked_in',
+  ON_BREAK: 'on_break',
+  CHECKED_OUT: 'checked_out'
+};
+
+// Break Types - NEW
+export const BREAK_TYPES = {
+  LUNCH: 'lunch',
+  TEA: 'tea',
+  PERSONAL: 'personal',
+  MEETING: 'meeting',
+  OTHER: 'other'
+};
+
+// Time Constants - NEW
+export const TIME_CONSTANTS = {
+  WORK_HOURS_PER_DAY: 8,
+  MINUTES_PER_HOUR: 60,
+  MILLISECONDS_PER_MINUTE: 60000,
+  DEFAULT_WORK_START_TIME: '09:00',
+  DEFAULT_WORK_END_TIME: '18:00',
+  MAX_DAILY_WORK_HOURS: 12,
+  MIN_BREAK_DURATION: 5, // minutes
+  MAX_BREAK_DURATION: 120 // minutes (2 hours)
+};
+
+// Attendance Report Types - NEW
+export const ATTENDANCE_REPORT_TYPES = {
+  DAILY: 'daily',
+  WEEKLY: 'weekly',
+  MONTHLY: 'monthly',
+  CUSTOM: 'custom'
+};
+
+// Departments
+export const DEPARTMENTS = {
+  SALES: 'sales',
+  MARKETING: 'marketing',
+  TECHNICAL: 'technical',
+  ADMINISTRATION: 'administration',
+  FINANCE: 'finance'
+};
+
+// Department Configuration
+export const DEPARTMENT_CONFIG = {
+  [DEPARTMENTS.SALES]: {
+    label: 'Sales',
+    description: 'Sales and customer relations',
+    color: '#2196f3',
+    defaultPermissions: [
+      PERMISSIONS.VIEW_CUSTOMER,
+      PERMISSIONS.CREATE_CUSTOMER,
+      PERMISSIONS.EDIT_CUSTOMER,
+      PERMISSIONS.VIEW_INVOICE,
+      PERMISSIONS.CREATE_INVOICE,
+      PERMISSIONS.EDIT_INVOICE,
+      PERMISSIONS.VIEW_OWN_ATTENDANCE,
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE
+    ]
+  },
+  [DEPARTMENTS.MARKETING]: {
+    label: 'Marketing',
+    description: 'Marketing and promotions',
+    color: '#e91e63',
+    defaultPermissions: [
+      PERMISSIONS.VIEW_CUSTOMER,
+      PERMISSIONS.VIEW_INVOICE,
+      PERMISSIONS.VIEW_SALES_REPORTS,
+      PERMISSIONS.VIEW_OWN_ATTENDANCE,
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE
+    ]
+  },
+  [DEPARTMENTS.ADMINISTRATION]: {
+    label: 'Administration',
+    description: 'Administrative tasks and HR',
+    color: '#9c27b0',
+    defaultPermissions: [
+      PERMISSIONS.VIEW_EMPLOYEE,
+      PERMISSIONS.CREATE_EMPLOYEE,
+      PERMISSIONS.EDIT_EMPLOYEE,
+      PERMISSIONS.VIEW_ALL_ATTENDANCE, // NEW - HR can view all attendance
+      PERMISSIONS.VIEW_ATTENDANCE_REPORTS,
+      PERMISSIONS.VIEW_OWN_ATTENDANCE,
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE
+    ]
+  },
+  [DEPARTMENTS.FINANCE]: {
+    label: 'Finance',
+    description: 'Financial operations and reporting',
+    color: '#ff5722',
+    defaultPermissions: [
+      PERMISSIONS.VIEW_INVOICE,
+      PERMISSIONS.VIEW_SALES_REPORTS,
+      PERMISSIONS.VIEW_CUSTOMER_REPORTS,
+      PERMISSIONS.VIEW_EMPLOYEE_REPORTS,
+      PERMISSIONS.VIEW_ATTENDANCE_REPORTS, // NEW
+      PERMISSIONS.VIEW_OWN_ATTENDANCE,
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE
+    ]
+  },
+  [DEPARTMENTS.TECHNICAL]: {
+    label: 'Technical',
+    description: 'Technical support and maintenance',
+    color: '#607d8b',
+    defaultPermissions: [
+      PERMISSIONS.VIEW_CUSTOMER,
+      PERMISSIONS.VIEW_INVOICE,
+      PERMISSIONS.VIEW_OWN_ATTENDANCE,
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE
+    ]
+  }
+};
+
+// Access Levels
+export const ACCESS_LEVELS = {
+  NONE: 0,
+  READ: 1,
+  WRITE: 2,
+  DELETE: 3,
+  ADMIN: 4
+};
+
+// Feature Permissions Map - Updated with attendance
+export const FEATURE_PERMISSIONS = {
+  customers: {
+    route: '/customers',
+    requiredPermission: PERMISSIONS.VIEW_CUSTOMER,
+    adminOnly: false
+  },
+  employees: {
+    route: '/employees',
+    requiredPermission: PERMISSIONS.VIEW_EMPLOYEE,
+    adminOnly: false,
+    managerAccess: true
+  },
+  attendance: { // NEW
+    route: '/attendance',
+    requiredPermission: PERMISSIONS.VIEW_OWN_ATTENDANCE,
+    adminOnly: false,
+    employeeOnly: true
+  },
+  sales: {
+    route: '/sales',
+    requiredPermission: PERMISSIONS.VIEW_INVOICE,
+    adminOnly: false
+  },
+  reports: {
+    route: '/reports',
+    requiredPermission: PERMISSIONS.VIEW_SALES_REPORTS,
+    adminOnly: false
+  },
+  employeeReports: { // NEW
+    route: '/reports/employees',
+    requiredPermission: PERMISSIONS.VIEW_ATTENDANCE_REPORTS,
+    adminOnly: true
+  },
+  settings: {
+    route: '/settings',
+    requiredPermission: PERMISSIONS.MANAGE_SETTINGS,
+    adminOnly: true
+  }
+};
+
+// Default Role Assignment Rules
+export const DEFAULT_ROLE_ASSIGNMENTS = {
+  FIRST_USER: USER_ROLES.ADMIN,
+  NEW_EMPLOYEE: USER_ROLES.EMPLOYEE,
+  SELF_REGISTRATION: USER_ROLES.EMPLOYEE
+};
+
+// Role Hierarchy (higher number = more authority)
+export const ROLE_HIERARCHY = {
+  [USER_ROLES.INTERN]: 1,
+  [USER_ROLES.EMPLOYEE]: 2,
+  [USER_ROLES.MANAGER]: 3,
+  [USER_ROLES.ADMIN]: 4
+};
+
+// Session and Security Settings
+export const SECURITY_SETTINGS = {
+  SESSION_TIMEOUT: {
+    [USER_ROLES.ADMIN]: 8 * 60 * 60 * 1000,      // 8 hours
+    [USER_ROLES.MANAGER]: 6 * 60 * 60 * 1000,    // 6 hours  
+    [USER_ROLES.EMPLOYEE]: 4 * 60 * 60 * 1000,   // 4 hours
+    [USER_ROLES.INTERN]: 2 * 60 * 60 * 1000      // 2 hours
+  },
+  PASSWORD_REQUIREMENTS: {
+    minLength: 6,
+    requireUppercase: false,
+    requireNumbers: true,
+    requireSpecialChars: false
+  }
+};
+
+// Photo/Camera Settings - NEW
+export const PHOTO_SETTINGS = {
+  MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
+  COMPRESSION_QUALITY: 0.7,
+  MAX_WIDTH: 800,
+  MAX_HEIGHT: 600,
+  SUPPORTED_FORMATS: ['image/jpeg', 'image/png', 'image/webp']
+};
+
+// Notification Types - Updated with attendance
+export const NOTIFICATION_TYPES = {
+  CUSTOMER_ADDED: 'customer_added',
+  INVOICE_CREATED: 'invoice_created',
+  PAYMENT_RECEIVED: 'payment_received',
+  EMPLOYEE_ADDED: 'employee_added',
+  ATTENDANCE_LATE: 'attendance_late', // NEW
+  ATTENDANCE_MISSED: 'attendance_missed', // NEW
+  ATTENDANCE_OVERTIME: 'attendance_overtime', // NEW
+  BREAK_EXCEEDED: 'break_exceeded', // NEW
+  SYSTEM_MAINTENANCE: 'system_maintenance',
+  BACKUP_COMPLETE: 'backup_complete'
+};
+
+export default {
+  USER_TYPES,
+  USER_ROLES,
+  COLLECTIONS,
+  APP_COLORS,
+  PERMISSIONS,
+  ROLE_CONFIG,
+  ATTENDANCE_STATUS,
+  BREAK_TYPES,
+  TIME_CONSTANTS,
+  ATTENDANCE_REPORT_TYPES,
+  DEPARTMENTS,
+  DEPARTMENT_CONFIG,
+  ACCESS_LEVELS,
+  FEATURE_PERMISSIONS,
+  DEFAULT_ROLE_ASSIGNMENTS,
+  ROLE_HIERARCHY,
+  SECURITY_SETTINGS,
+  PHOTO_SETTINGS,
+  NOTIFICATION_TYPES
+};

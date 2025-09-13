@@ -28,7 +28,7 @@ class BaseService {
     try {
       const collectionPath = this.getCollectionPath(userType);
       const {
-        limit = 50,
+        limit = null,
         offset = 0,
         orderBy = 'createdAt',
         orderDirection = 'desc',

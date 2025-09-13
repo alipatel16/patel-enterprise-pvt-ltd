@@ -15,6 +15,11 @@ import {
 import { database } from "../firebase/config";
 import { getEmployeesPath } from "../../utils/helpers/firebasePathHelper";
 import { v4 as uuidv4 } from "uuid";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
+import { auth } from "../firebase/config";
 
 class EmployeeService {
   /**
@@ -25,11 +30,7 @@ class EmployeeService {
    */
   async getEmployees(userType, options = {}) {
     try {
-      const {
-        search = "",
-        sortBy = "name",
-        sortOrder = "asc",
-      } = options;
+      const { search = "", sortBy = "name", sortOrder = "asc" } = options;
       const employeesPath = getEmployeesPath(userType);
       const employeesRef = ref(database, employeesPath);
 
@@ -94,7 +95,7 @@ class EmployeeService {
   async getEmployeeById(userType, employeeId) {
     try {
       console.log("Looking for employee with ID:", employeeId);
-      
+
       // Strategy 1: Try direct path lookup
       const employeePath = getEmployeesPath(userType, employeeId);
       const employeeRef = ref(database, employeePath);
@@ -120,7 +121,7 @@ class EmployeeService {
       }
 
       let foundEmployee = null;
-      
+
       // Try to find by Firebase key
       allSnapshot.forEach((childSnapshot) => {
         if (childSnapshot.key === employeeId) {
@@ -142,7 +143,10 @@ class EmployeeService {
       allSnapshot.forEach((childSnapshot) => {
         const employeeData = childSnapshot.val();
         // Check if the employeeId matches any of the employee's internal IDs
-        if (employeeData.id === employeeId || employeeData.employeeId === employeeId) {
+        if (
+          employeeData.id === employeeId ||
+          employeeData.employeeId === employeeId
+        ) {
           foundEmployee = {
             id: childSnapshot.key,
             ...employeeData,
@@ -158,7 +162,6 @@ class EmployeeService {
 
       console.log("Employee not found with any strategy");
       return null;
-
     } catch (error) {
       console.error("Error fetching employee:", error);
       throw new Error("Failed to fetch employee");
@@ -214,13 +217,122 @@ class EmployeeService {
   }
 
   /**
-   * Create new employee
+   * IMPROVED: Create Firebase Auth user with BETTER session preservation
+   * This uses a different Firebase Auth instance to prevent admin logout
+   * @private
+   * @param {Object} userData - User data
+   * @param {Object} adminCredentials - Admin credentials to restore session
+   * @returns {Promise<Object>} Created user
+   */
+  async createUserWithSessionPreservation(userData, adminCredentials) {
+    try {
+      console.log("Creating user account with session preservation...");
+
+      // Store the current admin user info before creating new user
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error("No admin user currently signed in");
+      }
+
+      console.log("Current admin user:", currentUser.email);
+
+      // Create new user account (this will automatically sign in the new user)
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        userData.email,
+        userData.password
+      );
+
+      const newUser = userCredential.user;
+      console.log("New user created:", newUser.uid);
+
+      // Store user data in database BEFORE restoring admin session
+      const userDbRef = ref(database, `users/${newUser.uid}`);
+      const userDbData = {
+        uid: newUser.uid,
+        email: userData.email,
+        name: userData.name,
+        phone: userData.phone,
+        role: userData.role,
+        userType: userData.userType,
+        canCreateInvoices: userData.canCreateInvoices || false,
+        canManageCustomers: userData.canManageCustomers || false,
+        canViewReports: userData.canViewReports || false,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      };
+
+      await set(userDbRef, userDbData);
+      console.log("User data stored in database");
+
+      // CRITICAL: Immediately restore the admin session before any other operations
+      console.log("Restoring admin session immediately...");
+      await signInWithEmailAndPassword(
+        auth,
+        adminCredentials.email,
+        adminCredentials.password
+      );
+      console.log("Admin session restored successfully");
+
+      // Verify admin is signed back in
+      const restoredUser = auth.currentUser;
+      if (!restoredUser || restoredUser.email !== adminCredentials.email) {
+        console.error("Admin session restoration failed");
+        throw new Error("Failed to restore admin session properly");
+      }
+
+      console.log("✅ Admin session verified:", restoredUser.email);
+
+      return {
+        uid: newUser.uid,
+        email: userData.email,
+        ...userDbData,
+      };
+    } catch (error) {
+      console.error("Error creating user with session preservation:", error);
+
+      // EMERGENCY: Try to restore admin session at all costs
+      try {
+        console.log("Emergency admin session restoration...");
+        await signInWithEmailAndPassword(
+          auth,
+          adminCredentials.email,
+          adminCredentials.password
+        );
+        console.log("Emergency restoration successful");
+      } catch (emergencyError) {
+        console.error(
+          "CRITICAL: Failed to restore admin session:",
+          emergencyError
+        );
+        // This is a critical error - the admin is now logged out
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Create new employee AND user account - IMPROVED VERSION
    * @param {string} userType
    * @param {Object} employeeData
+   * @param {Object} adminCredentials - Admin email/password for session restoration
    * @returns {Promise<Object>}
    */
-  async createEmployee(userType, employeeData) {
+  async createEmployee(userType, employeeData, adminCredentials = null) {
+    let createdEmployee = null;
+    let createdUser = null;
+
     try {
+      console.log("Creating employee and user account:", employeeData);
+
+      // Validate admin credentials
+      if (!adminCredentials?.email || !adminCredentials?.password) {
+        throw new Error(
+          "Admin credentials (email and password) are required for session preservation"
+        );
+      }
+
       // Transform joinedDate to dateOfJoining for service compatibility
       const transformedData = {
         ...employeeData,
@@ -239,6 +351,15 @@ class EmployeeService {
       // Validate required fields
       this.validateEmployeeData(transformedData);
 
+      // Validate password for user account creation
+      if (!transformedData.password) {
+        throw new Error("Password is required for creating user account");
+      }
+
+      if (transformedData.password.length < 6) {
+        throw new Error("Password must be at least 6 characters");
+      }
+
       // Check if employee ID is already in use
       if (transformedData.employeeId) {
         const existingEmployee = await this.getEmployeeByEmployeeId(
@@ -250,27 +371,167 @@ class EmployeeService {
         }
       }
 
+      // Check if email is already in use
+      if (transformedData.email) {
+        const existingEmployeeByEmail = await this.getEmployeeByEmail(
+          userType,
+          transformedData.email
+        );
+        if (existingEmployeeByEmail) {
+          throw new Error("Email is already in use by another employee");
+        }
+      }
+
+      // Step 1: Create user account with improved session preservation
+      console.log("Step 1: Creating user account with session preservation...");
+      const userData = {
+        name: transformedData.name,
+        email: transformedData.email.toLowerCase(),
+        phone: transformedData.phone,
+        password: transformedData.password,
+        role: transformedData.role,
+        userType: userType,
+        canCreateInvoices: transformedData.canCreateInvoices || false,
+        canManageCustomers: transformedData.canManageCustomers || false,
+        canViewReports: transformedData.canViewReports || false,
+      };
+
+      try {
+        createdUser = await this.createUserWithSessionPreservation(
+          userData,
+          adminCredentials
+        );
+        console.log(
+          "✅ User account created and admin session preserved:",
+          createdUser.uid
+        );
+      } catch (authError) {
+        console.error("Failed to create user account:", authError);
+        throw new Error(`Failed to create user account: ${authError.message}`);
+      }
+
+      // Step 2: Create employee record
+      console.log("Step 2: Creating employee record...");
       const employeesPath = getEmployeesPath(userType);
       const employeesRef = ref(database, employeesPath);
 
       const newEmployee = {
         ...transformedData,
         id: uuidv4(),
+        userId: createdUser.uid, // Link to the created user
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         isActive: true,
       };
 
+      // Remove password from employee data (it's stored in auth)
+      delete newEmployee.password;
+      delete newEmployee.confirmPassword;
+
       const newEmployeeRef = push(employeesRef);
       await set(newEmployeeRef, newEmployee);
 
-      return {
+      createdEmployee = {
         id: newEmployeeRef.key,
         ...newEmployee,
       };
+
+      console.log("Employee record created successfully:", createdEmployee.id);
+
+      // Step 3: Update user profile with employee ID
+      try {
+        const userRef = ref(database, `users/${createdUser.uid}`);
+        await update(userRef, {
+          employeeId: transformedData.employeeId,
+          employeeFirebaseId: newEmployeeRef.key,
+          updatedAt: new Date().toISOString(),
+        });
+        console.log("User profile updated with employee information");
+      } catch (profileError) {
+        console.warn("Failed to update user profile:", profileError);
+        // Non-critical error, continue
+      }
+
+      // Final verification that admin is still signed in
+      const finalUser = auth.currentUser;
+      if (!finalUser || finalUser.email !== adminCredentials.email) {
+        console.warn(
+          "Admin session may have been compromised during operation"
+        );
+        try {
+          await signInWithEmailAndPassword(
+            auth,
+            adminCredentials.email,
+            adminCredentials.password
+          );
+          console.log("Final admin session restoration completed");
+        } catch (finalError) {
+          console.error("Failed final admin session restoration:", finalError);
+        }
+      }
+
+      console.log("✅ Employee and user account created successfully!");
+      console.log("✅ Admin session maintained throughout the process!");
+
+      return createdEmployee;
     } catch (error) {
       console.error("Error creating employee:", error);
-      throw new Error(error.message || "Failed to create employee");
+
+      // Enhanced rollback strategy
+      console.log("Starting enhanced rollback process...");
+
+      // If employee was created but something failed after, remove the employee
+      if (createdEmployee) {
+        try {
+          const employeePath = getEmployeesPath(userType, createdEmployee.id);
+          const employeeRef = ref(database, employeePath);
+          await remove(employeeRef);
+          console.log("Employee record rolled back successfully");
+        } catch (rollbackError) {
+          console.error("Failed to rollback employee record:", rollbackError);
+        }
+      }
+
+      // If user was created but employee creation failed, mark user as inactive
+      if (createdUser && !createdEmployee) {
+        try {
+          const userRef = ref(database, `users/${createdUser.uid}`);
+          await update(userRef, {
+            isActive: false,
+            deletedAt: new Date().toISOString(),
+            note: "User created but employee creation failed - marked for cleanup",
+          });
+          console.log("User account marked for cleanup");
+        } catch (rollbackError) {
+          console.error("Failed to rollback user account:", rollbackError);
+          console.error(
+            "CRITICAL: User account exists without employee record"
+          );
+        }
+      }
+
+      // Final attempt to restore admin session if needed
+      try {
+        const currentUser = auth.currentUser;
+        if (!currentUser || currentUser.email !== adminCredentials?.email) {
+          console.log("Final emergency admin session restoration...");
+          await signInWithEmailAndPassword(
+            auth,
+            adminCredentials.email,
+            adminCredentials.password
+          );
+          console.log("Emergency admin restoration successful");
+        }
+      } catch (emergencyError) {
+        console.error(
+          "CRITICAL: Cannot restore admin session:",
+          emergencyError
+        );
+      }
+
+      throw new Error(
+        error.message || "Failed to create employee and user account"
+      );
     }
   }
 
@@ -413,7 +674,7 @@ class EmployeeService {
     try {
       console.log("Updating employee with ID:", employeeId);
       console.log("Updates to apply:", updates);
-      
+
       // Validate updates
       if (
         updates.email ||
@@ -449,7 +710,9 @@ class EmployeeService {
         foundKey = employeeId;
       } else {
         // Strategy 2: Search through all employees to find by Firebase key
-        console.log("Direct path not found, searching through all employees...");
+        console.log(
+          "Direct path not found, searching through all employees..."
+        );
         const allEmployeesRef = ref(database, employeesPath);
         const allSnapshot = await get(allEmployeesRef);
 
@@ -471,7 +734,10 @@ class EmployeeService {
           console.log("Firebase key not found, searching by employee data...");
           allSnapshot.forEach((childSnapshot) => {
             const employeeData = childSnapshot.val();
-            if (employeeData.id === employeeId || employeeData.employeeId === employeeId) {
+            if (
+              employeeData.id === employeeId ||
+              employeeData.employeeId === employeeId
+            ) {
               foundKey = childSnapshot.key;
               console.log("Found employee by employee data match");
               return true; // Stop iteration
@@ -485,7 +751,7 @@ class EmployeeService {
 
         // Update reference to use the found key
         employeeRef = ref(database, `${employeesPath}/${foundKey}`);
-        
+
         // Verify the employee exists with the found key
         snapshot = await get(employeeRef);
         if (!snapshot.exists()) {
@@ -524,13 +790,13 @@ class EmployeeService {
   async deleteEmployee(userType, employeeId) {
     try {
       console.log("Deleting employee with ID:", employeeId);
-      
+
       const employeesPath = getEmployeesPath(userType);
-      
+
       // First, try to delete using the direct path
       const employeePath = getEmployeesPath(userType, employeeId);
       const employeeRef = ref(database, employeePath);
-      
+
       const snapshot = await get(employeeRef);
       if (snapshot.exists()) {
         await remove(employeeRef);
@@ -565,24 +831,29 @@ class EmployeeService {
       let employeeToDelete = null;
       allSnapshot.forEach((childSnapshot) => {
         const employeeData = childSnapshot.val();
-        if (employeeData.id === employeeId || employeeData.employeeId === employeeId) {
+        if (
+          employeeData.id === employeeId ||
+          employeeData.employeeId === employeeId
+        ) {
           employeeToDelete = {
             key: childSnapshot.key,
-            data: employeeData
+            data: employeeData,
           };
           return true; // Stop iteration
         }
       });
 
       if (employeeToDelete) {
-        const finalRef = ref(database, `${employeesPath}/${employeeToDelete.key}`);
+        const finalRef = ref(
+          database,
+          `${employeesPath}/${employeeToDelete.key}`
+        );
         await remove(finalRef);
         console.log("Employee deleted successfully using employee data match");
         return;
       }
 
       throw new Error("Employee not found");
-
     } catch (error) {
       console.error("Error deleting employee:", error);
       throw new Error(error.message || "Failed to delete employee");
@@ -623,6 +894,46 @@ class EmployeeService {
     } catch (error) {
       console.error("Error fetching employee by employee ID:", error);
       // Return null instead of throwing error to avoid blocking creation
+      return null;
+    }
+  }
+
+  /**
+   * Get employee by email
+   * @param {string} userType
+   * @param {string} email
+   * @returns {Promise<Object|null>}
+   */
+  async getEmployeeByEmail(userType, email) {
+    try {
+      const employeesPath = getEmployeesPath(userType);
+      const employeesRef = ref(database, employeesPath);
+
+      // Get all employees and filter in memory
+      const snapshot = await get(employeesRef);
+
+      if (!snapshot.exists()) {
+        return null;
+      }
+
+      let foundEmployee = null;
+      snapshot.forEach((childSnapshot) => {
+        const employee = {
+          id: childSnapshot.key,
+          ...childSnapshot.val(),
+        };
+
+        if (
+          employee.email &&
+          employee.email.toLowerCase() === email.toLowerCase()
+        ) {
+          foundEmployee = employee;
+        }
+      });
+
+      return foundEmployee;
+    } catch (error) {
+      console.error("Error fetching employee by email:", error);
       return null;
     }
   }

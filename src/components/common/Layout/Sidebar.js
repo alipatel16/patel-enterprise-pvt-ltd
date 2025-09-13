@@ -1,3 +1,4 @@
+// src/components/common/Layout/Sidebar.js
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -33,7 +34,11 @@ import {
   Inventory as InventoryIcon,
   Analytics as AnalyticsIcon,
   Settings as SettingsIcon,
-  NotificationImportant as NotificationIcon
+  NotificationImportant as NotificationIcon,
+  AccessTime as AttendanceIcon,
+  Today as TodayIcon,
+  Schedule as ScheduleIcon,
+  Assessment as ReportsIcon
 } from '@mui/icons-material';
 
 import { useAuth } from '../../../contexts/AuthContext/AuthContext';
@@ -144,6 +149,13 @@ const Sidebar = ({
       ]
     },
     {
+      id: 'attendance',
+      label: 'Attendance',
+      icon: AttendanceIcon,
+      roles: [USER_ROLES.EMPLOYEE],
+      path: '/attendance'
+    },
+    {
       id: 'sales',
       label: 'Sales',
       icon: SalesIcon,
@@ -176,6 +188,12 @@ const Sidebar = ({
       icon: AssignmentIcon,
       roles: [USER_ROLES.ADMIN],
       children: [
+        {
+          id: 'reports-employees',
+          label: 'Employee Reports',
+          path: '/reports/employees',
+          icon: ReportsIcon
+        },
         {
           id: 'reports-sales',
           label: 'Sales Reports',
@@ -268,32 +286,32 @@ const Sidebar = ({
               primary={
                 <Typography 
                   variant="body2" 
-                  fontWeight={itemIsActive ? 600 : 400}
+                  fontWeight={itemIsActive ? 600 : 500}
                   sx={{ fontSize: '0.875rem' }}
                 >
                   {item.label}
                 </Typography>
               }
             />
-
-            {/* Badge */}
+            
+            {/* Badge for notifications */}
             {item.badge && (
-              <Badge
-                badgeContent={item.badge()}
-                color="error"
-                sx={{ mr: hasChildren ? 1 : 0 }}
+              <Badge 
+                badgeContent={item.badge()} 
+                color="error" 
+                sx={{ mr: 1 }}
               />
             )}
-
-            {/* Expand/Collapse Icon */}
-            {hasChildren && (
+            
+            {/* Expand/Collapse icon */}
+            {hasChildren && filteredChildren.length > 0 && (
               isExpanded ? <ExpandLess /> : <ExpandMore />
             )}
           </ListItemButton>
         </ListItem>
 
-        {/* Children */}
-        {hasChildren && (
+        {/* Children items */}
+        {hasChildren && filteredChildren.length > 0 && (
           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
             <List component="div" disablePadding>
               {filteredChildren.map(child => renderNavItem(child, level + 1))}
@@ -304,103 +322,82 @@ const Sidebar = ({
     );
   };
 
+  // Drawer content
   const drawerContent = (
-    <Box
-      sx={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        backgroundColor: theme.palette.background.paper
-      }}
-    >
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <Box
-        sx={{
-          p: 2,
-          background: `linear-gradient(135deg, ${themeColors.primary}15, ${themeColors.secondary}10)`,
-          borderBottom: `1px solid ${theme.palette.divider}`
-        }}
-      >
-        <Typography variant="h6" fontWeight={600} color={themeColors.primary}>
-          {userType === 'electronics' ? 'Electronics' : 'Furniture'}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Business Management
+      <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
+        <Typography variant="h6" sx={{ 
+          color: themeColors.primary,
+          fontWeight: 600,
+          textAlign: 'center'
+        }}>
+          {userType === 'electronics' ? 'Electronics' : 'Furniture'} Management
         </Typography>
       </Box>
 
-      {/* Navigation */}
+      {/* Navigation Items */}
       <Box sx={{ flex: 1, overflow: 'auto', py: 1 }}>
         <List>
           {filteredNavItems.map(item => renderNavItem(item))}
         </List>
       </Box>
 
-      {/* Footer */}
+      {/* User Info */}
       <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
-        <ListItem disablePadding>
-          <ListItemButton
-            onClick={() => handleNavigation('/settings')}
+        <Box display="flex" alignItems="center" gap={2}>
+          <Box
             sx={{
-              borderRadius: 2,
-              '&:hover': {
-                backgroundColor: alpha(themeColors.primary, 0.08)
-              }
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              backgroundColor: themeColors.primary,
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 600
             }}
           >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              <SettingsIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>
-              <Typography variant="body2">Settings</Typography>
-            </ListItemText>
-          </ListItemButton>
-        </ListItem>
+            {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body2" fontWeight={600} noWrap>
+              {user?.name || 'User'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" noWrap>
+              {user?.role === USER_ROLES.ADMIN ? 'Administrator' : 'Employee'}
+            </Typography>
+          </Box>
+        </Box>
       </Box>
     </Box>
   );
 
-  if (isMobile) {
-    return (
+  return (
+    <Box
+      component="nav"
+      sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}
+    >
       <Drawer
-        variant="temporary"
+        variant={variant}
         open={open}
         onClose={onClose}
-        ModalProps={{ keepMounted: true }}
+        ModalProps={{
+          keepMounted: true, // Better open performance on mobile.
+        }}
         sx={{
           '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
             width: DRAWER_WIDTH,
-            boxSizing: 'border-box'
-          }
+            backgroundColor: theme.palette.background.paper,
+            borderRight: `1px solid ${theme.palette.divider}`,
+          },
         }}
       >
         {drawerContent}
       </Drawer>
-    );
-  }
-
-  return (
-    <Drawer
-      variant="persistent"
-      anchor="left"
-      open={open}
-      sx={{
-        width: open ? DRAWER_WIDTH : 0,
-        flexShrink: 0,
-        '& .MuiDrawer-paper': {
-          width: DRAWER_WIDTH,
-          boxSizing: 'border-box',
-          position: 'relative',
-          whiteSpace: 'nowrap',
-          transition: theme.transitions.create('width', {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.enteringScreen,
-          })
-        }
-      }}
-    >
-      {drawerContent}
-    </Drawer>
+    </Box>
   );
 };
 

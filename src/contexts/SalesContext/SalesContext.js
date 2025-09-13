@@ -707,7 +707,7 @@ const updateInstallmentDueDate = useCallback(
         console.log('🔔 Starting notification regeneration...');
         
         // Dynamic import with proper error handling
-        const enhancedEMIGenerator = await import('../../services/enhancedEMINotificationGenerator');
+        const enhancedEMIGenerator = await import('../../services/cleanEMINotificationGenerator');
         const generator = enhancedEMIGenerator.default;
         
         if (!generator) {

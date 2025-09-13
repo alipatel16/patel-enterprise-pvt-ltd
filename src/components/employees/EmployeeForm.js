@@ -18,6 +18,8 @@ import {
   LinearProgress,
   useTheme,
   useMediaQuery,
+  IconButton,
+  InputAdornment,
 } from "@mui/material";
 import {
   Person as PersonIcon,
@@ -27,6 +29,9 @@ import {
   Security as SecurityIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+  Lock as LockIcon,
 } from "@mui/icons-material";
 
 import FormField from "../common/Forms/FormField";
@@ -75,11 +80,16 @@ const EmployeeForm = ({
     canCreateInvoices: true,
     canManageCustomers: true,
     canViewReports: false,
+    // New password fields
+    password: "",
+    confirmPassword: "",
     ...employee,
   });
 
   const [formErrors, setFormErrors] = useState({});
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   /**
    * Safely parse and validate date values
@@ -180,6 +190,10 @@ const EmployeeForm = ({
           employee.canViewReports !== undefined
             ? employee.canViewReports
             : false,
+
+        // Password fields - only for new employees
+        password: "",
+        confirmPassword: "",
       };
 
       console.log("Mapped form data:", mappedData);
@@ -217,7 +231,37 @@ const EmployeeForm = ({
         ...prev,
         [field]: value,
       }));
+
+      // Clear field error when user starts typing
+      if (formErrors[field]) {
+        setFormErrors((prev) => ({
+          ...prev,
+          [field]: "",
+        }));
+      }
     }
+  };
+
+  // Validate password fields
+  const validatePasswordFields = () => {
+    const errors = {};
+
+    // Only validate passwords for new employees
+    if (!isEdit) {
+      if (!formData.password) {
+        errors.password = "Password is required for new employees";
+      } else if (formData.password.length < 6) {
+        errors.password = "Password must be at least 6 characters";
+      }
+
+      if (!formData.confirmPassword) {
+        errors.confirmPassword = "Please confirm the password";
+      } else if (formData.password !== formData.confirmPassword) {
+        errors.confirmPassword = "Passwords do not match";
+      }
+    }
+
+    return errors;
   };
 
   // Handle form submission
@@ -226,9 +270,12 @@ const EmployeeForm = ({
 
     // Validate form data
     const validation = validateEmployeeData(formData);
+    const passwordErrors = validatePasswordFields();
 
-    if (!validation.isValid) {
-      setFormErrors(validation.errors);
+    const allErrors = { ...validation.errors, ...passwordErrors };
+
+    if (!validation.isValid || Object.keys(passwordErrors).length > 0) {
+      setFormErrors(allErrors);
       return;
     }
 
@@ -236,8 +283,14 @@ const EmployeeForm = ({
     const submissionData = {
       ...formData,
       joinedDate: formData.joinedDate ? formData.joinedDate.toISOString() : null,
-      salary: formData.salary ? parseFloat(formData.salary) : null
+      salary: formData.salary ? parseFloat(formData.salary) : null,
     };
+
+    // For edit mode, remove password fields
+    if (isEdit) {
+      delete submissionData.password;
+      delete submissionData.confirmPassword;
+    }
 
     if (onSubmit) {
       onSubmit(submissionData);
@@ -249,6 +302,15 @@ const EmployeeForm = ({
     if (onCancel) {
       onCancel();
     }
+  };
+
+  // Toggle password visibility
+  const handleTogglePassword = () => {
+    setShowPassword(prev => !prev);
+  };
+
+  const handleToggleConfirmPassword = () => {
+    setShowConfirmPassword(prev => !prev);
   };
 
   // Department options
@@ -352,6 +414,8 @@ const EmployeeForm = ({
                   textField: {
                     fullWidth: true,
                     required: true,
+                    error: !!formErrors.joinedDate,
+                    helperText: formErrors.joinedDate,
                   },
                 }}
               />
@@ -379,6 +443,96 @@ const EmployeeForm = ({
           </Grid>
         </CardContent>
       </Card>
+
+      {/* Account Security - Only for new employees */}
+      {!isEdit && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}>
+              <LockIcon color="primary" />
+              <Typography variant="h6" fontWeight={600}>
+                Account Security
+              </Typography>
+            </Box>
+
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body2">
+                A user account will be created automatically for this employee using the provided email and password.
+              </Typography>
+            </Alert>
+
+            <Grid container spacing={3}>
+              {/* Password */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Password"
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => handleChange("password")(e.target.value)}
+                  error={!!formErrors.password}
+                  helperText={formErrors.password || "Minimum 6 characters"}
+                  required
+                  disabled={loading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LockIcon color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={handleTogglePassword}
+                          onMouseDown={(e) => e.preventDefault()}
+                          disabled={loading}
+                          size="small"
+                        >
+                          {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              {/* Confirm Password */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Confirm Password"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={formData.confirmPassword}
+                  onChange={(e) => handleChange("confirmPassword")(e.target.value)}
+                  error={!!formErrors.confirmPassword}
+                  helperText={formErrors.confirmPassword}
+                  required
+                  disabled={loading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LockIcon color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={handleToggleConfirmPassword}
+                          onMouseDown={(e) => e.preventDefault()}
+                          disabled={loading}
+                          size="small"
+                        >
+                          {showConfirmPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Advanced Information */}
       <Card sx={{ mb: 3 }}>
@@ -586,10 +740,10 @@ const EmployeeForm = ({
           {loading
             ? isEdit
               ? "Updating..."
-              : "Creating..."
+              : "Creating Employee & Account..."
             : isEdit
             ? "Update Employee"
-            : "Create Employee"}
+            : "Create Employee & Account"}
         </Button>
       </Box>
     </Box>

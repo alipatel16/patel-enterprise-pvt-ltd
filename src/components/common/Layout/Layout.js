@@ -36,11 +36,14 @@ import {
   Person as PersonIcon,
   Store as StoreIcon,
   Home as HomeIcon,
-  NavigateNext as NavigateNextIcon
+  NavigateNext as NavigateNextIcon,
+  AccessTime as AttendanceIcon,
+  Assessment as ReportsIcon
 } from '@mui/icons-material';
 
 import { useAuth } from '../../../contexts/AuthContext/AuthContext';
 import { useUserType } from '../../../contexts/UserTypeContext/UserTypeContext';
+import { USER_ROLES } from '../../../utils/constants/appConstants';
 
 const DRAWER_WIDTH = 240;
 
@@ -66,7 +69,7 @@ const Layout = ({ children, title, breadcrumbs = [] }) => {
     return currentPath.startsWith(itemPath);
   };
 
-  // Navigation items
+  // Navigation items - Updated with attendance functionality
   const navigationItems = [
     {
       label: 'Dashboard',
@@ -87,6 +90,14 @@ const Layout = ({ children, title, breadcrumbs = [] }) => {
       active: isPathActive('/employees', location.pathname),
       adminOnly: true
     },
+    // NEW: Attendance for employees only
+    {
+      label: 'Attendance',
+      icon: AttendanceIcon,
+      path: '/attendance',
+      active: isPathActive('/attendance', location.pathname),
+      employeeOnly: true
+    },
     {
       label: 'Create Invoice',
       icon: ReceiptIcon,
@@ -98,6 +109,14 @@ const Layout = ({ children, title, breadcrumbs = [] }) => {
       icon: HistoryIcon,
       path: '/sales/history',
       active: location.pathname.startsWith('/sales/history') || location.pathname.startsWith('/sales') && location.pathname !== '/sales/create'
+    },
+    // NEW: Employee Reports for admin only
+    {
+      label: 'Employee Reports',
+      icon: ReportsIcon,
+      path: '/reports/employees',
+      active: isPathActive('/reports/employees', location.pathname),
+      adminOnly: true
     }
   ];
 
@@ -179,7 +198,13 @@ const Layout = ({ children, title, breadcrumbs = [] }) => {
 
       <List sx={{ mt: 1, flex: 1 }}>
         {navigationItems.map((item) => {
+          // Filter based on user role
           if (item.adminOnly && !canManageEmployees()) {
+            return null;
+          }
+          
+          // Show attendance only for employees (not admins)
+          if (item.employeeOnly && user?.role === USER_ROLES.ADMIN) {
             return null;
           }
 

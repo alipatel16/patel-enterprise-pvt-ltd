@@ -1,3 +1,4 @@
+// src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
@@ -15,24 +16,43 @@ import { createAppTheme } from './styles/theme/theme';
 import ProtectedRoute from './components/common/UI/ProtectedRoute';
 import LoadingSpinner from './components/common/UI/LoadingSpinner';
 
-// Pages
+// Pages - Authentication
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
+
+// Pages - Dashboard
 import DashboardPage from './pages/dashboard/DashboardPage';
 import NotificationsPage from './pages/dashboard/Notifications/NotificationsPage';
+
+// Pages - Customers
 import CustomersPage from './pages/customers/CustomersPage';
 import AddCustomerPage from './pages/customers/AddCustomerPage';
 import EditCustomerPage from './pages/customers/EditCustomerPage';
 import ViewCustomerPage from './pages/customers/ViewCustomerPage';
+
+// Pages - Employees
 import EmployeesPage from './pages/employees/EmployeesPage';
 import AddEmployeePage from './pages/employees/AddEmployeePage';
 import EditEmployeePage from './pages/employees/EditEmployeePage';
 import ViewEmployeePage from './pages/employees/ViewEmployeePage';
+
+// Pages - Attendance (NEW)
+import EmployeeAttendancePage from './pages/attendance/EmployeeAttendancePage';
+
+// Pages - Sales
 import SalesPage from './pages/sales/SalesPage';
 import CreateInvoicePage from './pages/sales/CreateInvoicePage';
 import EditInvoicePage from './pages/sales/EditInvoicePage';
 import ViewInvoicePage from './pages/sales/ViewInvoicePage';
 import SalesHistoryPage from './pages/sales/SalesHistoryPage';
+
+// Pages - Reports (NEW)
+import EmployeeReportsPage from './pages/reports/EmployeeReportsPage';
+
+// Pages - Analytics (NEW)
+import EmployeeSalesAnalyticsPage from './pages/admin/EmployeeSalesAnalyticsPage';
+
+// Pages - Error
 import NotFoundPage from './pages/NotFoundPage';
 
 // Custom hook
@@ -71,14 +91,21 @@ const AppContent = () => {
             } 
           />
 
-          <Route path="/notifications" element={<NotificationsPage />} />
-
           {/* Protected routes */}
           <Route 
             path="/dashboard" 
             element={
               <ProtectedRoute>
                 <DashboardPage />
+              </ProtectedRoute>
+            } 
+          />
+
+          <Route 
+            path="/notifications" 
+            element={
+              <ProtectedRoute>
+                <NotificationsPage />
               </ProtectedRoute>
             } 
           />
@@ -151,6 +178,16 @@ const AppContent = () => {
             } 
           />
 
+          {/* Attendance routes - Employee only */}
+          <Route 
+            path="/attendance" 
+            element={
+              <ProtectedRoute requiredRole={USER_ROLES.EMPLOYEE}>
+                <EmployeeAttendancePage />
+              </ProtectedRoute>
+            } 
+          />
+
           {/* Sales routes */}
           <Route 
             path="/sales" 
@@ -193,7 +230,27 @@ const AppContent = () => {
             } 
           />
 
-          {/* Default redirects */}
+          {/* Reports routes - Admin only */}
+          <Route 
+            path="/reports/employees" 
+            element={
+              <ProtectedRoute requiredRole={USER_ROLES.ADMIN}>
+                <EmployeeReportsPage />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* NEW: Analytics routes - Admin only */}
+          <Route 
+            path="/analytics/employee-sales" 
+            element={
+              <ProtectedRoute requiredRole={USER_ROLES.ADMIN}>
+                <EmployeeSalesAnalyticsPage />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Redirect routes */}
           <Route 
             path="/" 
             element={
@@ -201,7 +258,7 @@ const AppContent = () => {
             } 
           />
 
-          {/* 404 page */}
+          {/* 404 route */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </LocalizationProvider>

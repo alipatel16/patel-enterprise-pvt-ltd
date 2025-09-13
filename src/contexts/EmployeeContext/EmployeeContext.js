@@ -1,7 +1,12 @@
-import React, { createContext, useContext, useReducer, useCallback } from 'react';
-import employeeService from '../../services/api/employeeService';
-import { useUserType } from '../UserTypeContext/UserTypeContext';
-import { useAuth } from '../AuthContext/AuthContext';
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  useCallback,
+} from "react";
+import employeeService from "../../services/api/employeeService";
+import { useUserType } from "../UserTypeContext/UserTypeContext";
+import { useAuth } from "../AuthContext/AuthContext";
 
 // Initial state
 const initialState = {
@@ -13,39 +18,39 @@ const initialState = {
     currentPage: 1,
     totalPages: 1,
     total: 0,
-    hasMore: false
+    hasMore: false,
   },
   filters: {
-    search: '',
-    role: '',
-    department: '',
-    status: 'active',
-    sortBy: 'name',
-    sortOrder: 'asc'
+    search: "",
+    role: "",
+    department: "",
+    status: "active",
+    sortBy: "name",
+    sortOrder: "asc",
   },
   stats: {
     total: 0,
     active: 0,
     inactive: 0,
     byRole: {},
-    byDepartment: {}
-  }
+    byDepartment: {},
+  },
 };
 
 // Action types
 const EMPLOYEE_ACTIONS = {
-  SET_LOADING: 'SET_LOADING',
-  SET_EMPLOYEES: 'SET_EMPLOYEES',
-  SET_CURRENT_EMPLOYEE: 'SET_CURRENT_EMPLOYEE',
-  ADD_EMPLOYEE: 'ADD_EMPLOYEE',
-  UPDATE_EMPLOYEE: 'UPDATE_EMPLOYEE',
-  DELETE_EMPLOYEE: 'DELETE_EMPLOYEE',
-  SET_ERROR: 'SET_ERROR',
-  CLEAR_ERROR: 'CLEAR_ERROR',
-  SET_FILTERS: 'SET_FILTERS',
-  SET_PAGINATION: 'SET_PAGINATION',
-  SET_STATS: 'SET_STATS',
-  RESET_STATE: 'RESET_STATE'
+  SET_LOADING: "SET_LOADING",
+  SET_EMPLOYEES: "SET_EMPLOYEES",
+  SET_CURRENT_EMPLOYEE: "SET_CURRENT_EMPLOYEE",
+  ADD_EMPLOYEE: "ADD_EMPLOYEE",
+  UPDATE_EMPLOYEE: "UPDATE_EMPLOYEE",
+  DELETE_EMPLOYEE: "DELETE_EMPLOYEE",
+  SET_ERROR: "SET_ERROR",
+  CLEAR_ERROR: "CLEAR_ERROR",
+  SET_FILTERS: "SET_FILTERS",
+  SET_PAGINATION: "SET_PAGINATION",
+  SET_STATS: "SET_STATS",
+  RESET_STATE: "RESET_STATE",
 };
 
 // Reducer
@@ -55,7 +60,7 @@ const employeeReducer = (state, action) => {
       return {
         ...state,
         loading: action.payload,
-        error: action.payload ? null : state.error
+        error: action.payload ? null : state.error,
       };
 
     case EMPLOYEE_ACTIONS.SET_EMPLOYEES:
@@ -66,10 +71,10 @@ const employeeReducer = (state, action) => {
           currentPage: action.payload.currentPage || 1,
           totalPages: action.payload.totalPages || 1,
           total: action.payload.total || 0,
-          hasMore: action.payload.hasMore || false
+          hasMore: action.payload.hasMore || false,
         },
         loading: false,
-        error: null
+        error: null,
       };
 
     case EMPLOYEE_ACTIONS.SET_CURRENT_EMPLOYEE:
@@ -77,7 +82,7 @@ const employeeReducer = (state, action) => {
         ...state,
         currentEmployee: action.payload,
         loading: false,
-        error: null
+        error: null,
       };
 
     case EMPLOYEE_ACTIONS.ADD_EMPLOYEE:
@@ -86,51 +91,55 @@ const employeeReducer = (state, action) => {
         employees: [action.payload, ...state.employees],
         pagination: {
           ...state.pagination,
-          total: state.pagination.total + 1
+          total: state.pagination.total + 1,
         },
         loading: false,
-        error: null
+        error: null,
       };
 
     case EMPLOYEE_ACTIONS.UPDATE_EMPLOYEE:
       return {
         ...state,
-        employees: state.employees.map(employee =>
+        employees: state.employees.map((employee) =>
           employee.id === action.payload.id ? action.payload : employee
         ),
-        currentEmployee: state.currentEmployee?.id === action.payload.id 
-          ? action.payload 
-          : state.currentEmployee,
+        currentEmployee:
+          state.currentEmployee?.id === action.payload.id
+            ? action.payload
+            : state.currentEmployee,
         loading: false,
-        error: null
+        error: null,
       };
 
     case EMPLOYEE_ACTIONS.DELETE_EMPLOYEE:
       return {
         ...state,
-        employees: state.employees.filter(employee => employee.id !== action.payload),
-        currentEmployee: state.currentEmployee?.id === action.payload 
-          ? null 
-          : state.currentEmployee,
+        employees: state.employees.filter(
+          (employee) => employee.id !== action.payload
+        ),
+        currentEmployee:
+          state.currentEmployee?.id === action.payload
+            ? null
+            : state.currentEmployee,
         pagination: {
           ...state.pagination,
-          total: Math.max(0, state.pagination.total - 1)
+          total: Math.max(0, state.pagination.total - 1),
         },
         loading: false,
-        error: null
+        error: null,
       };
 
     case EMPLOYEE_ACTIONS.SET_ERROR:
       return {
         ...state,
         error: action.payload,
-        loading: false
+        loading: false,
       };
 
     case EMPLOYEE_ACTIONS.CLEAR_ERROR:
       return {
         ...state,
-        error: null
+        error: null,
       };
 
     case EMPLOYEE_ACTIONS.SET_FILTERS:
@@ -138,14 +147,14 @@ const employeeReducer = (state, action) => {
         ...state,
         filters: {
           ...state.filters,
-          ...action.payload
-        }
+          ...action.payload,
+        },
       };
 
     case EMPLOYEE_ACTIONS.SET_STATS:
       return {
         ...state,
-        stats: action.payload
+        stats: action.payload,
       };
 
     case EMPLOYEE_ACTIONS.RESET_STATE:
@@ -163,7 +172,7 @@ const EmployeeContext = createContext();
 export const useEmployee = () => {
   const context = useContext(EmployeeContext);
   if (!context) {
-    throw new Error('useEmployee must be used within an EmployeeProvider');
+    throw new Error("useEmployee must be used within an EmployeeProvider");
   }
   return context;
 };
@@ -175,183 +184,257 @@ export const EmployeeProvider = ({ children }) => {
   const { user } = useAuth();
 
   // Load employees - REMOVED LIMITS
-  const loadEmployees = useCallback(async (options = {}) => {
-    if (!userType) {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: 'User type not available' });
-      return;
-    }
+  const loadEmployees = useCallback(
+    async (options = {}) => {
+      if (!userType) {
+        dispatch({
+          type: EMPLOYEE_ACTIONS.SET_ERROR,
+          payload: "User type not available",
+        });
+        return;
+      }
 
-    try {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
+      try {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
 
-      // Remove limit and offset from query options to get all employees
-      const queryOptions = {
-        ...state.filters,
-        ...options
-      };
-      
-      // Remove limit and offset properties if they exist
-      delete queryOptions.limit;
-      delete queryOptions.offset;
+        // Remove limit and offset from query options to get all employees
+        const queryOptions = {
+          ...state.filters,
+          ...options,
+        };
 
-      const response = await employeeService.getEmployees(userType, queryOptions);
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_EMPLOYEES, payload: response });
-    } catch (error) {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
-    }
-  }, [userType, state.filters]);
+        // Remove limit and offset properties if they exist
+        delete queryOptions.limit;
+        delete queryOptions.offset;
+
+        const response = await employeeService.getEmployees(
+          userType,
+          queryOptions
+        );
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_EMPLOYEES, payload: response });
+      } catch (error) {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
+      }
+    },
+    [userType, state.filters]
+  );
 
   // Search employees
-  const searchEmployees = useCallback(async (searchTerm) => {
-    if (!userType || !searchTerm.trim()) {
-      await loadEmployees();
-      return;
-    }
+  const searchEmployees = useCallback(
+    async (searchTerm) => {
+      if (!userType || !searchTerm.trim()) {
+        await loadEmployees();
+        return;
+      }
 
-    try {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
-      
-      const employees = await employeeService.searchEmployees(userType, searchTerm);
-      dispatch({ 
-        type: EMPLOYEE_ACTIONS.SET_EMPLOYEES, 
-        payload: { 
-          employees, 
-          total: employees.length,
-          currentPage: 1,
-          totalPages: 1,
-          hasMore: false 
-        } 
-      });
-    } catch (error) {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
-    }
-  }, [userType, loadEmployees]);
+      try {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
+
+        const employees = await employeeService.searchEmployees(
+          userType,
+          searchTerm
+        );
+        dispatch({
+          type: EMPLOYEE_ACTIONS.SET_EMPLOYEES,
+          payload: {
+            employees,
+            total: employees.length,
+            currentPage: 1,
+            totalPages: 1,
+            hasMore: false,
+          },
+        });
+      } catch (error) {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
+      }
+    },
+    [userType, loadEmployees]
+  );
 
   // Get employee by ID
-  const getEmployeeById = useCallback(async (employeeId) => {
-    if (!userType || !employeeId) {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: 'Invalid parameters' });
-      return null;
-    }
-
-    try {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
-      
-      const employee = await employeeService.getEmployeeById(userType, employeeId);
-      if (employee) {
-        dispatch({ type: EMPLOYEE_ACTIONS.SET_CURRENT_EMPLOYEE, payload: employee });
-      } else {
-        dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: 'Employee not found' });
+  const getEmployeeById = useCallback(
+    async (employeeId) => {
+      if (!userType || !employeeId) {
+        dispatch({
+          type: EMPLOYEE_ACTIONS.SET_ERROR,
+          payload: "Invalid parameters",
+        });
+        return null;
       }
-      
-      return employee;
-    } catch (error) {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
-      return null;
-    }
-  }, [userType]);
+
+      try {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
+
+        const employee = await employeeService.getEmployeeById(
+          userType,
+          employeeId
+        );
+        if (employee) {
+          dispatch({
+            type: EMPLOYEE_ACTIONS.SET_CURRENT_EMPLOYEE,
+            payload: employee,
+          });
+        } else {
+          dispatch({
+            type: EMPLOYEE_ACTIONS.SET_ERROR,
+            payload: "Employee not found",
+          });
+        }
+
+        return employee;
+      } catch (error) {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
+        return null;
+      }
+    },
+    [userType]
+  );
 
   // Create employee
-  const createEmployee = useCallback(async (employeeData) => {
-    if (!userType) {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: 'User type not available' });
-      return null;
-    }
+  // Create employee - FIXED to accept and pass adminCredentials
+  const createEmployee = useCallback(
+    async (employeeData, adminCredentials = null) => {
+      if (!userType) {
+        dispatch({
+          type: EMPLOYEE_ACTIONS.SET_ERROR,
+          payload: "User type not available",
+        });
+        return null;
+      }
 
-    try {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
-      
-      // Add created by info
-      const employeeWithMeta = {
-        ...employeeData,
-        createdBy: user?.uid,
-        createdByName: user?.name
-      };
+      try {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
 
-      const newEmployee = await employeeService.createEmployee(userType, employeeWithMeta);
-      dispatch({ type: EMPLOYEE_ACTIONS.ADD_EMPLOYEE, payload: newEmployee });
-      
-      return newEmployee;
-    } catch (error) {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
-      return null;
-    }
-  }, [userType, user]);
+        // Add created by info
+        const employeeWithMeta = {
+          ...employeeData,
+          createdBy: user?.uid,
+          createdByName: user?.name,
+        };
+
+        // Pass both employeeData and adminCredentials to the service
+        const newEmployee = await employeeService.createEmployee(
+          userType,
+          employeeWithMeta,
+          adminCredentials
+        );
+        dispatch({ type: EMPLOYEE_ACTIONS.ADD_EMPLOYEE, payload: newEmployee });
+
+        return newEmployee;
+      } catch (error) {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
+        return null;
+      }
+    },
+    [userType, user]
+  );
 
   // Update employee
-  const updateEmployee = useCallback(async (employeeId, updates) => {
-    if (!userType || !employeeId) {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: 'Invalid parameters' });
-      return null;
-    }
+  const updateEmployee = useCallback(
+    async (employeeId, updates) => {
+      if (!userType || !employeeId) {
+        dispatch({
+          type: EMPLOYEE_ACTIONS.SET_ERROR,
+          payload: "Invalid parameters",
+        });
+        return null;
+      }
 
-    try {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
-      
-      // Add updated by info
-      const updatesWithMeta = {
-        ...updates,
-        updatedBy: user?.uid,
-        updatedByName: user?.name
-      };
+      try {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
 
-      const updatedEmployee = await employeeService.updateEmployee(userType, employeeId, updatesWithMeta);
-      dispatch({ type: EMPLOYEE_ACTIONS.UPDATE_EMPLOYEE, payload: updatedEmployee });
-      
-      return updatedEmployee;
-    } catch (error) {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
-      return null;
-    }
-  }, [userType, user]);
+        // Add updated by info
+        const updatesWithMeta = {
+          ...updates,
+          updatedBy: user?.uid,
+          updatedByName: user?.name,
+        };
+
+        const updatedEmployee = await employeeService.updateEmployee(
+          userType,
+          employeeId,
+          updatesWithMeta
+        );
+        dispatch({
+          type: EMPLOYEE_ACTIONS.UPDATE_EMPLOYEE,
+          payload: updatedEmployee,
+        });
+
+        return updatedEmployee;
+      } catch (error) {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
+        return null;
+      }
+    },
+    [userType, user]
+  );
 
   // Delete employee
-  const deleteEmployee = useCallback(async (employeeId) => {
-    if (!userType || !employeeId) {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: 'Invalid parameters' });
-      return false;
-    }
+  const deleteEmployee = useCallback(
+    async (employeeId) => {
+      if (!userType || !employeeId) {
+        dispatch({
+          type: EMPLOYEE_ACTIONS.SET_ERROR,
+          payload: "Invalid parameters",
+        });
+        return false;
+      }
 
-    try {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
-      
-      await employeeService.deleteEmployee(userType, employeeId);
-      dispatch({ type: EMPLOYEE_ACTIONS.DELETE_EMPLOYEE, payload: employeeId });
-      
-      return true;
-    } catch (error) {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
-      return false;
-    }
-  }, [userType]);
+      try {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_LOADING, payload: true });
+
+        await employeeService.deleteEmployee(userType, employeeId);
+        dispatch({
+          type: EMPLOYEE_ACTIONS.DELETE_EMPLOYEE,
+          payload: employeeId,
+        });
+
+        return true;
+      } catch (error) {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
+        return false;
+      }
+    },
+    [userType]
+  );
 
   // Get employee suggestions for autocomplete
-  const getEmployeeSuggestions = useCallback(async (searchTerm, limit = 10) => {
-    if (!userType || !searchTerm.trim()) {
-      return [];
-    }
+  const getEmployeeSuggestions = useCallback(
+    async (searchTerm, limit = 10) => {
+      if (!userType || !searchTerm.trim()) {
+        return [];
+      }
 
-    try {
-      return await employeeService.getEmployeeSuggestions(userType, searchTerm, limit);
-    } catch (error) {
-      console.error('Error fetching suggestions:', error);
-      return [];
-    }
-  }, [userType]);
+      try {
+        return await employeeService.getEmployeeSuggestions(
+          userType,
+          searchTerm,
+          limit
+        );
+      } catch (error) {
+        console.error("Error fetching suggestions:", error);
+        return [];
+      }
+    },
+    [userType]
+  );
 
   // Get employees by role
-  const getEmployeesByRole = useCallback(async (role) => {
-    if (!userType) {
-      return [];
-    }
+  const getEmployeesByRole = useCallback(
+    async (role) => {
+      if (!userType) {
+        return [];
+      }
 
-    try {
-      return await employeeService.getEmployeesByRole(userType, role);
-    } catch (error) {
-      dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
-      return [];
-    }
-  }, [userType]);
+      try {
+        return await employeeService.getEmployeesByRole(userType, role);
+      } catch (error) {
+        dispatch({ type: EMPLOYEE_ACTIONS.SET_ERROR, payload: error.message });
+        return [];
+      }
+    },
+    [userType]
+  );
 
   // Load employee statistics
   const loadEmployeeStats = useCallback(async () => {
@@ -363,7 +446,7 @@ export const EmployeeProvider = ({ children }) => {
       const stats = await employeeService.getEmployeeStats(userType);
       dispatch({ type: EMPLOYEE_ACTIONS.SET_STATS, payload: stats });
     } catch (error) {
-      console.error('Error loading employee stats:', error);
+      console.error("Error loading employee stats:", error);
     }
   }, [userType]);
 
@@ -384,7 +467,10 @@ export const EmployeeProvider = ({ children }) => {
 
   // Set current employee
   const setCurrentEmployee = useCallback((employee) => {
-    dispatch({ type: EMPLOYEE_ACTIONS.SET_CURRENT_EMPLOYEE, payload: employee });
+    dispatch({
+      type: EMPLOYEE_ACTIONS.SET_CURRENT_EMPLOYEE,
+      payload: employee,
+    });
   }, []);
 
   // Context value
@@ -408,14 +494,14 @@ export const EmployeeProvider = ({ children }) => {
     getEmployeeSuggestions,
     getEmployeesByRole,
     loadEmployeeStats,
-    
+
     // Filters and pagination
     setFilters,
-    
+
     // Utilities
     clearError,
     resetState,
-    setCurrentEmployee
+    setCurrentEmployee,
   };
 
   return (
