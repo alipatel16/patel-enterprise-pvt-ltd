@@ -8,7 +8,6 @@ export const USER_TYPES = {
 export const USER_ROLES = {
   ADMIN: 'admin',
   EMPLOYEE: 'employee',
-
   MANAGER: 'manager',
   INTERN: 'intern'
 };
@@ -31,8 +30,8 @@ export const PAYMENT_STATUS = {
   PAID: 'paid',
   PENDING: 'pending',
   EMI: 'emi',
-  FINANCE: 'finance',           // For finance payments
-  BANK_TRANSFER: 'bank_transfer', // For bank transfer payments
+  FINANCE: 'finance',
+  BANK_TRANSFER: 'bank_transfer',
   CREDIT_CARD: 'credit_card'
 };
 
@@ -50,7 +49,7 @@ export const PAYMENT_STATUS_DISPLAY = {
 export const PAYMENT_METHODS = {
   CASH: 'cash',
   CARD: 'card',
-  CREDIT_CARD: 'credit_card',        // NEW - Added credit card
+  CREDIT_CARD: 'credit_card',
   UPI: 'upi',
   NET_BANKING: 'net_banking',
   CHEQUE: 'cheque',
@@ -62,7 +61,7 @@ export const PAYMENT_METHODS = {
 export const PAYMENT_METHOD_DISPLAY = {
   [PAYMENT_METHODS.CASH]: 'Cash',
   [PAYMENT_METHODS.CARD]: 'Debit Card',
-  [PAYMENT_METHODS.CREDIT_CARD]: 'Credit Card',    // NEW
+  [PAYMENT_METHODS.CREDIT_CARD]: 'Credit Card',
   [PAYMENT_METHODS.UPI]: 'UPI',
   [PAYMENT_METHODS.NET_BANKING]: 'Net Banking',
   [PAYMENT_METHODS.CHEQUE]: 'Cheque',
@@ -70,7 +69,7 @@ export const PAYMENT_METHOD_DISPLAY = {
   [PAYMENT_METHODS.BANK_TRANSFER]: 'Bank Transfer'
 };
 
-// NEW - Original Payment Categories for tracking
+// Payment Categories for tracking
 export const PAYMENT_CATEGORIES = {
   CASH_PAYMENT: 'cash_payment',
   CARD_PAYMENT: 'card_payment',
@@ -81,7 +80,7 @@ export const PAYMENT_CATEGORIES = {
   PENDING_PAYMENT: 'pending_payment'
 };
 
-// NEW - Payment Category Display Names
+// Payment Category Display Names
 export const PAYMENT_CATEGORY_DISPLAY = {
   [PAYMENT_CATEGORIES.CASH_PAYMENT]: 'Cash Payment',
   [PAYMENT_CATEGORIES.CARD_PAYMENT]: 'Card Payment', 
@@ -92,7 +91,7 @@ export const PAYMENT_CATEGORY_DISPLAY = {
   [PAYMENT_CATEGORIES.PENDING_PAYMENT]: 'Pending Payment'
 };
 
-// NEW - Helper function to get payment category from status and method
+// Helper function to get payment category from status and method
 export const getPaymentCategory = (paymentStatus, paymentMethod = null) => {
   switch (paymentStatus) {
     case PAYMENT_STATUS.FINANCE:
@@ -146,7 +145,7 @@ export const PAGINATION = {
   PAGE_SIZE_OPTIONS: [5, 10, 25, 50]
 };
 
-// Firebase Collections
+// Firebase Collections - UPDATED with checklist collections
 export const COLLECTIONS = {
   CUSTOMERS: 'customers',
   EMPLOYEES: 'employees',
@@ -158,9 +157,13 @@ export const COLLECTIONS = {
   PENALTY_SETTINGS: 'penalty_settings',
   SETTINGS: 'settings',
   NOTIFICATIONS: 'notifications',
-  AUDIT_LOGS: 'audit_logs'
+  AUDIT_LOGS: 'audit_logs',
+  // NEW: Checklist collections
+  CHECKLISTS: 'checklists',
+  CHECKLIST_COMPLETIONS: 'checklist_completions'
 };
 
+// UPDATED permissions with checklist permissions
 export const PERMISSIONS = {
   // Customer permissions
   VIEW_CUSTOMER: 'view_customer',
@@ -180,18 +183,29 @@ export const PERMISSIONS = {
   EDIT_INVOICE: 'edit_invoice',
   DELETE_INVOICE: 'delete_invoice',
   
-  // Attendance permissions - NEW
+  // Attendance permissions
   VIEW_OWN_ATTENDANCE: 'view_own_attendance',
   MANAGE_OWN_ATTENDANCE: 'manage_own_attendance',
   VIEW_ALL_ATTENDANCE: 'view_all_attendance',
   MANAGE_ALL_ATTENDANCE: 'manage_all_attendance',
   EXPORT_ATTENDANCE_REPORTS: 'export_attendance_reports',
   
+  // NEW: Checklist permissions
+  VIEW_OWN_CHECKLISTS: 'view_own_checklists',
+  COMPLETE_CHECKLIST: 'complete_checklist',
+  CREATE_CHECKLIST: 'create_checklist',
+  EDIT_CHECKLIST: 'edit_checklist',
+  DELETE_CHECKLIST: 'delete_checklist',
+  VIEW_ALL_CHECKLISTS: 'view_all_checklists',
+  VIEW_CHECKLIST_REPORTS: 'view_checklist_reports',
+  EXPORT_CHECKLIST_REPORTS: 'export_checklist_reports',
+  MANAGE_CHECKLIST_ASSIGNMENTS: 'manage_checklist_assignments',
+  
   // Reports permissions
   VIEW_SALES_REPORTS: 'view_sales_reports',
   VIEW_CUSTOMER_REPORTS: 'view_customer_reports',
   VIEW_EMPLOYEE_REPORTS: 'view_employee_reports',
-  VIEW_ATTENDANCE_REPORTS: 'view_attendance_reports', // NEW
+  VIEW_ATTENDANCE_REPORTS: 'view_attendance_reports',
   
   // System permissions
   MANAGE_SETTINGS: 'manage_settings',
@@ -247,13 +261,152 @@ export const GST_TAX_SLABS = [
   { rate: 28, description: 'Luxury and sin goods' }
 ];
 
-// Role Configuration with updated permissions
+// NEW: Checklist Constants
+
+// Recurrence Types
+export const RECURRENCE_TYPES = {
+  DAILY: 'daily',
+  WEEKLY: 'weekly',
+  MONTHLY: 'monthly',
+  ONCE: 'once'
+};
+
+// Recurrence Type Display Names
+export const RECURRENCE_TYPE_DISPLAY_NAMES = {
+  [RECURRENCE_TYPES.DAILY]: 'Daily',
+  [RECURRENCE_TYPES.WEEKLY]: 'Weekly',
+  [RECURRENCE_TYPES.MONTHLY]: 'Monthly',
+  [RECURRENCE_TYPES.ONCE]: 'One Time'
+};
+
+// Checklist Status
+export const CHECKLIST_STATUS = {
+  ACTIVE: 'active',
+  INACTIVE: 'inactive',
+  DRAFT: 'draft',
+  ARCHIVED: 'archived'
+};
+
+// Completion Status
+export const COMPLETION_STATUS = {
+  PENDING: 'pending',
+  COMPLETED: 'completed',
+  NOT_COMPLETED: 'not_completed',
+  OVERDUE: 'overdue'
+};
+
+// Days of Week
+export const DAYS_OF_WEEK = {
+  SUNDAY: 0,
+  MONDAY: 1,
+  TUESDAY: 2,
+  WEDNESDAY: 3,
+  THURSDAY: 4,
+  FRIDAY: 5,
+  SATURDAY: 6
+};
+
+// Days of Week Display Names
+export const DAYS_OF_WEEK_NAMES = {
+  [DAYS_OF_WEEK.SUNDAY]: 'Sunday',
+  [DAYS_OF_WEEK.MONDAY]: 'Monday',
+  [DAYS_OF_WEEK.TUESDAY]: 'Tuesday',
+  [DAYS_OF_WEEK.WEDNESDAY]: 'Wednesday',
+  [DAYS_OF_WEEK.THURSDAY]: 'Thursday',
+  [DAYS_OF_WEEK.FRIDAY]: 'Friday',
+  [DAYS_OF_WEEK.SATURDAY]: 'Saturday'
+};
+
+// Common reasons for not completing checklists
+export const COMMON_NOT_COMPLETION_REASONS = {
+  EQUIPMENT_UNAVAILABLE: 'Equipment not available',
+  SYSTEM_DOWN: 'System maintenance/downtime',
+  CUSTOMER_UNAVAILABLE: 'Customer not available',
+  STAFF_SHORTAGE: 'Insufficient staff',
+  HOLIDAY_CLOSURE: 'Holiday/Store closure',
+  TECHNICAL_ISSUES: 'Technical difficulties',
+  SUPPLY_SHORTAGE: 'Required supplies not available',
+  WEATHER_CONDITIONS: 'Adverse weather conditions',
+  EMERGENCY_SITUATION: 'Emergency situation',
+  OTHER: 'Other (please specify)'
+};
+
+// Performance Thresholds
+export const PERFORMANCE_THRESHOLDS = {
+  COMPLETION_RATE: {
+    EXCELLENT: 95,
+    GOOD: 85,
+    AVERAGE: 70,
+    POOR: 50
+  }
+};
+
+// Checklist Validation Rules
+export const CHECKLIST_VALIDATION_RULES = {
+  TITLE: {
+    MIN_LENGTH: 3,
+    MAX_LENGTH: 100,
+    REQUIRED: true
+  },
+  DESCRIPTION: {
+    MIN_LENGTH: 0,
+    MAX_LENGTH: 500,
+    REQUIRED: false
+  },
+  ASSIGNED_EMPLOYEES: {
+    MIN_COUNT: 1,
+    MAX_COUNT: 50,
+    REQUIRED: true
+  },
+  REASON: {
+    MIN_LENGTH: 10,
+    MAX_LENGTH: 200,
+    REQUIRED: true // when not completing
+  }
+};
+
+// Helper functions for checklists
+export const getRecurrenceDisplayText = (recurrence) => {
+  switch (recurrence.type) {
+    case RECURRENCE_TYPES.DAILY:
+      return 'Daily';
+    case RECURRENCE_TYPES.WEEKLY:
+      return `Weekly (${DAYS_OF_WEEK_NAMES[recurrence.dayOfWeek]})`;
+    case RECURRENCE_TYPES.MONTHLY:
+      return `Monthly (${recurrence.dayOfMonth}${getOrdinalSuffix(recurrence.dayOfMonth)})`;
+    case RECURRENCE_TYPES.ONCE:
+      return `Once (${new Date(recurrence.specificDate).toLocaleDateString()})`;
+    default:
+      return 'Unknown';
+  }
+};
+
+export const getOrdinalSuffix = (day) => {
+  if (day >= 11 && day <= 13) {
+    return 'th';
+  }
+  switch (day % 10) {
+    case 1: return 'st';
+    case 2: return 'nd';
+    case 3: return 'rd';
+    default: return 'th';
+  }
+};
+
+export const getCompletionRateColor = (rate) => {
+  if (rate >= PERFORMANCE_THRESHOLDS.COMPLETION_RATE.EXCELLENT) return 'success';
+  if (rate >= PERFORMANCE_THRESHOLDS.COMPLETION_RATE.GOOD) return 'info';
+  if (rate >= PERFORMANCE_THRESHOLDS.COMPLETION_RATE.AVERAGE) return 'warning';
+  return 'error';
+};
+
+// UPDATED Role Configuration with checklist permissions
 export const ROLE_CONFIG = {
   [USER_ROLES.ADMIN]: {
     label: 'Administrator',
     description: 'Full system access',
     color: '#f44336',
-    permissions: Object.values(PERMISSIONS) // All permissions
+    permissions: Object.values(PERMISSIONS) // All permissions including checklists
   },
   [USER_ROLES.MANAGER]: {
     label: 'Manager',
@@ -269,16 +422,23 @@ export const ROLE_CONFIG = {
       PERMISSIONS.EDIT_INVOICE,
       PERMISSIONS.VIEW_OWN_ATTENDANCE,
       PERMISSIONS.MANAGE_OWN_ATTENDANCE,
-      PERMISSIONS.VIEW_ALL_ATTENDANCE, // NEW - Managers can view team attendance
+      PERMISSIONS.VIEW_ALL_ATTENDANCE,
+      // NEW: Checklist permissions for managers
+      PERMISSIONS.CREATE_CHECKLIST,
+      PERMISSIONS.EDIT_CHECKLIST,
+      PERMISSIONS.VIEW_ALL_CHECKLISTS,
+      PERMISSIONS.VIEW_CHECKLIST_REPORTS,
+      PERMISSIONS.MANAGE_CHECKLIST_ASSIGNMENTS,
+      // Reports
       PERMISSIONS.VIEW_SALES_REPORTS,
       PERMISSIONS.VIEW_CUSTOMER_REPORTS,
       PERMISSIONS.VIEW_EMPLOYEE_REPORTS,
-      PERMISSIONS.VIEW_ATTENDANCE_REPORTS // NEW
+      PERMISSIONS.VIEW_ATTENDANCE_REPORTS
     ]
   },
   [USER_ROLES.EMPLOYEE]: {
     label: 'Employee',
-    description: 'Basic operations and own attendance',
+    description: 'Basic operations and own checklists',
     color: '#4caf50',
     permissions: [
       PERMISSIONS.VIEW_CUSTOMER,
@@ -287,24 +447,30 @@ export const ROLE_CONFIG = {
       PERMISSIONS.VIEW_INVOICE,
       PERMISSIONS.CREATE_INVOICE,
       PERMISSIONS.EDIT_INVOICE,
-      PERMISSIONS.VIEW_OWN_ATTENDANCE, // NEW
-      PERMISSIONS.MANAGE_OWN_ATTENDANCE // NEW
+      PERMISSIONS.VIEW_OWN_ATTENDANCE,
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE,
+      // NEW: Employee checklist permissions
+      PERMISSIONS.VIEW_OWN_CHECKLISTS,
+      PERMISSIONS.COMPLETE_CHECKLIST
     ]
   },
   [USER_ROLES.INTERN]: {
     label: 'Intern',
-    description: 'Limited access and own attendance',
+    description: 'Limited access and own checklists',
     color: '#9c27b0',
     permissions: [
       PERMISSIONS.VIEW_CUSTOMER,
       PERMISSIONS.VIEW_INVOICE,
-      PERMISSIONS.VIEW_OWN_ATTENDANCE, // NEW
-      PERMISSIONS.MANAGE_OWN_ATTENDANCE // NEW
+      PERMISSIONS.VIEW_OWN_ATTENDANCE,
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE,
+      // NEW: Intern checklist permissions
+      PERMISSIONS.VIEW_OWN_CHECKLISTS,
+      PERMISSIONS.COMPLETE_CHECKLIST
     ]
   }
 };
 
-// Attendance Status Constants - NEW
+// Attendance Status Constants
 export const ATTENDANCE_STATUS = {
   NOT_CHECKED_IN: 'not_checked_in',
   CHECKED_IN: 'checked_in',
@@ -312,7 +478,7 @@ export const ATTENDANCE_STATUS = {
   CHECKED_OUT: 'checked_out'
 };
 
-// Break Types - NEW
+// Break Types
 export const BREAK_TYPES = {
   LUNCH: 'lunch',
   TEA: 'tea',
@@ -321,7 +487,7 @@ export const BREAK_TYPES = {
   OTHER: 'other'
 };
 
-// Time Constants - NEW
+// Time Constants
 export const TIME_CONSTANTS = {
   WORK_HOURS_PER_DAY: 8,
   MINUTES_PER_HOUR: 60,
@@ -329,11 +495,11 @@ export const TIME_CONSTANTS = {
   DEFAULT_WORK_START_TIME: '09:00',
   DEFAULT_WORK_END_TIME: '18:00',
   MAX_DAILY_WORK_HOURS: 12,
-  MIN_BREAK_DURATION: 5, // minutes
-  MAX_BREAK_DURATION: 120 // minutes (2 hours)
+  MIN_BREAK_DURATION: 5,
+  MAX_BREAK_DURATION: 120
 };
 
-// Attendance Report Types - NEW
+// Attendance Report Types
 export const ATTENDANCE_REPORT_TYPES = {
   DAILY: 'daily',
   WEEKLY: 'weekly',
@@ -350,7 +516,7 @@ export const DEPARTMENTS = {
   FINANCE: 'finance'
 };
 
-// Department Configuration
+// Department Configuration - UPDATED with checklist permissions
 export const DEPARTMENT_CONFIG = {
   [DEPARTMENTS.SALES]: {
     label: 'Sales',
@@ -364,7 +530,10 @@ export const DEPARTMENT_CONFIG = {
       PERMISSIONS.CREATE_INVOICE,
       PERMISSIONS.EDIT_INVOICE,
       PERMISSIONS.VIEW_OWN_ATTENDANCE,
-      PERMISSIONS.MANAGE_OWN_ATTENDANCE
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE,
+      // NEW: Checklist permissions for sales
+      PERMISSIONS.VIEW_OWN_CHECKLISTS,
+      PERMISSIONS.COMPLETE_CHECKLIST
     ]
   },
   [DEPARTMENTS.MARKETING]: {
@@ -376,7 +545,9 @@ export const DEPARTMENT_CONFIG = {
       PERMISSIONS.VIEW_INVOICE,
       PERMISSIONS.VIEW_SALES_REPORTS,
       PERMISSIONS.VIEW_OWN_ATTENDANCE,
-      PERMISSIONS.MANAGE_OWN_ATTENDANCE
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE,
+      PERMISSIONS.VIEW_OWN_CHECKLISTS,
+      PERMISSIONS.COMPLETE_CHECKLIST
     ]
   },
   [DEPARTMENTS.ADMINISTRATION]: {
@@ -387,10 +558,15 @@ export const DEPARTMENT_CONFIG = {
       PERMISSIONS.VIEW_EMPLOYEE,
       PERMISSIONS.CREATE_EMPLOYEE,
       PERMISSIONS.EDIT_EMPLOYEE,
-      PERMISSIONS.VIEW_ALL_ATTENDANCE, // NEW - HR can view all attendance
+      PERMISSIONS.VIEW_ALL_ATTENDANCE,
       PERMISSIONS.VIEW_ATTENDANCE_REPORTS,
       PERMISSIONS.VIEW_OWN_ATTENDANCE,
-      PERMISSIONS.MANAGE_OWN_ATTENDANCE
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE,
+      // NEW: Admin can manage checklists
+      PERMISSIONS.CREATE_CHECKLIST,
+      PERMISSIONS.EDIT_CHECKLIST,
+      PERMISSIONS.VIEW_ALL_CHECKLISTS,
+      PERMISSIONS.VIEW_CHECKLIST_REPORTS
     ]
   },
   [DEPARTMENTS.FINANCE]: {
@@ -402,9 +578,11 @@ export const DEPARTMENT_CONFIG = {
       PERMISSIONS.VIEW_SALES_REPORTS,
       PERMISSIONS.VIEW_CUSTOMER_REPORTS,
       PERMISSIONS.VIEW_EMPLOYEE_REPORTS,
-      PERMISSIONS.VIEW_ATTENDANCE_REPORTS, // NEW
+      PERMISSIONS.VIEW_ATTENDANCE_REPORTS,
       PERMISSIONS.VIEW_OWN_ATTENDANCE,
-      PERMISSIONS.MANAGE_OWN_ATTENDANCE
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE,
+      PERMISSIONS.VIEW_OWN_CHECKLISTS,
+      PERMISSIONS.COMPLETE_CHECKLIST
     ]
   },
   [DEPARTMENTS.TECHNICAL]: {
@@ -415,7 +593,9 @@ export const DEPARTMENT_CONFIG = {
       PERMISSIONS.VIEW_CUSTOMER,
       PERMISSIONS.VIEW_INVOICE,
       PERMISSIONS.VIEW_OWN_ATTENDANCE,
-      PERMISSIONS.MANAGE_OWN_ATTENDANCE
+      PERMISSIONS.MANAGE_OWN_ATTENDANCE,
+      PERMISSIONS.VIEW_OWN_CHECKLISTS,
+      PERMISSIONS.COMPLETE_CHECKLIST
     ]
   }
 };
@@ -429,7 +609,7 @@ export const ACCESS_LEVELS = {
   ADMIN: 4
 };
 
-// Feature Permissions Map - Updated with attendance
+// UPDATED Feature Permissions Map with checklists
 export const FEATURE_PERMISSIONS = {
   customers: {
     route: '/customers',
@@ -442,11 +622,27 @@ export const FEATURE_PERMISSIONS = {
     adminOnly: false,
     managerAccess: true
   },
-  attendance: { // NEW
+  attendance: {
     route: '/attendance',
     requiredPermission: PERMISSIONS.VIEW_OWN_ATTENDANCE,
     adminOnly: false,
     employeeOnly: true
+  },
+  // NEW: Checklist features
+  checklists: {
+    route: '/checklists',
+    requiredPermission: PERMISSIONS.VIEW_ALL_CHECKLISTS,
+    adminOnly: true
+  },
+  myChecklists: {
+    route: '/my-checklists',
+    requiredPermission: PERMISSIONS.VIEW_OWN_CHECKLISTS,
+    employeeOnly: true
+  },
+  checklistReports: {
+    route: '/checklists/reports',
+    requiredPermission: PERMISSIONS.VIEW_CHECKLIST_REPORTS,
+    adminOnly: true
   },
   sales: {
     route: '/sales',
@@ -458,7 +654,7 @@ export const FEATURE_PERMISSIONS = {
     requiredPermission: PERMISSIONS.VIEW_SALES_REPORTS,
     adminOnly: false
   },
-  employeeReports: { // NEW
+  employeeReports: {
     route: '/reports/employees',
     requiredPermission: PERMISSIONS.VIEW_ATTENDANCE_REPORTS,
     adminOnly: true
@@ -488,10 +684,10 @@ export const ROLE_HIERARCHY = {
 // Session and Security Settings
 export const SECURITY_SETTINGS = {
   SESSION_TIMEOUT: {
-    [USER_ROLES.ADMIN]: 8 * 60 * 60 * 1000,      // 8 hours
-    [USER_ROLES.MANAGER]: 6 * 60 * 60 * 1000,    // 6 hours  
-    [USER_ROLES.EMPLOYEE]: 4 * 60 * 60 * 1000,   // 4 hours
-    [USER_ROLES.INTERN]: 2 * 60 * 60 * 1000      // 2 hours
+    [USER_ROLES.ADMIN]: 8 * 60 * 60 * 1000,
+    [USER_ROLES.MANAGER]: 6 * 60 * 60 * 1000,
+    [USER_ROLES.EMPLOYEE]: 4 * 60 * 60 * 1000,
+    [USER_ROLES.INTERN]: 2 * 60 * 60 * 1000
   },
   PASSWORD_REQUIREMENTS: {
     minLength: 6,
@@ -501,25 +697,32 @@ export const SECURITY_SETTINGS = {
   }
 };
 
-// Photo/Camera Settings - NEW
+// Photo/Camera Settings
 export const PHOTO_SETTINGS = {
-  MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
+  MAX_FILE_SIZE: 5 * 1024 * 1024,
   COMPRESSION_QUALITY: 0.7,
   MAX_WIDTH: 800,
   MAX_HEIGHT: 600,
   SUPPORTED_FORMATS: ['image/jpeg', 'image/png', 'image/webp']
 };
 
-// Notification Types - Updated with attendance
+// UPDATED Notification Types with checklists
 export const NOTIFICATION_TYPES = {
   CUSTOMER_ADDED: 'customer_added',
   INVOICE_CREATED: 'invoice_created',
   PAYMENT_RECEIVED: 'payment_received',
   EMPLOYEE_ADDED: 'employee_added',
-  ATTENDANCE_LATE: 'attendance_late', // NEW
-  ATTENDANCE_MISSED: 'attendance_missed', // NEW
-  ATTENDANCE_OVERTIME: 'attendance_overtime', // NEW
-  BREAK_EXCEEDED: 'break_exceeded', // NEW
+  ATTENDANCE_LATE: 'attendance_late',
+  ATTENDANCE_MISSED: 'attendance_missed',
+  ATTENDANCE_OVERTIME: 'attendance_overtime',
+  BREAK_EXCEEDED: 'break_exceeded',
+  // NEW: Checklist notifications
+  CHECKLIST_ASSIGNED: 'checklist_assigned',
+  CHECKLIST_OVERDUE: 'checklist_overdue',
+  CHECKLIST_COMPLETED: 'checklist_completed',
+  CHECKLIST_NOT_COMPLETED: 'checklist_not_completed',
+  WEEKLY_SUMMARY: 'weekly_summary',
+  MONTHLY_SUMMARY: 'monthly_summary',
   SYSTEM_MAINTENANCE: 'system_maintenance',
   BACKUP_COMPLETE: 'backup_complete'
 };
@@ -543,5 +746,18 @@ export default {
   ROLE_HIERARCHY,
   SECURITY_SETTINGS,
   PHOTO_SETTINGS,
-  NOTIFICATION_TYPES
+  NOTIFICATION_TYPES,
+  // NEW: Checklist constants
+  RECURRENCE_TYPES,
+  RECURRENCE_TYPE_DISPLAY_NAMES,
+  CHECKLIST_STATUS,
+  COMPLETION_STATUS,
+  DAYS_OF_WEEK,
+  DAYS_OF_WEEK_NAMES,
+  COMMON_NOT_COMPLETION_REASONS,
+  PERFORMANCE_THRESHOLDS,
+  CHECKLIST_VALIDATION_RULES,
+  getRecurrenceDisplayText,
+  getOrdinalSuffix,
+  getCompletionRateColor
 };

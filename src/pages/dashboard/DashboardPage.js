@@ -45,14 +45,17 @@ import {
   Schedule as ScheduleIcon,
   AccessTime as AttendanceIcon,
   Assessment as ReportsIcon,
-  Analytics as AnalyticsIcon, // NEW - Added for Employee Sales Analytics
-  EmojiEvents as TrophyIcon, // NEW - Added for Employee Sales Analytics
+  Analytics as AnalyticsIcon,
+  EmojiEvents as TrophyIcon,
+  ChecklistRtl as ChecklistIcon,
+  AssignmentTurnedIn as TaskIcon,
 } from "@mui/icons-material";
 
 import { useAuth } from "../../contexts/AuthContext/AuthContext";
 import { useUserType } from "../../contexts/UserTypeContext/UserTypeContext";
 import { USER_ROLES } from "../../utils/constants/appConstants";
 import LoadingSpinner from "../../components/common/UI/LoadingSpinner";
+import checklistService from "../../services/checklistService"; // Import checklist service
 
 const DRAWER_WIDTH = 240;
 
@@ -62,10 +65,11 @@ const DashboardPage = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const { user, signOut, canManageEmployees } = useAuth();
-  const { getDisplayName, getAppTitle, getThemeColors } = useUserType();
+  const { getDisplayName, getAppTitle, getThemeColors, userType } = useUserType();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
+  const [loading, setLoading] = useState(true); // Add loading state
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalEmployees: 0,
@@ -73,9 +77,75 @@ const DashboardPage = () => {
     pendingEMIs: 0,
     pendingDeliveries: 0,
     todaySales: 0,
+    todayChecklists: 0,
+    pendingChecklists: 0,
+    completedChecklists: 0,
   });
+  const [checklistGenerationInfo, setChecklistGenerationInfo] = useState(null);
 
   const themeColors = getThemeColors();
+
+  // Load dashboard data on component mount
+  useEffect(() => {
+    loadDashboardDataWithChecklistGeneration();
+  }, [userType, user]);
+
+const loadDashboardDataWithChecklistGeneration = async () => {
+    try {
+      setLoading(true);
+      console.log('Loading dashboard with automatic checklist generation...');
+      
+      // Automatically generate checklists for this login
+      const checklistStatsWithGeneration = await checklistService.getDashboardStatsWithGeneration(userType, user);
+      
+      // Extract generation info for display
+      const generationInfo = checklistStatsWithGeneration.autoGeneration;
+      setChecklistGenerationInfo(generationInfo);
+      
+      // Log generation results
+      if (generationInfo) {
+        console.log('Automatic generation completed:', generationInfo);
+        if (generationInfo.type === 'admin') {
+          console.log(`Admin login: Generated ${generationInfo.totalGenerated} assignments for ${generationInfo.processedChecklists} checklists`);
+        } else {
+          console.log(`Employee login: Generated ${generationInfo.totalGenerated} assignments (${generationInfo.backupAssignments} backup)`);
+        }
+      }
+      
+      // TODO: Load other dashboard stats (customers, employees, sales)
+      // For now, using placeholder values
+      
+      setStats({
+        totalCustomers: 0, // TODO: Load from customer service
+        totalEmployees: 0, // TODO: Load from employee service  
+        totalSales: 0, // TODO: Load from sales service
+        pendingEMIs: 0, // TODO: Load from sales service
+        pendingDeliveries: 0, // TODO: Load from sales service
+        todaySales: 0, // TODO: Load from sales service
+        // Real checklist stats from automatic generation
+        todayChecklists: checklistStatsWithGeneration.todayTotal,
+        pendingChecklists: checklistStatsWithGeneration.todayPending,
+        completedChecklists: checklistStatsWithGeneration.todayCompleted,
+      });
+      
+    } catch (error) {
+      console.error('Error loading dashboard data with checklist generation:', error);
+      // Set fallback values on error
+      setStats({
+        totalCustomers: 0,
+        totalEmployees: 0,
+        totalSales: 0,
+        pendingEMIs: 0,
+        pendingDeliveries: 0,
+        todaySales: 0,
+        todayChecklists: 0,
+        pendingChecklists: 0,
+        completedChecklists: 0,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle drawer toggle
   const handleDrawerToggle = () => {
@@ -101,7 +171,7 @@ const DashboardPage = () => {
     }
   };
 
-  // Navigation items - Updated with employee sales analytics
+  // Navigation items - Updated with checklist management
   const navigationItems = [
     {
       label: "Dashboard",
@@ -125,6 +195,20 @@ const DashboardPage = () => {
       label: "Attendance",
       icon: AttendanceIcon,
       path: "/attendance",
+      employeeOnly: true,
+    },
+    // Checklist management for admin
+    {
+      label: "Checklists",
+      icon: ChecklistIcon,
+      path: "/checklists",
+      adminOnly: true,
+    },
+    // My Checklists for employees
+    {
+      label: "My Checklists",
+      icon: TaskIcon,
+      path: "/my-checklists",
       employeeOnly: true,
     },
     {
@@ -188,7 +272,32 @@ const DashboardPage = () => {
       color: themeColors.secondary,
       action: () => navigate("/employees"),
     });
+
+    // Enhanced admin checklist stats
+    statsCards.push({
+      title: "Today's Checklists",
+      value: `${stats.completedChecklists}/${stats.todayChecklists}`,
+      icon: ChecklistIcon,
+      color: "#9c27b0",
+      subtitle: checklistGenerationInfo ? 
+        `Auto-generated ${checklistGenerationInfo.totalGenerated} assignments` : 
+        'Checklist assignments',
+      action: () => navigate("/checklists"),
+    });
+  } else {
+    // Enhanced employee checklist stats
+    statsCards.push({
+      title: "My Checklists",
+      value: `${stats.completedChecklists}/${stats.todayChecklists}`,
+      icon: TaskIcon,
+      color: "#9c27b0",
+      subtitle: checklistGenerationInfo && checklistGenerationInfo.backupAssignments > 0 ? 
+        `${checklistGenerationInfo.backupAssignments} backup assignments` : 
+        'Your assigned tasks',
+      action: () => navigate("/my-checklists"),
+    });
   }
+  
 
   // Drawer content
   const DrawerContent = () => (
@@ -230,7 +339,7 @@ const DashboardPage = () => {
             return null;
           }
 
-          // Show attendance only for employees (not admins)
+          // Show attendance and employee checklists only for employees (not admins)
           if (item.employeeOnly && user?.role === USER_ROLES.ADMIN) {
             return null;
           }
@@ -318,6 +427,11 @@ const DashboardPage = () => {
     </Box>
   );
 
+  // Show loading spinner while data is loading
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
   return (
     <Box sx={{ display: "flex" }}>
       {/* App Bar */}
@@ -349,7 +463,7 @@ const DashboardPage = () => {
               onClick={() => navigate("/notifications")}
             >
               <Badge
-                badgeContent={stats.pendingEMIs + stats.pendingDeliveries}
+                badgeContent={stats.pendingEMIs + stats.pendingDeliveries + stats.pendingChecklists}
                 color="error"
               >
                 <NotificationsIcon />
@@ -467,7 +581,7 @@ const DashboardPage = () => {
                           >
                             {card.badge ? (
                               <Badge
-                                badgeContent={card.value}
+                                badgeContent={card.badge === true ? card.value : card.badge}
                                 color="error"
                                 max={999}
                               >
@@ -527,18 +641,32 @@ const DashboardPage = () => {
                       </Button>
                     </Grid>
                     {canManageEmployees() && (
-                      <Grid item xs={12} sm={6}>
-                        <Button
-                          fullWidth
-                          variant="outlined"
-                          startIcon={<BadgeIcon />}
-                          onClick={() => navigate("/employees/add")}
-                        >
-                          Add Employee
-                        </Button>
-                      </Grid>
+                      <>
+                        <Grid item xs={12} sm={6}>
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            startIcon={<BadgeIcon />}
+                            onClick={() => navigate("/employees/add")}
+                          >
+                            Add Employee
+                          </Button>
+                        </Grid>
+                        {/* Checklist management for admin */}
+                        <Grid item xs={12} sm={6}>
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            startIcon={<ChecklistIcon />}
+                            onClick={() => navigate("/checklists/create")}
+                            sx={{ mb: 1 }}
+                          >
+                            Create Checklist
+                          </Button>
+                        </Grid>
+                      </>
                     )}
-                    {/* NEW: Employee Sales Analytics for admin only */}
+                    {/* Employee Sales Analytics for admin only */}
                     {canManageEmployees() && (
                       <Grid item xs={12} sm={6}>
                         <Button
@@ -562,6 +690,20 @@ const DashboardPage = () => {
                           onClick={() => navigate("/attendance")}
                         >
                           My Attendance
+                        </Button>
+                      </Grid>
+                    )}
+                    {/* My Checklists for employees */}
+                    {user?.role === USER_ROLES.EMPLOYEE && (
+                      <Grid item xs={12} sm={6}>
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          startIcon={<TaskIcon />}
+                          onClick={() => navigate("/my-checklists")}
+                          sx={{ mb: 1 }}
+                        >
+                          My Checklists
                         </Button>
                       </Grid>
                     )}

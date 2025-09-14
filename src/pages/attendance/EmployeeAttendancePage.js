@@ -367,17 +367,6 @@ const EmployeeAttendancePage = () => {
             <Typography variant={isMobile ? "h6" : "h5"} gutterBottom>
               Today's Attendance
             </Typography>
-            {canMarkLeave && (
-              <Button
-                variant="outlined"
-                color="error"
-                startIcon={<LeaveIcon />}
-                onClick={() => setLeaveDialogOpen(true)}
-                size={isMobile ? "small" : "medium"}
-              >
-                Mark Leave
-              </Button>
-            )}
           </Box>
           <AttendanceChecker />
         </Box>

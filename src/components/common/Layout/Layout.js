@@ -1,3 +1,4 @@
+// src/components/common/Layout/Layout.js - Updated with Checklist Navigation
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -22,7 +23,8 @@ import {
   Container,
   Breadcrumbs,
   Link,
-  Chip
+  Chip,
+  Tooltip
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -38,7 +40,10 @@ import {
   Home as HomeIcon,
   NavigateNext as NavigateNextIcon,
   AccessTime as AttendanceIcon,
-  Assessment as ReportsIcon
+  Assessment as ReportsIcon,
+  ChecklistRtl as ChecklistIcon,
+  AssignmentTurnedIn as TaskIcon,
+  Settings as SettingsIcon
 } from '@mui/icons-material';
 
 import { useAuth } from '../../../contexts/AuthContext/AuthContext';
@@ -69,19 +74,21 @@ const Layout = ({ children, title, breadcrumbs = [] }) => {
     return currentPath.startsWith(itemPath);
   };
 
-  // Navigation items - Updated with attendance functionality
+  // Enhanced navigation items with checklist integration
   const navigationItems = [
     {
       label: 'Dashboard',
       icon: DashboardIcon,
       path: '/dashboard',
-      active: isPathActive('/dashboard', location.pathname)
+      active: isPathActive('/dashboard', location.pathname),
+      showForAll: true
     },
     {
       label: 'Customers',
       icon: PeopleIcon,
       path: '/customers',
-      active: isPathActive('/customers', location.pathname)
+      active: isPathActive('/customers', location.pathname),
+      showForAll: true
     },
     {
       label: 'Employees',
@@ -90,27 +97,46 @@ const Layout = ({ children, title, breadcrumbs = [] }) => {
       active: isPathActive('/employees', location.pathname),
       adminOnly: true
     },
-    // NEW: Attendance for employees only
     {
       label: 'Attendance',
       icon: AttendanceIcon,
       path: '/attendance',
       active: isPathActive('/attendance', location.pathname),
-      employeeOnly: true
+      employeeOnly: true,
+      tooltip: 'Track your daily attendance'
+    },
+    // NEW: Checklist Management (Admin)
+    {
+      label: 'Checklists',
+      icon: ChecklistIcon,
+      path: '/checklists',
+      active: isPathActive('/checklists', location.pathname),
+      adminOnly: true,
+      tooltip: 'Manage employee checklists and view completion status'
+    },
+    // NEW: My Checklists (Employee)
+    {
+      label: 'My Checklists',
+      icon: TaskIcon,
+      path: '/my-checklists',
+      active: isPathActive('/my-checklists', location.pathname),
+      employeeOnly: true,
+      tooltip: 'View and complete your assigned checklists'
     },
     {
       label: 'Create Invoice',
       icon: ReceiptIcon,
       path: '/sales/create',
-      active: location.pathname === '/sales/create'
+      active: location.pathname === '/sales/create',
+      showForAll: true
     },
     {
       label: 'Sales History',
       icon: HistoryIcon,
       path: '/sales/history',
-      active: location.pathname.startsWith('/sales/history') || location.pathname.startsWith('/sales') && location.pathname !== '/sales/create'
+      active: location.pathname.startsWith('/sales/history') || (location.pathname.startsWith('/sales') && location.pathname !== '/sales/create'),
+      showForAll: true
     },
-    // NEW: Employee Reports for admin only
     {
       label: 'Employee Reports',
       icon: ReportsIcon,
@@ -163,6 +189,32 @@ const Layout = ({ children, title, breadcrumbs = [] }) => {
     return items;
   };
 
+  // Filter navigation items based on user role
+  const getFilteredNavigationItems = () => {
+    return navigationItems.filter((item) => {
+      // Show for all users
+      if (item.showForAll) return true;
+      
+      // Admin only items
+      if (item.adminOnly && !canManageEmployees()) {
+        return false;
+      }
+      
+      // Employee only items (hide from admins to avoid confusion)
+      if (item.employeeOnly && user?.role === USER_ROLES.ADMIN) {
+        return false;
+      }
+
+      return true;
+    });
+  };
+
+  // Get notification count (placeholder - you can implement actual logic)
+  const getNotificationCount = () => {
+    // This could be based on pending checklists, overdue tasks, etc.
+    return 0;
+  };
+
   // Drawer content
   const DrawerContent = () => (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -189,7 +241,7 @@ const Layout = ({ children, title, breadcrumbs = [] }) => {
                 lineHeight: 1
               }}
             >
-              Management
+              Management System
             </Typography>
           </Box>
         </Box>
@@ -197,19 +249,9 @@ const Layout = ({ children, title, breadcrumbs = [] }) => {
       <Divider />
 
       <List sx={{ mt: 1, flex: 1 }}>
-        {navigationItems.map((item) => {
-          // Filter based on user role
-          if (item.adminOnly && !canManageEmployees()) {
-            return null;
-          }
-          
-          // Show attendance only for employees (not admins)
-          if (item.employeeOnly && user?.role === USER_ROLES.ADMIN) {
-            return null;
-          }
-
+        {getFilteredNavigationItems().map((item) => {
           const Icon = item.icon;
-          return (
+          const listItem = (
             <ListItem key={item.label} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
                 selected={item.active}
@@ -252,6 +294,17 @@ const Layout = ({ children, title, breadcrumbs = [] }) => {
               </ListItemButton>
             </ListItem>
           );
+
+          // Wrap with tooltip if provided
+          if (item.tooltip) {
+            return (
+              <Tooltip key={item.label} title={item.tooltip} placement="right">
+                {listItem}
+              </Tooltip>
+            );
+          }
+
+          return listItem;
         })}
       </List>
 
@@ -375,7 +428,7 @@ const Layout = ({ children, title, breadcrumbs = [] }) => {
 
           <Box display="flex" alignItems="center" gap={1}>
             <IconButton color="inherit">
-              <Badge badgeContent={0} color="error">
+              <Badge badgeContent={getNotificationCount()} color="error">
                 <NotificationsIcon />
               </Badge>
             </IconButton>

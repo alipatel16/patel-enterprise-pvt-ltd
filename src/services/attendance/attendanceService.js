@@ -1,5 +1,5 @@
-// src/services/attendance/attendanceService.js (Enhanced)
-import { database } from '../../services/firebase/config';
+// src/services/attendance/attendanceService.js - Enhanced with Checklist Integration
+import { database } from '../firebase/config';
 import { ref, push, set, get, query, orderByChild, equalTo, orderByKey, limitToLast } from 'firebase/database';
 import { getCollectionPath } from '../../utils/helpers/firebasePathHelper';
 import penaltyService from '../penalty/penaltyService';
@@ -113,7 +113,7 @@ class AttendanceService {
   }
 
   /**
-   * Mark leave for employee
+   * Mark leave for employee - ENHANCED with checklist integration
    * @param {string} userType - User type
    * @param {Object} leaveData - Leave data
    * @returns {Promise<string>} Attendance record ID
@@ -162,10 +162,98 @@ class AttendanceService {
         // Don't fail leave marking if penalty application fails
       }
 
+      // NEW: Handle checklist reassignment when leave is marked
+      try {
+        console.log('🔄 Triggering checklist reassignment for employee on leave...');
+        const { default: checklistService } = await import('../checklistService');
+        const reassignmentResult = await checklistService.handleEmployeeLeave(
+          userType, 
+          leaveData.employeeId, 
+          leaveData.date
+        );
+        console.log(`📋 Checklist reassignment result:`, reassignmentResult);
+      } catch (checklistError) {
+        console.warn('Failed to handle checklist reassignment:', checklistError);
+        // Don't fail leave marking if checklist reassignment fails
+      }
+
       return attendanceId;
     } catch (error) {
       console.error('Mark leave error:', error);
       throw new Error('Failed to mark leave: ' + error.message);
+    }
+  }
+
+  /**
+   * Cancel leave and allow normal attendance - ENHANCED with checklist integration
+   * @param {string} userType - User type
+   * @param {string} attendanceId - Attendance record ID
+   * @returns {Promise<void>}
+   */
+  async cancelLeave(userType, attendanceId) {
+    try {
+      const attendancePath = this.getAttendancePath(userType, attendanceId);
+      const attendanceRef = ref(database, attendancePath);
+      
+      const snapshot = await get(attendanceRef);
+      if (!snapshot.exists()) {
+        throw new Error('Leave record not found');
+      }
+
+      const leaveRecord = snapshot.val();
+      
+      if (leaveRecord.status !== 'on_leave') {
+        throw new Error('Record is not a leave record');
+      }
+
+      // NEW: Handle checklist restoration before removing leave record
+      try {
+        console.log('🔄 Triggering checklist restoration for cancelled leave...');
+        const { default: checklistService } = await import('../checklistService');
+        const restorationResult = await checklistService.handleEmployeeLeaveCancel(
+          userType, 
+          leaveRecord.employeeId, 
+          leaveRecord.date
+        );
+        console.log(`📋 Checklist restoration result:`, restorationResult);
+      } catch (checklistError) {
+        console.warn('Failed to handle checklist restoration:', checklistError);
+        // Don't fail leave cancellation if checklist restoration fails
+      }
+
+      // Remove the leave record to allow normal attendance
+      await set(attendanceRef, null);
+      
+      // Remove any associated leave penalties
+      try {
+        const penalties = await penaltyService.getEmployeePenalties(
+          userType, 
+          leaveRecord.employeeId, 
+          leaveRecord.date, 
+          leaveRecord.date
+        );
+        
+        const leavePenalties = penalties.filter(p => 
+          p.type === 'leave' && 
+          p.status === 'active' && 
+          p.date === leaveRecord.date
+        );
+
+        for (const penalty of leavePenalties) {
+          await penaltyService.removePenalty(
+            userType, 
+            penalty.id, 
+            'system', 
+            'Leave cancelled'
+          );
+        }
+      } catch (penaltyError) {
+        console.warn('Failed to remove leave penalties:', penaltyError);
+      }
+
+    } catch (error) {
+      console.error('Cancel leave error:', error);
+      throw new Error('Failed to cancel leave: ' + error.message);
     }
   }
 
@@ -505,64 +593,6 @@ class AttendanceService {
   }
 
   /**
-   * Cancel leave and allow normal attendance (Admin only)
-   * @param {string} userType - User type
-   * @param {string} attendanceId - Attendance record ID
-   * @returns {Promise<void>}
-   */
-  async cancelLeave(userType, attendanceId) {
-    try {
-      const attendancePath = this.getAttendancePath(userType, attendanceId);
-      const attendanceRef = ref(database, attendancePath);
-      
-      const snapshot = await get(attendanceRef);
-      if (!snapshot.exists()) {
-        throw new Error('Leave record not found');
-      }
-
-      const leaveRecord = snapshot.val();
-      
-      if (leaveRecord.status !== 'on_leave') {
-        throw new Error('Record is not a leave record');
-      }
-
-      // Remove the leave record to allow normal attendance
-      await set(attendanceRef, null);
-      
-      // Remove any associated leave penalties
-      try {
-        const penalties = await penaltyService.getEmployeePenalties(
-          userType, 
-          leaveRecord.employeeId, 
-          leaveRecord.date, 
-          leaveRecord.date
-        );
-        
-        const leavePenalties = penalties.filter(p => 
-          p.type === 'leave' && 
-          p.status === 'active' && 
-          p.date === leaveRecord.date
-        );
-
-        for (const penalty of leavePenalties) {
-          await penaltyService.removePenalty(
-            userType, 
-            penalty.id, 
-            'system', 
-            'Leave cancelled'
-          );
-        }
-      } catch (penaltyError) {
-        console.warn('Failed to remove leave penalties:', penaltyError);
-      }
-
-    } catch (error) {
-      console.error('Cancel leave error:', error);
-      throw new Error('Failed to cancel leave: ' + error.message);
-    }
-  }
-
-  /**
    * Get leave statistics
    * @param {string} userType - User type
    * @param {string} employeeId - Employee ID (optional)
@@ -575,12 +605,12 @@ class AttendanceService {
       const attendancePath = this.getAttendancePath(userType);
       const attendanceRef = ref(database, attendancePath);
       
-      let query = attendanceRef;
+      let attendanceQuery = attendanceRef;
       if (employeeId) {
-        query = query(attendanceRef, orderByChild('employeeId'), equalTo(employeeId));
+        attendanceQuery = query(attendanceRef, orderByChild('employeeId'), equalTo(employeeId));
       }
 
-      const snapshot = await get(query);
+      const snapshot = await get(attendanceQuery);
       if (!snapshot.exists()) {
         return {
           totalLeaves: 0,

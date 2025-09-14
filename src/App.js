@@ -1,64 +1,75 @@
 // src/App.js
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, CssBaseline } from '@mui/material';
-import { LocalizationProvider } from '@mui/x-date-pickers';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import React from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { ThemeProvider, CssBaseline } from "@mui/material";
+import { LocalizationProvider } from "@mui/x-date-pickers";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 
 // Contexts
-import { AuthProvider } from './contexts/AuthContext/AuthContext';
-import { UserTypeProvider } from './contexts/UserTypeContext/UserTypeContext';
+import { AuthProvider } from "./contexts/AuthContext/AuthContext";
+import { UserTypeProvider } from "./contexts/UserTypeContext/UserTypeContext";
 
 // Theme
-import { createAppTheme } from './styles/theme/theme';
+import { createAppTheme } from "./styles/theme/theme";
 
 // Components
-import ProtectedRoute from './components/common/UI/ProtectedRoute';
-import LoadingSpinner from './components/common/UI/LoadingSpinner';
+import ProtectedRoute from "./components/common/UI/ProtectedRoute";
+import LoadingSpinner from "./components/common/UI/LoadingSpinner";
 
 // Pages - Authentication
-import LoginPage from './pages/auth/LoginPage';
-import RegisterPage from './pages/auth/RegisterPage';
+import LoginPage from "./pages/auth/LoginPage";
+import RegisterPage from "./pages/auth/RegisterPage";
 
 // Pages - Dashboard
-import DashboardPage from './pages/dashboard/DashboardPage';
-import NotificationsPage from './pages/dashboard/Notifications/NotificationsPage';
+import DashboardPage from "./pages/dashboard/DashboardPage";
+import NotificationsPage from "./pages/dashboard/Notifications/NotificationsPage";
 
 // Pages - Customers
-import CustomersPage from './pages/customers/CustomersPage';
-import AddCustomerPage from './pages/customers/AddCustomerPage';
-import EditCustomerPage from './pages/customers/EditCustomerPage';
-import ViewCustomerPage from './pages/customers/ViewCustomerPage';
+import CustomersPage from "./pages/customers/CustomersPage";
+import AddCustomerPage from "./pages/customers/AddCustomerPage";
+import EditCustomerPage from "./pages/customers/EditCustomerPage";
+import ViewCustomerPage from "./pages/customers/ViewCustomerPage";
 
 // Pages - Employees
-import EmployeesPage from './pages/employees/EmployeesPage';
-import AddEmployeePage from './pages/employees/AddEmployeePage';
-import EditEmployeePage from './pages/employees/EditEmployeePage';
-import ViewEmployeePage from './pages/employees/ViewEmployeePage';
+import EmployeesPage from "./pages/employees/EmployeesPage";
+import AddEmployeePage from "./pages/employees/AddEmployeePage";
+import EditEmployeePage from "./pages/employees/EditEmployeePage";
+import ViewEmployeePage from "./pages/employees/ViewEmployeePage";
 
-// Pages - Attendance (NEW)
-import EmployeeAttendancePage from './pages/attendance/EmployeeAttendancePage';
+// Pages - Attendance
+import EmployeeAttendancePage from "./pages/attendance/EmployeeAttendancePage";
 
 // Pages - Sales
-import SalesPage from './pages/sales/SalesPage';
-import CreateInvoicePage from './pages/sales/CreateInvoicePage';
-import EditInvoicePage from './pages/sales/EditInvoicePage';
-import ViewInvoicePage from './pages/sales/ViewInvoicePage';
-import SalesHistoryPage from './pages/sales/SalesHistoryPage';
+import SalesPage from "./pages/sales/SalesPage";
+import CreateInvoicePage from "./pages/sales/CreateInvoicePage";
+import EditInvoicePage from "./pages/sales/EditInvoicePage";
+import ViewInvoicePage from "./pages/sales/ViewInvoicePage";
+import SalesHistoryPage from "./pages/sales/SalesHistoryPage";
 
-// Pages - Reports (NEW)
-import EmployeeReportsPage from './pages/reports/EmployeeReportsPage';
+// Pages - Reports
+import EmployeeReportsPage from "./pages/reports/EmployeeReportsPage";
 
-// Pages - Analytics (NEW)
-import EmployeeSalesAnalyticsPage from './pages/admin/EmployeeSalesAnalyticsPage';
+// Pages - Analytics
+import EmployeeSalesAnalyticsPage from "./pages/admin/EmployeeSalesAnalyticsPage";
+
+// Pages - Checklists (NEW)
+import CreateChecklistPage from "./pages/checklists/CreateChecklistPage";
+import EditChecklistPage from "./pages/checklists/EditChecklistPage";
+import ChecklistsManagementPage from "./pages/checklists/ChecklistsManagementPage";
+import EmployeeChecklistDashboard from "./pages/checklists/EmployeeChecklistDashboard";
 
 // Pages - Error
-import NotFoundPage from './pages/NotFoundPage';
+import NotFoundPage from "./pages/NotFoundPage";
 
 // Custom hook
-import { useAuth } from './contexts/AuthContext/AuthContext';
-import { useUserType } from './contexts/UserTypeContext/UserTypeContext';
-import { USER_ROLES } from './utils/constants/appConstants';
+import { useAuth } from "./contexts/AuthContext/AuthContext";
+import { useUserType } from "./contexts/UserTypeContext/UserTypeContext";
+import { USER_ROLES } from "./utils/constants/appConstants";
 
 // App content component that uses the contexts
 const AppContent = () => {
@@ -78,184 +89,240 @@ const AppContent = () => {
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <Routes>
           {/* Public routes */}
-          <Route 
-            path="/login" 
+          <Route
+            path="/login"
             element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />
-            } 
+              isAuthenticated ? (
+                <Navigate to="/dashboard" replace />
+              ) : (
+                <LoginPage />
+              )
+            }
           />
-          <Route 
-            path="/register" 
+          <Route
+            path="/register"
             element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />
-            } 
+              isAuthenticated ? (
+                <Navigate to="/dashboard" replace />
+              ) : (
+                <RegisterPage />
+              )
+            }
           />
 
           {/* Protected routes */}
-          <Route 
-            path="/dashboard" 
+          <Route
+            path="/dashboard"
             element={
               <ProtectedRoute>
                 <DashboardPage />
               </ProtectedRoute>
-            } 
+            }
           />
 
-          <Route 
-            path="/notifications" 
+          <Route
+            path="/notifications"
             element={
               <ProtectedRoute>
                 <NotificationsPage />
               </ProtectedRoute>
-            } 
+            }
           />
 
           {/* Customer routes */}
-          <Route 
-            path="/customers" 
+          <Route
+            path="/customers"
             element={
               <ProtectedRoute>
                 <CustomersPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/customers/add" 
+          <Route
+            path="/customers/add"
             element={
               <ProtectedRoute>
                 <AddCustomerPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/customers/edit/:id" 
+          <Route
+            path="/customers/edit/:id"
             element={
               <ProtectedRoute>
                 <EditCustomerPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/customers/view/:id" 
+          <Route
+            path="/customers/view/:id"
             element={
               <ProtectedRoute>
                 <ViewCustomerPage />
               </ProtectedRoute>
-            } 
+            }
           />
 
           {/* Employee routes (Admin only) */}
-          <Route 
-            path="/employees" 
+          <Route
+            path="/employees"
             element={
               <ProtectedRoute requiredRole={USER_ROLES.ADMIN}>
                 <EmployeesPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/employees/add" 
+          <Route
+            path="/employees/add"
             element={
               <ProtectedRoute requiredRole={USER_ROLES.ADMIN}>
                 <AddEmployeePage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/employees/edit/:id" 
+          <Route
+            path="/employees/edit/:id"
             element={
               <ProtectedRoute requiredRole={USER_ROLES.ADMIN}>
                 <EditEmployeePage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/employees/view/:id" 
+          <Route
+            path="/employees/view/:id"
             element={
               <ProtectedRoute requiredRole={USER_ROLES.ADMIN}>
                 <ViewEmployeePage />
               </ProtectedRoute>
-            } 
+            }
           />
 
           {/* Attendance routes - Employee only */}
-          <Route 
-            path="/attendance" 
+          <Route
+            path="/attendance"
             element={
               <ProtectedRoute requiredRole={USER_ROLES.EMPLOYEE}>
                 <EmployeeAttendancePage />
               </ProtectedRoute>
-            } 
+            }
           />
 
           {/* Sales routes */}
-          <Route 
-            path="/sales" 
+          <Route
+            path="/sales"
             element={
               <ProtectedRoute>
                 <SalesPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/sales/create" 
+          <Route
+            path="/sales/create"
             element={
               <ProtectedRoute>
                 <CreateInvoicePage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/sales/edit/:id" 
+          <Route
+            path="/sales/edit/:id"
             element={
               <ProtectedRoute>
                 <EditInvoicePage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/sales/view/:id" 
+          <Route
+            path="/sales/view/:id"
             element={
               <ProtectedRoute>
                 <ViewInvoicePage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/sales/history" 
+          <Route
+            path="/sales/history"
             element={
               <ProtectedRoute>
                 <SalesHistoryPage />
               </ProtectedRoute>
-            } 
+            }
           />
 
           {/* Reports routes - Admin only */}
-          <Route 
-            path="/reports/employees" 
+          <Route
+            path="/reports/employees"
             element={
               <ProtectedRoute requiredRole={USER_ROLES.ADMIN}>
                 <EmployeeReportsPage />
               </ProtectedRoute>
-            } 
+            }
           />
 
-          {/* NEW: Analytics routes - Admin only */}
-          <Route 
-            path="/analytics/employee-sales" 
+          {/* Analytics routes - Admin only */}
+          <Route
+            path="/analytics/employee-sales"
             element={
               <ProtectedRoute requiredRole={USER_ROLES.ADMIN}>
                 <EmployeeSalesAnalyticsPage />
               </ProtectedRoute>
-            } 
+            }
+          />
+
+          {/* NEW: Checklist routes */}
+          {/* Admin checklist management */}
+          <Route
+            path="/checklists"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <ChecklistsManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/checklists/create"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <CreateChecklistPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/checklists/edit/:id"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <EditChecklistPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* <Route
+            path="/checklists/reports"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <ChecklistReportsPage />
+              </ProtectedRoute>
+            }
+          /> */}
+
+          {/* Employee Checklist Dashboard */}
+          <Route
+            path="/my-checklists"
+            element={
+              <ProtectedRoute requiredRole="employee">
+                <EmployeeChecklistDashboard />
+              </ProtectedRoute>
+            }
           />
 
           {/* Redirect routes */}
-          <Route 
-            path="/" 
+          <Route
+            path="/"
             element={
-              <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
-            } 
+              <Navigate
+                to={isAuthenticated ? "/dashboard" : "/login"}
+                replace
+              />
+            }
           />
 
           {/* 404 route */}
