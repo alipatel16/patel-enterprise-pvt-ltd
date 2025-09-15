@@ -1,12 +1,22 @@
 // src/services/attendance/attendanceService.js - Enhanced with Checklist Integration
-import { database } from '../firebase/config';
-import { ref, push, set, get, query, orderByChild, equalTo, orderByKey, limitToLast } from 'firebase/database';
-import { getCollectionPath } from '../../utils/helpers/firebasePathHelper';
-import penaltyService from '../penalty/penaltyService';
+import { database } from "../firebase/config";
+import {
+  ref,
+  push,
+  set,
+  get,
+  query,
+  orderByChild,
+  equalTo,
+  orderByKey,
+  limitToLast,
+} from "firebase/database";
+import { getCollectionPath } from "../../utils/helpers/firebasePathHelper";
+import penaltyService from "../penalty/penaltyService";
 
 class AttendanceService {
   constructor() {
-    this.collectionName = 'attendance';
+    this.collectionName = "attendance";
   }
 
   /**
@@ -29,7 +39,7 @@ class AttendanceService {
     try {
       const attendancePath = this.getAttendancePath(userType);
       const attendanceRef = ref(database, attendancePath);
-      
+
       const newAttendanceRef = push(attendanceRef);
       const attendanceId = newAttendanceRef.key;
 
@@ -46,18 +56,50 @@ class AttendanceService {
         breaks: [],
         totalBreakTime: 0,
         totalWorkTime: 0,
-        status: 'checked_in',
+        status: "checked_in",
         leaveType: null,
         leaveReason: null,
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       };
 
       await set(newAttendanceRef, attendanceRecord);
-      return attendanceId;
+
+      // NEW: Automatically generate checklist assignments on check-in
+      try {
+        console.log("🔄 Triggering checklist generation on check-in...");
+        const { default: checklistService } = await import(
+          "../checklistService"
+        );
+
+        const checklistResult =
+          await checklistService.generateAssignmentsOnCheckIn(
+            userType,
+            checkInData.employeeId,
+            checkInData.date
+          );
+
+        console.log(`📋 Checklist generation result:`, checklistResult);
+
+        // Return attendance ID with checklist info
+        return {
+          attendanceId,
+          checklistGeneration: checklistResult,
+        };
+      } catch (checklistError) {
+        console.warn(
+          "Failed to generate checklist assignments:",
+          checklistError
+        );
+        // Don't fail check-in if checklist generation fails
+        return {
+          attendanceId,
+          checklistGeneration: { error: checklistError.message },
+        };
+      }
     } catch (error) {
-      console.error('Check-in error:', error);
-      throw new Error('Failed to check in: ' + error.message);
+      console.error("Check-in error:", error);
+      throw new Error("Failed to check in: " + error.message);
     }
   }
 
@@ -72,27 +114,36 @@ class AttendanceService {
     try {
       const attendancePath = this.getAttendancePath(userType, attendanceId);
       const attendanceRef = ref(database, attendancePath);
-      
+
       const snapshot = await get(attendanceRef);
       if (!snapshot.exists()) {
-        throw new Error('Attendance record not found');
+        throw new Error("Attendance record not found");
       }
 
       const attendanceRecord = snapshot.val();
-      
+
       // Calculate total work time
-      const checkInTime = new Date(`${attendanceRecord.date}T${attendanceRecord.checkInTime}`);
-      const checkOutTime = new Date(`${checkOutData.date}T${checkOutData.checkOutTime}`);
-      const totalMinutes = Math.floor((checkOutTime - checkInTime) / (1000 * 60));
-      const totalWorkTime = Math.max(0, totalMinutes - (attendanceRecord.totalBreakTime || 0));
+      const checkInTime = new Date(
+        `${attendanceRecord.date}T${attendanceRecord.checkInTime}`
+      );
+      const checkOutTime = new Date(
+        `${checkOutData.date}T${checkOutData.checkOutTime}`
+      );
+      const totalMinutes = Math.floor(
+        (checkOutTime - checkInTime) / (1000 * 60)
+      );
+      const totalWorkTime = Math.max(
+        0,
+        totalMinutes - (attendanceRecord.totalBreakTime || 0)
+      );
 
       const updatedRecord = {
         ...attendanceRecord,
         checkOutTime: checkOutData.checkOutTime,
         checkOutLocation: checkOutData.checkOutLocation || null,
         totalWorkTime: totalWorkTime,
-        status: 'checked_out',
-        updatedAt: new Date().toISOString()
+        status: "checked_out",
+        updatedAt: new Date().toISOString(),
       };
 
       await set(attendanceRef, updatedRecord);
@@ -101,14 +152,14 @@ class AttendanceService {
       try {
         await penaltyService.autoApplyPenalties(userType, updatedRecord);
       } catch (penaltyError) {
-        console.warn('Failed to auto-apply penalties:', penaltyError);
+        console.warn("Failed to auto-apply penalties:", penaltyError);
         // Don't fail checkout if penalty application fails
       }
 
       return updatedRecord;
     } catch (error) {
-      console.error('Check-out error:', error);
-      throw new Error('Failed to check out: ' + error.message);
+      console.error("Check-out error:", error);
+      throw new Error("Failed to check out: " + error.message);
     }
   }
 
@@ -121,14 +172,20 @@ class AttendanceService {
   async markLeave(userType, leaveData) {
     try {
       // Check if employee already has attendance for the date
-      const existingAttendance = await this.getTodayAttendance(userType, leaveData.employeeId, leaveData.date);
+      const existingAttendance = await this.getTodayAttendance(
+        userType,
+        leaveData.employeeId,
+        leaveData.date
+      );
       if (existingAttendance) {
-        throw new Error('Attendance already exists for this date. Cannot mark leave.');
+        throw new Error(
+          "Attendance already exists for this date. Cannot mark leave."
+        );
       }
 
       const attendancePath = this.getAttendancePath(userType);
       const attendanceRef = ref(database, attendancePath);
-      
+
       const newAttendanceRef = push(attendanceRef);
       const attendanceId = newAttendanceRef.key;
 
@@ -145,11 +202,11 @@ class AttendanceService {
         breaks: [],
         totalBreakTime: 0,
         totalWorkTime: 0,
-        status: 'on_leave',
-        leaveType: leaveData.leaveType || 'personal',
-        leaveReason: leaveData.reason || '',
+        status: "on_leave",
+        leaveType: leaveData.leaveType || "personal",
+        leaveReason: leaveData.reason || "",
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       };
 
       await set(newAttendanceRef, leaveRecord);
@@ -158,29 +215,43 @@ class AttendanceService {
       try {
         await penaltyService.autoApplyPenalties(userType, leaveRecord);
       } catch (penaltyError) {
-        console.warn('Failed to auto-apply leave penalty:', penaltyError);
-        // Don't fail leave marking if penalty application fails
+        console.warn("Failed to auto-apply leave penalty:", penaltyError);
       }
 
-      // NEW: Handle checklist reassignment when leave is marked
+      // ENHANCED: Handle checklist reassignment when leave is marked
       try {
-        console.log('🔄 Triggering checklist reassignment for employee on leave...');
-        const { default: checklistService } = await import('../checklistService');
+        console.log(
+          "🔄 Triggering checklist reassignment for employee on leave..."
+        );
+        const { default: checklistService } = await import(
+          "../checklistService"
+        );
+
         const reassignmentResult = await checklistService.handleEmployeeLeave(
-          userType, 
-          leaveData.employeeId, 
+          userType,
+          leaveData.employeeId,
           leaveData.date
         );
-        console.log(`📋 Checklist reassignment result:`, reassignmentResult);
-      } catch (checklistError) {
-        console.warn('Failed to handle checklist reassignment:', checklistError);
-        // Don't fail leave marking if checklist reassignment fails
-      }
 
-      return attendanceId;
+        console.log(`📋 Checklist reassignment result:`, reassignmentResult);
+
+        return {
+          attendanceId,
+          checklistReassignment: reassignmentResult,
+        };
+      } catch (checklistError) {
+        console.warn(
+          "Failed to handle checklist reassignment:",
+          checklistError
+        );
+        return {
+          attendanceId,
+          checklistReassignment: { error: checklistError.message },
+        };
+      }
     } catch (error) {
-      console.error('Mark leave error:', error);
-      throw new Error('Failed to mark leave: ' + error.message);
+      console.error("Mark leave error:", error);
+      throw new Error("Failed to mark leave: " + error.message);
     }
   }
 
@@ -194,66 +265,71 @@ class AttendanceService {
     try {
       const attendancePath = this.getAttendancePath(userType, attendanceId);
       const attendanceRef = ref(database, attendancePath);
-      
+
       const snapshot = await get(attendanceRef);
       if (!snapshot.exists()) {
-        throw new Error('Leave record not found');
+        throw new Error("Leave record not found");
       }
 
       const leaveRecord = snapshot.val();
-      
-      if (leaveRecord.status !== 'on_leave') {
-        throw new Error('Record is not a leave record');
+
+      if (leaveRecord.status !== "on_leave") {
+        throw new Error("Record is not a leave record");
       }
 
       // NEW: Handle checklist restoration before removing leave record
       try {
-        console.log('🔄 Triggering checklist restoration for cancelled leave...');
-        const { default: checklistService } = await import('../checklistService');
-        const restorationResult = await checklistService.handleEmployeeLeaveCancel(
-          userType, 
-          leaveRecord.employeeId, 
-          leaveRecord.date
+        console.log(
+          "🔄 Triggering checklist restoration for cancelled leave..."
         );
+        const { default: checklistService } = await import(
+          "../checklistService"
+        );
+        const restorationResult =
+          await checklistService.handleEmployeeLeaveCancel(
+            userType,
+            leaveRecord.employeeId,
+            leaveRecord.date
+          );
         console.log(`📋 Checklist restoration result:`, restorationResult);
       } catch (checklistError) {
-        console.warn('Failed to handle checklist restoration:', checklistError);
+        console.warn("Failed to handle checklist restoration:", checklistError);
         // Don't fail leave cancellation if checklist restoration fails
       }
 
       // Remove the leave record to allow normal attendance
       await set(attendanceRef, null);
-      
+
       // Remove any associated leave penalties
       try {
         const penalties = await penaltyService.getEmployeePenalties(
-          userType, 
-          leaveRecord.employeeId, 
-          leaveRecord.date, 
+          userType,
+          leaveRecord.employeeId,
+          leaveRecord.date,
           leaveRecord.date
         );
-        
-        const leavePenalties = penalties.filter(p => 
-          p.type === 'leave' && 
-          p.status === 'active' && 
-          p.date === leaveRecord.date
+
+        const leavePenalties = penalties.filter(
+          (p) =>
+            p.type === "leave" &&
+            p.status === "active" &&
+            p.date === leaveRecord.date
         );
 
         for (const penalty of leavePenalties) {
           await penaltyService.removePenalty(
-            userType, 
-            penalty.id, 
-            'system', 
-            'Leave cancelled'
+            userType,
+            penalty.id,
+            "system",
+            "Leave cancelled"
           );
         }
       } catch (penaltyError) {
-        console.warn('Failed to remove leave penalties:', penaltyError);
+        console.warn("Failed to remove leave penalties:", penaltyError);
       }
-
     } catch (error) {
-      console.error('Cancel leave error:', error);
-      throw new Error('Failed to cancel leave: ' + error.message);
+      console.error("Cancel leave error:", error);
+      throw new Error("Failed to cancel leave: " + error.message);
     }
   }
 
@@ -268,32 +344,32 @@ class AttendanceService {
     try {
       const attendancePath = this.getAttendancePath(userType, attendanceId);
       const attendanceRef = ref(database, attendancePath);
-      
+
       const snapshot = await get(attendanceRef);
       if (!snapshot.exists()) {
-        throw new Error('Attendance record not found');
+        throw new Error("Attendance record not found");
       }
 
       const attendanceRecord = snapshot.val();
-      
+
       // Cannot start break if on leave
-      if (attendanceRecord.status === 'on_leave') {
-        throw new Error('Cannot start break while on leave');
+      if (attendanceRecord.status === "on_leave") {
+        throw new Error("Cannot start break while on leave");
       }
 
       const breaks = attendanceRecord.breaks || [];
-      
+
       // Check if there's already an active break
-      const activeBreak = breaks.find(br => !br.endTime);
+      const activeBreak = breaks.find((br) => !br.endTime);
       if (activeBreak) {
-        throw new Error('Break already in progress');
+        throw new Error("Break already in progress");
       }
 
       const newBreak = {
         id: Date.now().toString(),
         startTime: breakData.startTime,
         endTime: null,
-        duration: 0
+        duration: 0,
       };
 
       breaks.push(newBreak);
@@ -301,15 +377,15 @@ class AttendanceService {
       const updatedRecord = {
         ...attendanceRecord,
         breaks: breaks,
-        status: 'on_break',
-        updatedAt: new Date().toISOString()
+        status: "on_break",
+        updatedAt: new Date().toISOString(),
       };
 
       await set(attendanceRef, updatedRecord);
       return updatedRecord;
     } catch (error) {
-      console.error('Start break error:', error);
-      throw new Error('Failed to start break: ' + error.message);
+      console.error("Start break error:", error);
+      throw new Error("Failed to start break: " + error.message);
     }
   }
 
@@ -324,48 +400,55 @@ class AttendanceService {
     try {
       const attendancePath = this.getAttendancePath(userType, attendanceId);
       const attendanceRef = ref(database, attendancePath);
-      
+
       const snapshot = await get(attendanceRef);
       if (!snapshot.exists()) {
-        throw new Error('Attendance record not found');
+        throw new Error("Attendance record not found");
       }
 
       const attendanceRecord = snapshot.val();
       const breaks = attendanceRecord.breaks || [];
-      
+
       // Find the active break
-      const activeBreakIndex = breaks.findIndex(br => !br.endTime);
+      const activeBreakIndex = breaks.findIndex((br) => !br.endTime);
       if (activeBreakIndex === -1) {
-        throw new Error('No active break found');
+        throw new Error("No active break found");
       }
 
       const activeBreak = breaks[activeBreakIndex];
-      const startTime = new Date(`${attendanceRecord.date}T${activeBreak.startTime}`);
-      const endTime = new Date(`${attendanceRecord.date}T${breakEndData.endTime}`);
+      const startTime = new Date(
+        `${attendanceRecord.date}T${activeBreak.startTime}`
+      );
+      const endTime = new Date(
+        `${attendanceRecord.date}T${breakEndData.endTime}`
+      );
       const duration = Math.floor((endTime - startTime) / (1000 * 60)); // Duration in minutes
 
       breaks[activeBreakIndex] = {
         ...activeBreak,
         endTime: breakEndData.endTime,
-        duration: duration
+        duration: duration,
       };
 
       // Calculate total break time
-      const totalBreakTime = breaks.reduce((total, br) => total + (br.duration || 0), 0);
+      const totalBreakTime = breaks.reduce(
+        (total, br) => total + (br.duration || 0),
+        0
+      );
 
       const updatedRecord = {
         ...attendanceRecord,
         breaks: breaks,
         totalBreakTime: totalBreakTime,
-        status: 'checked_in',
-        updatedAt: new Date().toISOString()
+        status: "checked_in",
+        updatedAt: new Date().toISOString(),
       };
 
       await set(attendanceRef, updatedRecord);
       return updatedRecord;
     } catch (error) {
-      console.error('End break error:', error);
-      throw new Error('Failed to end break: ' + error.message);
+      console.error("End break error:", error);
+      throw new Error("Failed to end break: " + error.message);
     }
   }
 
@@ -380,10 +463,10 @@ class AttendanceService {
     try {
       const attendancePath = this.getAttendancePath(userType);
       const attendanceRef = ref(database, attendancePath);
-      
+
       const employeeQuery = query(
         attendanceRef,
-        orderByChild('employeeId'),
+        orderByChild("employeeId"),
         equalTo(employeeId)
       );
 
@@ -402,8 +485,8 @@ class AttendanceService {
         .sort((a, b) => new Date(b.date) - new Date(a.date))
         .slice(0, limit);
     } catch (error) {
-      console.error('Get employee attendance error:', error);
-      throw new Error('Failed to fetch attendance records: ' + error.message);
+      console.error("Get employee attendance error:", error);
+      throw new Error("Failed to fetch attendance records: " + error.message);
     }
   }
 
@@ -417,12 +500,12 @@ class AttendanceService {
     try {
       const attendancePath = this.getAttendancePath(userType);
       const attendanceRef = ref(database, attendancePath);
-      
+
       let attendanceQuery;
       if (date) {
         attendanceQuery = query(
           attendanceRef,
-          orderByChild('date'),
+          orderByChild("date"),
           equalTo(date)
         );
       } else {
@@ -446,8 +529,8 @@ class AttendanceService {
         return a.employeeName.localeCompare(b.employeeName);
       });
     } catch (error) {
-      console.error('Get all employees attendance error:', error);
-      throw new Error('Failed to fetch attendance records: ' + error.message);
+      console.error("Get all employees attendance error:", error);
+      throw new Error("Failed to fetch attendance records: " + error.message);
     }
   }
 
@@ -460,13 +543,13 @@ class AttendanceService {
    */
   async getTodayAttendance(userType, employeeId, date = null) {
     try {
-      const targetDate = date || new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const targetDate = date || new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
       const attendancePath = this.getAttendancePath(userType);
       const attendanceRef = ref(database, attendancePath);
-      
+
       const todayQuery = query(
         attendanceRef,
-        orderByChild('date'),
+        orderByChild("date"),
         equalTo(targetDate)
       );
 
@@ -485,8 +568,8 @@ class AttendanceService {
 
       return todayRecord;
     } catch (error) {
-      console.error('Get today attendance error:', error);
-      throw new Error('Failed to fetch today\'s attendance: ' + error.message);
+      console.error("Get today attendance error:", error);
+      throw new Error("Failed to fetch today's attendance: " + error.message);
     }
   }
 
@@ -498,15 +581,19 @@ class AttendanceService {
    */
   async getAttendanceStats(userType, employeeId = null) {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toISOString().split("T")[0];
       const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
-      
+
       const attendancePath = this.getAttendancePath(userType);
       const attendanceRef = ref(database, attendancePath);
-      
+
       let baseQuery = attendanceRef;
       if (employeeId) {
-        baseQuery = query(attendanceRef, orderByChild('employeeId'), equalTo(employeeId));
+        baseQuery = query(
+          attendanceRef,
+          orderByChild("employeeId"),
+          equalTo(employeeId)
+        );
       }
 
       const snapshot = await get(baseQuery);
@@ -517,7 +604,7 @@ class AttendanceService {
           totalWorkHours: 0,
           averageWorkHours: 0,
           totalLeaves: 0,
-          monthlyLeaves: 0
+          monthlyLeaves: 0,
         };
       }
 
@@ -526,31 +613,40 @@ class AttendanceService {
         records.push(child.val());
       });
 
-      const todayRecords = records.filter(r => r.date === today);
-      const monthlyRecords = records.filter(r => r.date.startsWith(thisMonth));
-      const leaveRecords = records.filter(r => r.status === 'on_leave');
-      const monthlyLeaves = leaveRecords.filter(r => r.date.startsWith(thisMonth));
-      
+      const todayRecords = records.filter((r) => r.date === today);
+      const monthlyRecords = records.filter((r) =>
+        r.date.startsWith(thisMonth)
+      );
+      const leaveRecords = records.filter((r) => r.status === "on_leave");
+      const monthlyLeaves = leaveRecords.filter((r) =>
+        r.date.startsWith(thisMonth)
+      );
+
       const totalWorkMinutes = monthlyRecords.reduce((total, record) => {
         return total + (record.totalWorkTime || 0);
       }, 0);
 
       // Count only working days (exclude leaves) for average calculation
-      const workingDays = monthlyRecords.filter(r => r.status !== 'on_leave');
+      const workingDays = monthlyRecords.filter((r) => r.status !== "on_leave");
 
       return {
-        todayPresent: todayRecords.filter(r => r.status !== 'on_leave').length,
+        todayPresent: todayRecords.filter((r) => r.status !== "on_leave")
+          .length,
         monthlyPresent: workingDays.length,
-        totalWorkHours: Math.round(totalWorkMinutes / 60 * 100) / 100,
-        averageWorkHours: workingDays.length > 0 
-          ? Math.round((totalWorkMinutes / workingDays.length / 60) * 100) / 100 
-          : 0,
+        totalWorkHours: Math.round((totalWorkMinutes / 60) * 100) / 100,
+        averageWorkHours:
+          workingDays.length > 0
+            ? Math.round((totalWorkMinutes / workingDays.length / 60) * 100) /
+              100
+            : 0,
         totalLeaves: leaveRecords.length,
-        monthlyLeaves: monthlyLeaves.length
+        monthlyLeaves: monthlyLeaves.length,
       };
     } catch (error) {
-      console.error('Get attendance stats error:', error);
-      throw new Error('Failed to fetch attendance statistics: ' + error.message);
+      console.error("Get attendance stats error:", error);
+      throw new Error(
+        "Failed to fetch attendance statistics: " + error.message
+      );
     }
   }
 
@@ -565,30 +661,30 @@ class AttendanceService {
     try {
       const attendancePath = this.getAttendancePath(userType, attendanceId);
       const attendanceRef = ref(database, attendancePath);
-      
+
       const snapshot = await get(attendanceRef);
       if (!snapshot.exists()) {
-        throw new Error('Leave record not found');
+        throw new Error("Leave record not found");
       }
 
       const leaveRecord = snapshot.val();
-      
-      if (leaveRecord.status !== 'on_leave') {
-        throw new Error('Record is not a leave record');
+
+      if (leaveRecord.status !== "on_leave") {
+        throw new Error("Record is not a leave record");
       }
 
       const updatedRecord = {
         ...leaveRecord,
         leaveType: updateData.leaveType || leaveRecord.leaveType,
         leaveReason: updateData.leaveReason || leaveRecord.leaveReason,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       };
 
       await set(attendanceRef, updatedRecord);
       return updatedRecord;
     } catch (error) {
-      console.error('Update leave error:', error);
-      throw new Error('Failed to update leave: ' + error.message);
+      console.error("Update leave error:", error);
+      throw new Error("Failed to update leave: " + error.message);
     }
   }
 
@@ -604,10 +700,14 @@ class AttendanceService {
     try {
       const attendancePath = this.getAttendancePath(userType);
       const attendanceRef = ref(database, attendancePath);
-      
+
       let attendanceQuery = attendanceRef;
       if (employeeId) {
-        attendanceQuery = query(attendanceRef, orderByChild('employeeId'), equalTo(employeeId));
+        attendanceQuery = query(
+          attendanceRef,
+          orderByChild("employeeId"),
+          equalTo(employeeId)
+        );
       }
 
       const snapshot = await get(attendanceQuery);
@@ -615,14 +715,14 @@ class AttendanceService {
         return {
           totalLeaves: 0,
           leavesByType: {},
-          monthlyBreakdown: {}
+          monthlyBreakdown: {},
         };
       }
 
       const records = [];
       snapshot.forEach((child) => {
         const record = child.val();
-        if (record.status === 'on_leave') {
+        if (record.status === "on_leave") {
           records.push(record);
         }
       });
@@ -630,20 +730,24 @@ class AttendanceService {
       // Filter by year/month if specified
       let filteredRecords = records;
       if (year) {
-        filteredRecords = filteredRecords.filter(r => r.date.startsWith(year));
+        filteredRecords = filteredRecords.filter((r) =>
+          r.date.startsWith(year)
+        );
       }
       if (month) {
-        const monthStr = `${year}-${month.toString().padStart(2, '0')}`;
-        filteredRecords = filteredRecords.filter(r => r.date.startsWith(monthStr));
+        const monthStr = `${year}-${month.toString().padStart(2, "0")}`;
+        filteredRecords = filteredRecords.filter((r) =>
+          r.date.startsWith(monthStr)
+        );
       }
 
       // Calculate statistics
       const leavesByType = {};
       const monthlyBreakdown = {};
 
-      filteredRecords.forEach(record => {
+      filteredRecords.forEach((record) => {
         // By type
-        const type = record.leaveType || 'unspecified';
+        const type = record.leaveType || "unspecified";
         leavesByType[type] = (leavesByType[type] || 0) + 1;
 
         // By month
@@ -654,11 +758,11 @@ class AttendanceService {
       return {
         totalLeaves: filteredRecords.length,
         leavesByType,
-        monthlyBreakdown
+        monthlyBreakdown,
       };
     } catch (error) {
-      console.error('Get leave stats error:', error);
-      throw new Error('Failed to fetch leave statistics: ' + error.message);
+      console.error("Get leave stats error:", error);
+      throw new Error("Failed to fetch leave statistics: " + error.message);
     }
   }
 }

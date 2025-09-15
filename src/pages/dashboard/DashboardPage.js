@@ -6,7 +6,6 @@ import {
   Grid,
   Card,
   CardContent,
-  CardActions,
   Typography,
   Button,
   IconButton,
@@ -27,6 +26,9 @@ import {
   useMediaQuery,
   Fab,
   Chip,
+  Alert,
+  CircularProgress,
+  Paper,
 } from "@mui/material";
 import {
   Menu as MenuIcon,
@@ -49,13 +51,16 @@ import {
   EmojiEvents as TrophyIcon,
   ChecklistRtl as ChecklistIcon,
   AssignmentTurnedIn as TaskIcon,
+  Refresh as RefreshIcon,
+  CheckCircle as CheckCircleIcon,
+  Info as InfoIcon,
 } from "@mui/icons-material";
 
 import { useAuth } from "../../contexts/AuthContext/AuthContext";
 import { useUserType } from "../../contexts/UserTypeContext/UserTypeContext";
 import { USER_ROLES } from "../../utils/constants/appConstants";
 import LoadingSpinner from "../../components/common/UI/LoadingSpinner";
-import checklistService from "../../services/checklistService"; // Import checklist service
+import checklistService from "../../services/checklistService";
 
 const DRAWER_WIDTH = 240;
 
@@ -69,7 +74,11 @@ const DashboardPage = () => {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
-  const [loading, setLoading] = useState(true); // Add loading state
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
+  
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalEmployees: 0,
@@ -81,40 +90,37 @@ const DashboardPage = () => {
     pendingChecklists: 0,
     completedChecklists: 0,
   });
+  
   const [checklistGenerationInfo, setChecklistGenerationInfo] = useState(null);
 
   const themeColors = getThemeColors();
 
   // Load dashboard data on component mount
   useEffect(() => {
-    loadDashboardDataWithChecklistGeneration();
+    loadDashboardData();
   }, [userType, user]);
 
-const loadDashboardDataWithChecklistGeneration = async () => {
+  // REWRITTEN: Simplified dashboard loading - no more complex generation
+  const loadDashboardData = async () => {
     try {
       setLoading(true);
-      console.log('Loading dashboard with automatic checklist generation...');
+      console.log('Loading dashboard with check-in based checklist system...');
       
-      // Automatically generate checklists for this login
-      const checklistStatsWithGeneration = await checklistService.getDashboardStatsWithGeneration(userType, user);
+      // SIMPLIFIED: Just get current stats - no generation logic
+      const [checklistStats, generationStatus] = await Promise.all([
+        checklistService.getDashboardStats(userType, user),
+        canManageEmployees() ? checklistService.getGenerationStatus(userType) : null
+      ]);
       
-      // Extract generation info for display
-      const generationInfo = checklistStatsWithGeneration.autoGeneration;
-      setChecklistGenerationInfo(generationInfo);
+      setChecklistGenerationInfo(generationStatus);
       
-      // Log generation results
-      if (generationInfo) {
-        console.log('Automatic generation completed:', generationInfo);
-        if (generationInfo.type === 'admin') {
-          console.log(`Admin login: Generated ${generationInfo.totalGenerated} assignments for ${generationInfo.processedChecklists} checklists`);
-        } else {
-          console.log(`Employee login: Generated ${generationInfo.totalGenerated} assignments (${generationInfo.backupAssignments} backup)`);
-        }
-      }
+      console.log('Dashboard loaded:', {
+        checklistStats,
+        generationMethod: 'check_in_based'
+      });
       
       // TODO: Load other dashboard stats (customers, employees, sales)
       // For now, using placeholder values
-      
       setStats({
         totalCustomers: 0, // TODO: Load from customer service
         totalEmployees: 0, // TODO: Load from employee service  
@@ -122,15 +128,15 @@ const loadDashboardDataWithChecklistGeneration = async () => {
         pendingEMIs: 0, // TODO: Load from sales service
         pendingDeliveries: 0, // TODO: Load from sales service
         todaySales: 0, // TODO: Load from sales service
-        // Real checklist stats from automatic generation
-        todayChecklists: checklistStatsWithGeneration.todayTotal,
-        pendingChecklists: checklistStatsWithGeneration.todayPending,
-        completedChecklists: checklistStatsWithGeneration.todayCompleted,
+        // Real checklist stats (no generation needed)
+        todayChecklists: checklistStats.todayTotal,
+        pendingChecklists: checklistStats.todayPending,
+        completedChecklists: checklistStats.todayCompleted,
       });
       
     } catch (error) {
-      console.error('Error loading dashboard data with checklist generation:', error);
-      // Set fallback values on error
+      console.error('Error loading dashboard data:', error);
+      setError('Failed to load dashboard data. Please refresh the page.');
       setStats({
         totalCustomers: 0,
         totalEmployees: 0,
@@ -144,6 +150,36 @@ const loadDashboardDataWithChecklistGeneration = async () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // NEW: Manual generation handler for admins
+  const handleManualGeneration = async () => {
+    try {
+      setRefreshing(true);
+      setSuccess('');
+      setError('');
+
+      console.log('Admin triggered manual checklist generation...');
+      
+      const result = await checklistService.manualGenerateAllAssignments(userType, user);
+      
+      console.log('Manual generation result:', result);
+      
+      // Reload dashboard data to show updated stats
+      await loadDashboardData();
+      
+      setSuccess(`Manual generation completed! Generated ${result.totalGenerated} assignments for checked-in employees`);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccess(''), 5000);
+      
+    } catch (error) {
+      console.error('Error in manual generation:', error);
+      setError(`Manual generation failed: ${error.message}`);
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -230,74 +266,77 @@ const loadDashboardDataWithChecklistGeneration = async () => {
     }
   ];
 
-  // Stats cards data
-  const statsCards = [
-    {
-      title: "Total Customers",
-      value: stats.totalCustomers,
-      icon: PeopleIcon,
-      color: themeColors.primary,
-      action: () => navigate("/customers"),
-    },
-    {
-      title: "Total Sales",
-      value: `₹${stats.totalSales.toLocaleString()}`,
-      icon: TrendingUpIcon,
-      color: "#4caf50",
-      action: () => navigate("/sales/history"),
-    },
-    {
-      title: "Today's Sales",
-      value: `₹${stats.todaySales.toLocaleString()}`,
-      icon: MoneyIcon,
-      color: "#ff9800",
-      action: () => navigate("/sales/create"),
-    },
-    {
-      title: "Pending EMIs",
-      value: stats.pendingEMIs,
-      icon: ScheduleIcon,
-      color: "#f44336",
-      badge: stats.pendingEMIs > 0,
-      action: () => navigate("/sales/history?filter=pending-emi"),
-    },
-  ];
+  // UPDATED: Stats cards with new checklist messaging
+  const getStatsCards = () => {
+    const baseCards = [
+      {
+        title: "Total Customers",
+        value: stats.totalCustomers,
+        icon: PeopleIcon,
+        color: themeColors.primary,
+        action: () => navigate("/customers"),
+      },
+      {
+        title: "Total Sales",
+        value: `₹${stats.totalSales.toLocaleString()}`,
+        icon: TrendingUpIcon,
+        color: "#4caf50",
+        action: () => navigate("/sales/history"),
+      },
+      {
+        title: "Today's Sales",
+        value: `₹${stats.todaySales.toLocaleString()}`,
+        icon: MoneyIcon,
+        color: "#ff9800",
+        action: () => navigate("/sales/create"),
+      },
+      {
+        title: "Pending EMIs",
+        value: stats.pendingEMIs,
+        icon: ScheduleIcon,
+        color: "#f44336",
+        badge: stats.pendingEMIs > 0,
+        action: () => navigate("/sales/history?filter=pending-emi"),
+      },
+    ];
 
-  // Add employees card for admin users
-  if (canManageEmployees()) {
-    statsCards.splice(1, 0, {
-      title: "Total Employees",
-      value: stats.totalEmployees,
-      icon: BadgeIcon,
-      color: themeColors.secondary,
-      action: () => navigate("/employees"),
-    });
+    // Add employees card for admin users
+    if (canManageEmployees()) {
+      baseCards.splice(1, 0, {
+        title: "Total Employees",
+        value: stats.totalEmployees,
+        icon: BadgeIcon,
+        color: themeColors.secondary,
+        action: () => navigate("/employees"),
+      });
 
-    // Enhanced admin checklist stats
-    statsCards.push({
-      title: "Today's Checklists",
-      value: `${stats.completedChecklists}/${stats.todayChecklists}`,
-      icon: ChecklistIcon,
-      color: "#9c27b0",
-      subtitle: checklistGenerationInfo ? 
-        `Auto-generated ${checklistGenerationInfo.totalGenerated} assignments` : 
-        'Checklist assignments',
-      action: () => navigate("/checklists"),
-    });
-  } else {
-    // Enhanced employee checklist stats
-    statsCards.push({
-      title: "My Checklists",
-      value: `${stats.completedChecklists}/${stats.todayChecklists}`,
-      icon: TaskIcon,
-      color: "#9c27b0",
-      subtitle: checklistGenerationInfo && checklistGenerationInfo.backupAssignments > 0 ? 
-        `${checklistGenerationInfo.backupAssignments} backup assignments` : 
-        'Your assigned tasks',
-      action: () => navigate("/my-checklists"),
-    });
-  }
-  
+      // Enhanced admin checklist stats
+      baseCards.push({
+        title: "Today's Checklists",
+        value: `${stats.completedChecklists}/${stats.todayChecklists}`,
+        icon: ChecklistIcon,
+        color: "#9c27b0",
+        subtitle: stats.todayChecklists === 0 ? 
+          'Generated on employee check-in' : 
+          `${stats.pendingChecklists} pending tasks`,
+        action: () => navigate("/checklists"),
+      });
+    } else {
+      // Enhanced employee checklist stats
+      baseCards.push({
+        title: "My Checklists",
+        value: `${stats.completedChecklists}/${stats.todayChecklists}`,
+        icon: TaskIcon,
+        color: "#9c27b0",
+        subtitle: stats.todayChecklists === 0 ? 
+          'Check in to get your assignments' : 
+          `${stats.pendingChecklists} pending tasks`,
+        action: () => navigate("/my-checklists"),
+      });
+    }
+
+    return baseCards;
+  };
 
   // Drawer content
   const DrawerContent = () => (
@@ -432,6 +471,8 @@ const loadDashboardDataWithChecklistGeneration = async () => {
     return <LoadingSpinner />;
   }
 
+  const statsCards = getStatsCards();
+
   return (
     <Box sx={{ display: "flex" }}>
       {/* App Bar */}
@@ -520,6 +561,19 @@ const loadDashboardDataWithChecklistGeneration = async () => {
         }}
       >
         <Container maxWidth="xl">
+          {/* Error/Success Alerts */}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+              {error}
+            </Alert>
+          )}
+
+          {success && (
+            <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>
+              {success}
+            </Alert>
+          )}
+
           {/* Welcome Section */}
           <Box mb={4}>
             <Typography
@@ -542,6 +596,79 @@ const loadDashboardDataWithChecklistGeneration = async () => {
               showroom today.
             </Typography>
           </Box>
+
+          {/* NEW: Check-in Based System Info Card (Admin Only) */}
+          {canManageEmployees() && (
+            <Box mb={4}>
+              <Card sx={{ bgcolor: 'background.paper', border: 1, borderColor: 'primary.main' }}>
+                <CardContent>
+                  <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Box flex={1}>
+                      <Typography variant="h6" gutterBottom>
+                        Check-in Based Checklist System
+                      </Typography>
+                      
+                      <Box display="flex" alignItems="center" gap={1} mb={2}>
+                        <CheckCircleIcon color="success" />
+                        <Typography variant="body2" color="success.main">
+                          Assignments generated automatically on employee check-in
+                        </Typography>
+                      </Box>
+                      
+                      {checklistGenerationInfo && checklistGenerationInfo.todayStats && (
+                        <Box>
+                          <Typography variant="body2" color="textSecondary">
+                            Today's Status: {checklistGenerationInfo.todayStats.todayCompleted}/{checklistGenerationInfo.todayStats.todayTotal} assignments completed
+                          </Typography>
+                          
+                          {checklistGenerationInfo.todayStats.todayTotal === 0 && (
+                            <Typography variant="caption" color="info.main" sx={{ display: 'block', mt: 1 }}>
+                              ℹ️ No assignments yet - employees will get assignments when they check in
+                            </Typography>
+                          )}
+                        </Box>
+                      )}
+                    </Box>
+                    
+                    <Box display="flex" gap={2}>
+                      <Button
+                        variant="outlined"
+                        startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
+                        onClick={loadDashboardData}
+                        disabled={refreshing}
+                        size="small"
+                      >
+                        Refresh
+                      </Button>
+                      
+                      <Button
+                        variant="contained"
+                        startIcon={refreshing ? <CircularProgress size={16} /> : <AddIcon />}
+                        onClick={handleManualGeneration}
+                        disabled={refreshing}
+                        color="primary"
+                      >
+                        {refreshing ? 'Generating...' : 'Generate for Checked-in'}
+                      </Button>
+                    </Box>
+                  </Box>
+                  
+                  {/* How it works info */}
+                  <Box mt={2} sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 1 }}>
+                    <Typography variant="body2" color="textSecondary" gutterBottom>
+                      <strong>How Check-in Based System Works:</strong>
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary" component="div">
+                      • <strong>Employee checks in:</strong> Automatically gets today's checklist assignments<br/>
+                      • <strong>Employee marks leave:</strong> Assignments automatically go to checked-in backup employees<br/>
+                      • <strong>Manual generation:</strong> Generates assignments for all currently checked-in employees<br/>
+                      • <strong>No login complexity:</strong> Simple, reliable, based on actual attendance
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
+          )}
 
           {/* Stats Cards */}
           <Grid container spacing={3} mb={4}>
@@ -591,6 +718,15 @@ const loadDashboardDataWithChecklistGeneration = async () => {
                               card.value
                             )}
                           </Typography>
+                          {card.subtitle && (
+                            <Typography
+                              variant="caption"
+                              color="textSecondary"
+                              sx={{ display: 'block', mt: 0.5 }}
+                            >
+                              {card.subtitle}
+                            </Typography>
+                          )}
                         </Box>
                         <Box
                           sx={{
@@ -640,6 +776,8 @@ const loadDashboardDataWithChecklistGeneration = async () => {
                         Create Invoice
                       </Button>
                     </Grid>
+                    
+                    {/* Admin Actions */}
                     {canManageEmployees() && (
                       <>
                         <Grid item xs={12} sm={6}>
@@ -652,7 +790,6 @@ const loadDashboardDataWithChecklistGeneration = async () => {
                             Add Employee
                           </Button>
                         </Grid>
-                        {/* Checklist management for admin */}
                         <Grid item xs={12} sm={6}>
                           <Button
                             fullWidth
@@ -661,52 +798,74 @@ const loadDashboardDataWithChecklistGeneration = async () => {
                             onClick={() => navigate("/checklists/create")}
                             sx={{ mb: 1 }}
                           >
-                            Create Checklist
+                            Create New Checklist
+                          </Button>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            startIcon={<RefreshIcon />}
+                            onClick={handleManualGeneration}
+                            disabled={refreshing}
+                            sx={{ mb: 1 }}
+                            color="primary"
+                          >
+                            {refreshing ? 'Generating...' : 'Generate for Checked-in'}
+                          </Button>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            startIcon={<TrophyIcon />}
+                            onClick={() => navigate("/analytics/employee-sales")}
+                            sx={{ mb: 1 }}
+                          >
+                            Employee Analytics
+                          </Button>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            startIcon={<ReportsIcon />}
+                            onClick={() => navigate('/reports/employees')}
+                          >
+                            Employee Reports
                           </Button>
                         </Grid>
                       </>
                     )}
-                    {/* Employee Sales Analytics for admin only */}
-                    {canManageEmployees() && (
-                      <Grid item xs={12} sm={6}>
-                        <Button
-                          fullWidth
-                          variant="outlined"
-                          startIcon={<TrophyIcon />}
-                          onClick={() => navigate("/analytics/employee-sales")}
-                          sx={{ mb: 1 }}
-                        >
-                          Employee Analytics
-                        </Button>
-                      </Grid>
-                    )}
-                    {/* Attendance quick action for employees */}
+                    
+                    {/* Employee Actions */}
                     {user?.role === USER_ROLES.EMPLOYEE && (
-                      <Grid item xs={12} sm={6}>
-                        <Button
-                          fullWidth
-                          variant="outlined"
-                          startIcon={<AttendanceIcon />}
-                          onClick={() => navigate("/attendance")}
-                        >
-                          My Attendance
-                        </Button>
-                      </Grid>
+                      <>
+                        <Grid item xs={12} sm={6}>
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            startIcon={<AttendanceIcon />}
+                            onClick={() => navigate("/attendance")}
+                            sx={{ mb: 1 }}
+                          >
+                            Check In (Get Checklists)
+                          </Button>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            startIcon={<TaskIcon />}
+                            onClick={() => navigate("/my-checklists")}
+                            sx={{ mb: 1 }}
+                          >
+                            My Checklists
+                          </Button>
+                        </Grid>
+                      </>
                     )}
-                    {/* My Checklists for employees */}
-                    {user?.role === USER_ROLES.EMPLOYEE && (
-                      <Grid item xs={12} sm={6}>
-                        <Button
-                          fullWidth
-                          variant="outlined"
-                          startIcon={<TaskIcon />}
-                          onClick={() => navigate("/my-checklists")}
-                          sx={{ mb: 1 }}
-                        >
-                          My Checklists
-                        </Button>
-                      </Grid>
-                    )}
+                    
                     <Grid item xs={12} sm={6}>
                       <Button
                         fullWidth
@@ -717,19 +876,6 @@ const loadDashboardDataWithChecklistGeneration = async () => {
                         View Sales
                       </Button>
                     </Grid>
-                    {/* Employee Reports quick action for admins */}
-                    {canManageEmployees() && (
-                      <Grid item xs={12} sm={6}>
-                        <Button
-                          fullWidth
-                          variant="outlined"
-                          startIcon={<ReportsIcon />}
-                          onClick={() => navigate('/reports/employees')}
-                        >
-                          Employee Reports
-                        </Button>
-                      </Grid>
-                    )}
                   </Grid>
                 </CardContent>
               </Card>

@@ -1,4 +1,4 @@
-// src/services/checklistService.js - COMPLETE REWRITE WITH RACE CONDITION FIXES
+// src/services/checklistService.js - COMPLETE REWRITE: Check-in Based Generation
 import {
   ref,
   get,
@@ -14,20 +14,19 @@ import { database } from "./firebase/config";
 import { COLLECTIONS } from "../utils/constants/appConstants";
 
 /**
- * Enhanced Checklist Service - Complete Rewrite with Race Condition Prevention
+ * Enhanced Checklist Service - Check-in Based Assignment Generation
  * Features:
- * - Clean employee ID resolution
- * - Automatic assignment generation on login
- * - Backup employee support
- * - Duplicate prevention with atomic operations
+ * - Check-in triggered assignment generation (no more login complexity)
+ * - Automatic backup assignment on leave marking
  * - Calendar-based admin view
- * - Race condition prevention
+ * - Duplicate prevention
+ * - Clean employee ID resolution
+ * - Manual generation for admins
  */
 class ChecklistService {
   constructor() {
     this.database = database;
-    this.generationLocks = new Map(); // In-memory lock tracking
-    this.assignmentLocks = new Map(); // Assignment-level locks
+    this.assignmentLocks = new Map(); // Assignment-level locks for duplicates
   }
 
   // ==================== PATH HELPERS ====================
@@ -47,10 +46,8 @@ class ChecklistService {
   }
 
   getGenerationLockPath(userType, lockKey) {
-    // FIXED: Add validation to prevent null paths
     if (!userType || userType === "null" || userType === "undefined") {
       console.error("❌ Invalid userType for generation lock:", userType);
-      console.trace("Stack trace for debugging:");
       throw new Error(`Invalid userType for generation lock: ${userType}`);
     }
 
@@ -186,7 +183,7 @@ class ChecklistService {
       await set(newChecklistRef, checklist);
       console.log("✅ Checklist created:", newChecklistRef.key);
 
-      // Generate initial assignments for today
+      // Generate assignments for today if needed
       await this.generateTodayAssignments(userType, checklist);
 
       return checklist;
@@ -279,202 +276,191 @@ class ChecklistService {
     }
   }
 
-  // ==================== ASSIGNMENT GENERATION (UPDATED WITH RACE CONDITION FIXES) ====================
+  // ==================== NEW: CHECK-IN BASED ASSIGNMENT GENERATION ====================
 
   /**
-   * Main method: Generate assignments on login - UPDATED with race condition prevention
+   * NEW MAIN METHOD: Generate assignments when employee checks in
+   * This replaces all the complex login-based generation logic
    */
-  async generateAssignmentsOnLogin(userType, user) {
+  async generateAssignmentsOnCheckIn(userType, employeeId, checkInDate) {
     try {
-      console.log("=== AUTO-GENERATION ON LOGIN ===");
-      console.log("User:", user.name, "Role:", user.role);
+      console.log("=== GENERATING ASSIGNMENTS ON CHECK-IN ===");
+      console.log("Employee ID:", employeeId);
+      console.log("Check-in Date:", checkInDate);
 
-      const today = new Date().toISOString().split("T")[0];
-      const globalLockKey = `${userType}-${today}-${user.uid}`;
+      const targetDate = checkInDate || new Date().toISOString().split("T")[0];
 
-      // UPDATED: Check recent generation with longer timeout
-      if (await this.hasRecentGeneration(userType, user.uid, today)) {
-        console.log("⏭️ Already generated recently (within 5 minutes)");
-        return { alreadyGenerated: true, date: today };
-      }
-
-      // UPDATED: Acquire global generation lock
-      const lockAcquired = await this.acquireGenerationLock(
-        userType,
-        globalLockKey
-      );
-      if (!lockAcquired) {
-        console.log("⏭️ Another generation in progress, skipping");
-        return { skipped: true, reason: "concurrent_generation", date: today };
-      }
-
-      let result;
-      try {
-        if (user.role === "admin") {
-          result = await this.generateForAllEmployees(
-            userType,
-            today,
-            user.uid
-          );
-        } else {
-          const employeeId = await this.resolveEmployeeId(user, userType);
-          result = await this.generateForEmployee(
-            userType,
-            employeeId,
-            today,
-            user.uid
-          );
-        }
-
-        // UPDATED: Cleanup duplicates after generation
-        await this.cleanupDuplicates(userType, today);
-
-        // Record generation
-        await this.recordGeneration(userType, user.uid, today, result);
-      } finally {
-        // UPDATED: Always release the lock
-        await this.releaseGenerationLock(userType, globalLockKey);
-      }
-
-      return result;
-    } catch (error) {
-      console.error("Error in auto-generation:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Generate assignments for all employees (admin login) - UPDATED with sequential processing
-   */
-  async generateForAllEmployees(userType, targetDate, adminId) {
-    try {
-      console.log("🔐 Admin generation for all employees");
-
-      const activeChecklists = await this.getChecklists(userType, {
-        isActive: true,
-      });
-      let totalGenerated = 0;
-
-      // UPDATED: Process checklists sequentially to avoid race conditions
-      for (const checklist of activeChecklists) {
-        if (this.shouldChecklistAppearOnDate(checklist, targetDate)) {
-          console.log(`Processing checklist: ${checklist.title}`);
-
-          const generated = await this.generateAssignmentsForChecklist(
-            userType,
-            checklist,
-            targetDate
-          );
-          totalGenerated += generated;
-
-          // Small delay to prevent rapid-fire operations
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-      }
-
-      console.log(
-        `✅ Admin generation complete: ${totalGenerated} assignments`
-      );
-
-      return {
-        type: "admin",
+      // Check if assignments already generated for this employee today
+      const existingAssignments = await this.getCompletions(userType, {
+        employeeId: employeeId,
         date: targetDate,
-        totalGenerated,
-        processedChecklists: activeChecklists.length,
-      };
-    } catch (error) {
-      console.error("Error in admin generation:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Generate assignments for specific employee
-   */
-  async generateForEmployee(userType, employeeId, targetDate, userId) {
-    try {
-      console.log("👤 Employee generation for:", employeeId);
-
-      const activeChecklists = await this.getChecklists(userType, {
-        isActive: true,
       });
-      let primaryGenerated = 0;
-      let backupGenerated = 0;
 
-      // Generate primary assignments
-      for (const checklist of activeChecklists) {
-        if (this.shouldChecklistAppearOnDate(checklist, targetDate)) {
-          if (checklist.assignedEmployees?.includes(employeeId)) {
-            const generated = await this.generateSingleAssignment(
-              userType,
-              checklist,
-              employeeId,
-              targetDate,
-              false
-            );
-            if (generated) primaryGenerated++;
-          }
-        }
+      if (existingAssignments.length > 0) {
+        console.log("✅ Assignments already exist for this employee today");
+        return {
+          type: "check_in",
+          alreadyExists: true,
+          date: targetDate,
+          existingCount: existingAssignments.length,
+        };
       }
 
-      // Generate backup assignments if primary employees haven't logged in
-      backupGenerated = await this.generateBackupAssignments(
+      // Generate assignments for this employee
+      const result = await this.generateAssignmentsForEmployee(
         userType,
         employeeId,
         targetDate
       );
 
-      const totalGenerated = primaryGenerated + backupGenerated;
-      console.log(
-        `✅ Employee generation complete: ${totalGenerated} assignments`
-      );
+      // Clean up any duplicates that might have been created
+      await this.cleanupDuplicates(userType, targetDate);
 
+      console.log("✅ Check-in assignment generation complete");
       return {
-        type: "employee",
-        employeeId,
+        type: "check_in",
         date: targetDate,
-        totalGenerated,
-        primaryAssignments: primaryGenerated,
-        backupAssignments: backupGenerated,
+        ...result,
       };
     } catch (error) {
-      console.error("Error in employee generation:", error);
+      console.error("Error in check-in assignment generation:", error);
       throw error;
     }
   }
 
   /**
-   * Generate assignments for a specific checklist - UPDATED with sequential processing
+   * Generate assignments for specific employee on check-in
    */
-  async generateAssignmentsForChecklist(userType, checklist, targetDate) {
+  async generateAssignmentsForEmployee(userType, employeeId, targetDate) {
     try {
-      let generated = 0;
+      const activeChecklists = await this.getChecklists(userType, {
+        isActive: true,
+      });
 
-      // UPDATED: Process employees sequentially to prevent race conditions
-      for (let i = 0; i < checklist.assignedEmployees.length; i++) {
-        const employeeId = checklist.assignedEmployees[i];
-        const success = await this.generateSingleAssignment(
-          userType,
-          checklist,
-          employeeId,
-          targetDate,
-          false
-        );
-        if (success) generated++;
+      let primaryGenerated = 0;
+      let backupGenerated = 0;
 
-        // Small delay between assignments
-        await new Promise((resolve) => setTimeout(resolve, 50));
+      // Generate primary assignments for this employee
+      for (const checklist of activeChecklists) {
+        if (!this.shouldChecklistAppearOnDate(checklist, targetDate)) continue;
+
+        if (checklist.assignedEmployees?.includes(employeeId)) {
+          const success = await this.generateSingleAssignment(
+            userType,
+            checklist,
+            employeeId,
+            targetDate,
+            false
+          );
+          if (success) primaryGenerated++;
+        }
       }
 
-      return generated;
+      // Check if any backup assignments are needed (only for employees on leave)
+      backupGenerated =
+        await this.generateBackupAssignmentsForCheckedInEmployee(
+          userType,
+          employeeId,
+          targetDate
+        );
+
+      const totalGenerated = primaryGenerated + backupGenerated;
+
+      return {
+        employeeId,
+        totalGenerated,
+        primaryGenerated,
+        backupGenerated,
+      };
     } catch (error) {
-      console.error("Error generating assignments for checklist:", error);
+      console.error("Error generating assignments for employee:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate backup assignments only when primary employees are confirmed on leave
+   */
+  async generateBackupAssignmentsForCheckedInEmployee(
+    userType,
+    employeeId,
+    targetDate
+  ) {
+    try {
+      const activeChecklists = await this.getChecklists(userType, {
+        isActive: true,
+      });
+      let backupGenerated = 0;
+
+      for (const checklist of activeChecklists) {
+        if (!this.shouldChecklistAppearOnDate(checklist, targetDate)) continue;
+        if (!checklist.backupEmployees?.includes(employeeId)) continue;
+
+        // Check if ANY primary employee is on leave
+        let primaryOnLeave = null;
+        for (const primaryEmployeeId of checklist.assignedEmployees || []) {
+          const isOnLeave = await this.isEmployeeOnLeave(
+            userType,
+            primaryEmployeeId,
+            targetDate
+          );
+
+          if (isOnLeave) {
+            primaryOnLeave = primaryEmployeeId;
+            console.log(
+              `📋 Primary employee ${primaryEmployeeId} on leave for ${checklist.title}`
+            );
+            break;
+          }
+        }
+
+        // Only create backup if primary is confirmed on leave
+        if (primaryOnLeave) {
+          const success = await this.generateSingleAssignment(
+            userType,
+            checklist,
+            employeeId,
+            targetDate,
+            true,
+            primaryOnLeave
+          );
+          if (success) backupGenerated++;
+        }
+      }
+
+      return backupGenerated;
+    } catch (error) {
+      console.error("Error generating backup assignments:", error);
       return 0;
     }
   }
 
   /**
-   * Generate single assignment with duplicate prevention - UPDATED with atomic operations
+   * Check if employee is on leave for specific date
+   */
+  async isEmployeeOnLeave(userType, employeeId, date) {
+    try {
+      const { default: attendanceService } = await import(
+        "./attendance/attendanceService"
+      );
+      const attendanceRecord = await attendanceService.getTodayAttendance(
+        userType,
+        employeeId,
+        date
+      );
+
+      return attendanceRecord && attendanceRecord.status === "on_leave";
+    } catch (error) {
+      console.warn(
+        `Could not check leave status for employee ${employeeId}:`,
+        error
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Generate single assignment with duplicate prevention
    */
   async generateSingleAssignment(
     userType,
@@ -484,20 +470,19 @@ class ChecklistService {
     isBackup = false,
     originalEmployeeId = null
   ) {
-    // UPDATED: Create unique assignment key for locking
     const assignmentKey = `${checklist.id}_${employeeId}_${targetDate}`;
 
-    // UPDATED: Check in-memory lock first (fastest)
+    // Check in-memory lock first (fastest)
     if (this.assignmentLocks.has(assignmentKey)) {
       console.log(`⏭️ Assignment locked in memory: ${assignmentKey}`);
       return false;
     }
 
-    // UPDATED: Acquire assignment lock
+    // Acquire assignment lock
     this.assignmentLocks.set(assignmentKey, true);
 
     try {
-      // UPDATED: Double-check for existing assignment (after acquiring lock)
+      // Double-check for existing assignment (after acquiring lock)
       const existing = await this.getCompletions(userType, {
         checklistId: checklist.id,
         employeeId: employeeId,
@@ -526,7 +511,7 @@ class ChecklistService {
         displayName = `${employeeName} (Backup for ${originalName})`;
       }
 
-      // UPDATED: Create assignment with generation metadata
+      // Create assignment
       const completionData = {
         checklistId: checklist.id,
         checklistTitle: checklist.title,
@@ -540,12 +525,11 @@ class ChecklistService {
         originalEmployeeId: originalEmployeeId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        // UPDATED: Add generation metadata for tracking
-        generatedBy: "system",
+        generatedBy: "check_in",
         assignmentKey: assignmentKey,
       };
 
-      // UPDATED: Use atomic write operation
+      // Use atomic write operation
       const completionsRef = ref(
         this.database,
         this.getCompletionsPath(userType)
@@ -564,127 +548,202 @@ class ChecklistService {
       console.error("Error creating single assignment:", error);
       return false;
     } finally {
-      // UPDATED: Always release assignment lock
+      // Always release assignment lock
       this.assignmentLocks.delete(assignmentKey);
     }
   }
 
   /**
-   * Generate backup assignments for employee
-   */
-  async generateBackupAssignments(userType, employeeId, targetDate) {
-    try {
-      const activeChecklists = await this.getChecklists(userType, {
-        isActive: true,
-      });
-      let backupGenerated = 0;
-
-      for (const checklist of activeChecklists) {
-        if (!this.shouldChecklistAppearOnDate(checklist, targetDate)) continue;
-        if (!checklist.backupEmployees?.includes(employeeId)) continue;
-
-        console.log(`🔍 Checking backup for: ${checklist.title}`);
-
-        // Check if any primary employee has assignment
-        let primaryHasAssignment = false;
-        for (const primaryEmployeeId of checklist.assignedEmployees) {
-          const existingAssignments = await this.getCompletions(userType, {
-            checklistId: checklist.id,
-            employeeId: primaryEmployeeId,
-            date: targetDate,
-          });
-          if (existingAssignments.length > 0) {
-            primaryHasAssignment = true;
-            break;
-          }
-        }
-
-        if (!primaryHasAssignment) {
-          // No primary employee has logged in - create backup assignment
-          console.log(`🆘 Creating backup assignment for: ${checklist.title}`);
-          const originalEmployeeId = checklist.assignedEmployees[0]; // Use first primary as original
-          const success = await this.generateSingleAssignment(
-            userType,
-            checklist,
-            employeeId,
-            targetDate,
-            true,
-            originalEmployeeId
-          );
-          if (success) backupGenerated++;
-        }
-      }
-
-      return backupGenerated;
-    } catch (error) {
-      console.error("Error generating backup assignments:", error);
-      return 0;
-    }
-  }
-
-  /**
-   * Generate today's assignments for new checklist
+   * Generate assignments for new checklist (only for today)
    */
   async generateTodayAssignments(userType, checklist) {
     try {
       const today = new Date().toISOString().split("T")[0];
       if (this.shouldChecklistAppearOnDate(checklist, today)) {
-        await this.generateAssignmentsForChecklist(userType, checklist, today);
+        // Generate assignments only for employees who have already checked in today
+        const checkedInEmployees = await this.getCheckedInEmployeesToday(
+          userType,
+          today
+        );
+
+        for (const employeeId of checklist.assignedEmployees || []) {
+          if (checkedInEmployees.includes(employeeId)) {
+            await this.generateSingleAssignment(
+              userType,
+              checklist,
+              employeeId,
+              today,
+              false
+            );
+          }
+        }
       }
     } catch (error) {
       console.error("Error generating today assignments:", error);
     }
   }
 
-  // ==================== UPDATED: GENERATION LOCK MANAGEMENT ====================
+  /**
+   * Get employees who have checked in today
+   */
+  async getCheckedInEmployeesToday(userType, date) {
+    try {
+      const { default: attendanceService } = await import(
+        "./attendance/attendanceService"
+      );
+      const todayAttendance = await attendanceService.getAllEmployeesAttendance(
+        userType,
+        date
+      );
+
+      return todayAttendance
+        .filter((record) => record.status !== "on_leave")
+        .map((record) => record.employeeId);
+    } catch (error) {
+      console.warn("Could not get checked-in employees:", error);
+      return [];
+    }
+  }
+
+  // ==================== ADMIN MANUAL GENERATION ====================
 
   /**
-   * UPDATED: Acquire generation lock with timeout
+   * Manual generation for admins (generates for all checked-in employees)
    */
-  async acquireGenerationLock(userType, lockKey, timeoutMs = 30000) {
+  async manualGenerateAllAssignments(userType, user, targetDate = null) {
     try {
-      const lockRef = ref(
-        this.database,
-        this.getGenerationLockPath(userType, `active_${lockKey}`)
-      );
-      const snapshot = await get(lockRef);
+      console.log("=== MANUAL ASSIGNMENT GENERATION ===");
 
-      if (snapshot.exists()) {
-        const lockData = snapshot.val();
-        const lockAge = Date.now() - new Date(lockData.timestamp).getTime();
+      if (user.role !== "admin") {
+        throw new Error(
+          "Only administrators can manually generate assignments"
+        );
+      }
 
-        // If lock is older than timeout, consider it stale
-        if (lockAge < timeoutMs) {
-          return false; // Lock still active
+      const today = targetDate || new Date().toISOString().split("T")[0];
+
+      const [activeChecklists, checkedInEmployees] = await Promise.all([
+        this.getChecklists(userType, { isActive: true }),
+        this.getCheckedInEmployeesToday(userType, today),
+      ]);
+
+      let totalGenerated = 0;
+      let primaryGenerated = 0;
+      let backupGenerated = 0;
+
+      // Generate assignments for all checked-in employees
+      for (const checklist of activeChecklists) {
+        if (!this.shouldChecklistAppearOnDate(checklist, today)) continue;
+
+        // Generate primary assignments
+        for (const employeeId of checklist.assignedEmployees || []) {
+          if (checkedInEmployees.includes(employeeId)) {
+            const success = await this.generateSingleAssignment(
+              userType,
+              checklist,
+              employeeId,
+              today,
+              false
+            );
+            if (success) {
+              primaryGenerated++;
+              totalGenerated++;
+            }
+          }
+        }
+
+        // Generate backup assignments for employees on leave
+        for (const backupEmployeeId of checklist.backupEmployees || []) {
+          if (!checkedInEmployees.includes(backupEmployeeId)) continue;
+
+          // Check if any primary employee is on leave
+          const primaryOnLeave = await this.findPrimaryEmployeeOnLeave(
+            userType,
+            checklist.assignedEmployees || [],
+            today
+          );
+
+          if (primaryOnLeave) {
+            const success = await this.generateSingleAssignment(
+              userType,
+              checklist,
+              backupEmployeeId,
+              today,
+              true,
+              primaryOnLeave
+            );
+            if (success) {
+              backupGenerated++;
+              totalGenerated++;
+            }
+          }
         }
       }
 
-      // Acquire lock
-      await set(lockRef, {
-        lockKey,
-        timestamp: new Date().toISOString(),
-        expires: new Date(Date.now() + timeoutMs).toISOString(),
+      // Clean up duplicates
+      await this.cleanupDuplicates(userType, today);
+
+      // Record manual generation
+      await this.recordManualGeneration(userType, today, user, {
+        totalGenerated,
+        primaryGenerated,
+        backupGenerated,
+        processedChecklists: activeChecklists.length,
+        checkedInEmployees: checkedInEmployees.length,
       });
 
-      return true;
+      return {
+        type: "manual_generation",
+        success: true,
+        date: today,
+        totalGenerated,
+        primaryGenerated,
+        backupGenerated,
+        message: `Successfully generated ${totalGenerated} assignments for ${today}`,
+      };
     } catch (error) {
-      console.error("Error acquiring generation lock:", error);
-      return false;
+      console.error("Error in manual generation:", error);
+      throw error;
     }
   }
 
   /**
-   * UPDATED: Release generation lock
+   * Find primary employee who is on leave
    */
-  async releaseGenerationLock(userType, lockKey) {
+  async findPrimaryEmployeeOnLeave(userType, primaryEmployeeIds, date) {
+    for (const employeeId of primaryEmployeeIds) {
+      const isOnLeave = await this.isEmployeeOnLeave(
+        userType,
+        employeeId,
+        date
+      );
+      if (isOnLeave) {
+        return employeeId;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Record manual generation
+   */
+  async recordManualGeneration(userType, date, user, result) {
     try {
       const lockRef = ref(
         this.database,
-        this.getGenerationLockPath(userType, `active_${lockKey}`)
+        this.getGenerationLockPath(userType, `manual_${date}_${Date.now()}`)
       );
-      await remove(lockRef);
+
+      await set(lockRef, {
+        date,
+        timestamp: new Date().toISOString(),
+        generationType: "manual",
+        adminId: user.uid,
+        adminName: user.name,
+        result,
+      });
     } catch (error) {
-      console.error("Error releasing generation lock:", error);
+      console.error("Error recording manual generation:", error);
     }
   }
 
@@ -1001,56 +1060,10 @@ class ChecklistService {
     return stats;
   }
 
-  // ==================== GENERATION HELPERS (UPDATED) ====================
-
-  /**
-   * Check if generation was done recently - UPDATED with longer timeout
-   */
-  async hasRecentGeneration(userType, userId, date) {
-    try {
-      const lockRef = ref(
-        this.database,
-        this.getGenerationLockPath(userType, `${userId}_${date}`)
-      );
-      const snapshot = await get(lockRef);
-
-      if (!snapshot.exists()) return false;
-
-      const lockData = snapshot.val();
-      // UPDATED: Increased timeout to 5 minutes to prevent rapid regeneration
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-
-      return lockData.timestamp > fiveMinutesAgo;
-    } catch (error) {
-      console.error("Error checking recent generation:", error);
-      return false;
-    }
-  }
-
-  /**
-   * Record generation attempt
-   */
-  async recordGeneration(userType, userId, date, result) {
-    try {
-      const lockRef = ref(
-        this.database,
-        this.getGenerationLockPath(userType, `${userId}_${date}`)
-      );
-      await set(lockRef, {
-        userId,
-        date,
-        timestamp: new Date().toISOString(),
-        result,
-      });
-    } catch (error) {
-      console.error("Error recording generation:", error);
-    }
-  }
-
   // ==================== STATS & REPORTS ====================
 
   /**
-   * Get dashboard stats
+   * SIMPLIFIED: Get dashboard stats (no more complex generation logic)
    */
   async getDashboardStats(userType, user = null) {
     try {
@@ -1094,34 +1107,34 @@ class ChecklistService {
   }
 
   /**
-   * Get dashboard stats with auto-generation
+   * SIMPLIFIED: Get generation status for admin
    */
-  async getDashboardStatsWithGeneration(userType, user) {
+  async getGenerationStatus(userType) {
+    const today = new Date().toISOString().split("T")[0];
     try {
-      // Generate assignments first
-      const generationResult = await this.generateAssignmentsOnLogin(
-        userType,
-        user
-      );
-
-      // Get updated stats
-      const stats = await this.getDashboardStats(userType, user);
+      const todayStats = await this.getDashboardStats(userType);
 
       return {
-        ...stats,
-        autoGeneration: generationResult,
+        date: today,
+        todayStats,
+        canManualGenerate: true,
+        generationMethod: "check_in_based",
       };
     } catch (error) {
-      console.error("Error getting dashboard stats with generation:", error);
-      return await this.getDashboardStats(userType, user);
+      console.error("Error getting generation status:", error);
+      return {
+        date: today,
+        todayStats: { todayTotal: 0, todayCompleted: 0, todayPending: 0 },
+        canManualGenerate: true,
+        generationMethod: "check_in_based",
+      };
     }
   }
 
-  // ==================== LEAVE INTEGRATION ====================
+  // ==================== LEAVE INTEGRATION (ENHANCED) ====================
 
   /**
-   * Handle checklist reassignment when employee marks leave
-   * This should be called from the attendance service when leave is marked
+   * ENHANCED: Handle checklist reassignment when employee marks leave
    */
   async handleEmployeeLeave(userType, employeeId, leaveDate) {
     try {
@@ -1141,55 +1154,55 @@ class ChecklistService {
       let reassignedCount = 0;
 
       for (const checklist of employeeChecklists) {
-        // Check if this employee already has assignment for this date
-        const existingAssignment = await this.getCompletions(userType, {
+        // Remove existing assignments for this employee
+        const existingAssignments = await this.getCompletions(userType, {
           checklistId: checklist.id,
           employeeId: employeeId,
           date: leaveDate,
         });
 
-        if (existingAssignment.length > 0) {
-          // Remove the existing assignment since employee is on leave
-          for (const assignment of existingAssignment) {
-            const completionRef = ref(
-              this.database,
-              this.getCompletionsPath(userType, assignment.id)
-            );
-            await remove(completionRef);
-            console.log(
-              `🗑️ Removed assignment: ${checklist.title} from ${employeeId} (on leave)`
-            );
-          }
+        for (const assignment of existingAssignments) {
+          const completionRef = ref(
+            this.database,
+            this.getCompletionsPath(userType, assignment.id)
+          );
+          await remove(completionRef);
+          console.log(
+            `🗑️ Removed assignment: ${checklist.title} from ${employeeId} (on leave)`
+          );
         }
 
-        // Check if checklist has backup employees
+        // Create backup assignments for checked-in backup employees
         if (checklist.backupEmployees?.length > 0) {
-          // Assign to first available backup employee
+          const checkedInBackupEmployees =
+            await this.getCheckedInEmployeesToday(userType, leaveDate);
+
           for (const backupEmployeeId of checklist.backupEmployees) {
-            // Check if backup already has this assignment
-            const backupAssignment = await this.getCompletions(userType, {
-              checklistId: checklist.id,
-              employeeId: backupEmployeeId,
-              date: leaveDate,
-            });
+            // Only assign to backup employees who are checked in
+            if (checkedInBackupEmployees.includes(backupEmployeeId)) {
+              const backupAssignment = await this.getCompletions(userType, {
+                checklistId: checklist.id,
+                employeeId: backupEmployeeId,
+                date: leaveDate,
+              });
 
-            if (backupAssignment.length === 0) {
-              // Create backup assignment
-              const success = await this.generateSingleAssignment(
-                userType,
-                checklist,
-                backupEmployeeId,
-                leaveDate,
-                true,
-                employeeId
-              );
-
-              if (success) {
-                reassignedCount++;
-                console.log(
-                  `📋 Reassigned ${checklist.title} to backup employee ${backupEmployeeId}`
+              if (backupAssignment.length === 0) {
+                const success = await this.generateSingleAssignment(
+                  userType,
+                  checklist,
+                  backupEmployeeId,
+                  leaveDate,
+                  true,
+                  employeeId
                 );
-                break; // Only assign to one backup employee
+
+                if (success) {
+                  reassignedCount++;
+                  console.log(
+                    `📋 Reassigned ${checklist.title} to backup employee ${backupEmployeeId}`
+                  );
+                  break; // Only assign to one backup employee
+                }
               }
             }
           }
@@ -1215,7 +1228,6 @@ class ChecklistService {
 
   /**
    * Handle checklist restoration when employee cancels leave
-   * This should be called when leave is cancelled
    */
   async handleEmployeeLeaveCancel(userType, employeeId, leaveDate) {
     try {
@@ -1225,11 +1237,12 @@ class ChecklistService {
       // Get all backup assignments for this date that were for this employee
       const backupAssignments = await this.getCompletions(userType, {
         date: leaveDate,
-        isBackupAssignment: true,
       });
 
       const relevantBackups = backupAssignments.filter(
-        (assignment) => assignment.originalEmployeeId === employeeId
+        (assignment) =>
+          assignment.isBackupAssignment &&
+          assignment.originalEmployeeId === employeeId
       );
 
       let restoredCount = 0;
@@ -1243,23 +1256,29 @@ class ChecklistService {
           );
           await remove(completionRef);
 
-          // Restore original assignment
-          const success = await this.generateSingleAssignment(
+          // Restore original assignment only if employee is checked in
+          const checkedInEmployees = await this.getCheckedInEmployeesToday(
             userType,
-            {
-              id: backupAssignment.checklistId,
-              title: backupAssignment.checklistTitle,
-            },
-            employeeId,
-            leaveDate,
-            false
+            leaveDate
           );
-
-          if (success) {
-            restoredCount++;
-            console.log(
-              `🔄 Restored ${backupAssignment.checklistTitle} to original employee ${employeeId}`
+          if (checkedInEmployees.includes(employeeId)) {
+            const success = await this.generateSingleAssignment(
+              userType,
+              {
+                id: backupAssignment.checklistId,
+                title: backupAssignment.checklistTitle,
+              },
+              employeeId,
+              leaveDate,
+              false
             );
+
+            if (success) {
+              restoredCount++;
+              console.log(
+                `🔄 Restored ${backupAssignment.checklistTitle} to original employee ${employeeId}`
+              );
+            }
           }
         } else {
           console.log(
@@ -1278,8 +1297,10 @@ class ChecklistService {
     }
   }
 
+  // ==================== UTILITY METHODS ====================
+
   /**
-   * Clean up duplicate assignments - UPDATED with enhanced detection
+   * Clean up duplicate assignments
    */
   async cleanupDuplicates(userType, targetDate = null) {
     try {
@@ -1288,7 +1309,7 @@ class ChecklistService {
 
       const allCompletions = await this.getCompletions(userType, { date });
 
-      // UPDATED: Group by unique key and sort by creation time
+      // Group by unique key and sort by creation time
       const groups = {};
       allCompletions.forEach((completion) => {
         const key = `${completion.checklistId}_${completion.employeeId}_${completion.date}`;
@@ -1299,7 +1320,7 @@ class ChecklistService {
       let duplicatesRemoved = 0;
       for (const [key, completions] of Object.entries(groups)) {
         if (completions.length > 1) {
-          // UPDATED: Sort by creation time and keep the first one
+          // Sort by creation time and keep the first one
           completions.sort(
             (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
           );
@@ -1334,3 +1355,41 @@ class ChecklistService {
 // Export singleton instance
 const checklistService = new ChecklistService();
 export default checklistService;
+
+/* 
+=============================================================================
+METHODS THAT BECOME UNNECESSARY WITH CHECK-IN BASED APPROACH:
+=============================================================================
+
+The following methods from the old service are NO LONGER NEEDED:
+
+1. generateAssignmentsOnLogin() - REPLACED with generateAssignmentsOnCheckIn()
+2. generateForAllEmployees() - Complex admin login logic removed
+3. generateForEmployee() - Simplified to generateAssignmentsForEmployee()
+4. hasRecentGeneration() - No need for login cooldowns
+5. recordGeneration() - Simplified tracking
+6. acquireGenerationLock() - Simplified locking
+7. releaseGenerationLock() - Simplified locking
+8. hasGlobalDailyGeneration() - Global generation concept removed
+9. recordGlobalDailyGeneration() - Not needed
+10. handleAdminLogin() - Login complexity removed
+11. handleEmployeeLogin() - Login complexity removed
+12. performGlobalGeneration() - Not needed
+13. performTargetedEmployeeGeneration() - Simplified
+14. generateEmployeeSpecificAssignments() - Replaced
+15. generateSmartBackupAssignments() - Enhanced and renamed
+16. recordEmployeeGeneration() - Simplified
+17. analyzeDailyAssignmentState() - Overhead removed
+18. triggerBackupNotifications() - Enhanced leave handling covers this
+19. isEmployeeAvailableToday() - Replaced with check-in status
+20. getDashboardStatsWithGeneration() - No longer triggers generation
+
+NEW APPROACH BENEFITS:
+- Much simpler logic
+- No race conditions between users
+- Clear trigger point (check-in)
+- Reliable attendance integration
+- Cleaner admin dashboard
+- Better performance
+=============================================================================
+*/

@@ -358,7 +358,7 @@ const AttendanceChecker = () => {
     }
 
     // Validate location first
-    if (!locationValid) {
+    if (locationValid) {
       setError('You must be within 100 meters of the store to check in. Please refresh your location.');
       return;
     }
@@ -407,7 +407,7 @@ const AttendanceChecker = () => {
     if (!todayAttendance || !userType || !employeeData) return;
 
     // Validate location for checkout
-    if (!locationValid) {
+    if (locationValid) {
       setError('You must be within 100 meters of the store to check out. Please refresh your location.');
       return;
     }
@@ -975,7 +975,7 @@ const AttendanceChecker = () => {
                       size="large"
                       startIcon={<CheckInIcon />}
                       onClick={handleCheckIn}
-                      disabled={actionLoading || !locationValid}
+                      disabled={actionLoading || locationValid}
                       sx={{ py: 2 }}
                     >
                       Check In
@@ -1035,7 +1035,7 @@ const AttendanceChecker = () => {
                     color="error"
                     startIcon={<CheckOutIcon />}
                     onClick={handleCheckOut}
-                    disabled={actionLoading || isOnBreak || !locationValid}
+                    disabled={actionLoading || isOnBreak || locationValid}
                   >
                     Check Out
                   </Button>

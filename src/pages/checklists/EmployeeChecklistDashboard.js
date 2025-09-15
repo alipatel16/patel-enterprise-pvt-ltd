@@ -1,4 +1,4 @@
-// src/pages/checklists/EmployeeChecklistDashboard.js
+// src/pages/checklists/EmployeeChecklistDashboard.js - FIXED for new service
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -81,6 +81,7 @@ const EmployeeChecklistDashboard = () => {
     loadData();
   }, [userType, user]);
 
+  // FIXED: Updated to use new simplified methods
   const loadData = async () => {
     try {
       setLoading(true);
@@ -91,11 +92,11 @@ const EmployeeChecklistDashboard = () => {
         return;
       }
 
-      // Load today's checklists and stats with auto-generation
+      // CHANGED: Use simplified methods instead of complex generation
       const [todayData, historyData, statsData] = await Promise.all([
         checklistService.getTodayChecklistsForEmployee(userType, user),
         loadHistoryData(),
-        checklistService.getDashboardStatsWithGeneration(userType, user)
+        checklistService.getDashboardStats(userType, user) // FIXED: Removed WithGeneration
       ]);
       
       setTodayChecklists(todayData);
@@ -311,6 +312,29 @@ const EmployeeChecklistDashboard = () => {
         </Button>
       </Box>
 
+      {/* NEW: Check-in Info Card */}
+      <Box mb={4}>
+        <Card sx={{ bgcolor: 'info.50', border: 1, borderColor: 'info.main' }}>
+          <CardContent>
+            <Box display="flex" alignItems="center" gap={2}>
+              <InfoIcon color="info" />
+              <Box>
+                <Typography variant="h6" color="info.main">
+                  Check-in Based Checklist System
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  {stats.todayTotal === 0 ? (
+                    'Your checklist assignments will appear automatically when you check in for work. Go to Attendance → Check In to get your daily tasks.'
+                  ) : (
+                    'Your checklist assignments were generated when you checked in. Complete them during your work day.'
+                  )}
+                </Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+      </Box>
+
       {/* Stats Cards */}
       <Grid container spacing={3} mb={4}>
         <Grid item xs={12} sm={6} md={3}>
@@ -423,7 +447,7 @@ const EmployeeChecklistDashboard = () => {
                 Today's Checklist Assignments
               </Typography>
               
-              {todayChecklists.length === 0 ? (
+              {stats.todayTotal === 0 && (
                 <Paper 
                   sx={{ 
                     p: 4, 
@@ -433,14 +457,23 @@ const EmployeeChecklistDashboard = () => {
                 >
                   <TaskIcon sx={{ fontSize: 60, color: 'grey.400', mb: 2 }} />
                   <Typography variant="h6" color="textSecondary" gutterBottom>
-                    No checklists assigned for today
+                    No checklists assigned yet
                   </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    You don't have any checklist assignments for today. 
-                    Check back tomorrow or contact your supervisor if you think this is an error.
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                    Your checklist assignments will appear automatically when you check in for work.
                   </Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={<ScheduleIcon />}
+                    onClick={() => window.location.href = '/attendance'}
+                    sx={{ mt: 1 }}
+                  >
+                    Go to Check In
+                  </Button>
                 </Paper>
-              ) : (
+              )}
+
+              {todayChecklists.length > 0 && (
                 <List>
                   {todayChecklists.map((checklist, index) => (
                     <React.Fragment key={checklist.id || index}>
