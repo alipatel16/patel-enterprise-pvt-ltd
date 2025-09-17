@@ -2,6 +2,10 @@
   "name": "showroom-management",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": "20.x",
+    "npm": "10.x"
+  },
   "dependencies": {
     "@emotion/react": "^11.10.5",
     "@emotion/styled": "^11.10.5",
