@@ -1,0 +1,15 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Disallow: /admin
+Disallow: /api
+Disallow: /.env
+Disallow: /build
+
+# Allow access to public assets
+Allow: /static/
+Allow: /images/
+Allow: /favicon.ico
+Allow: /manifest.json
+
+# Sitemap (uncomment when you have one)
+# Sitemap: https://yourdomain.com/sitemap.xml
