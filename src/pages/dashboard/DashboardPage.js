@@ -70,15 +70,16 @@ const DashboardPage = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const { user, signOut, canManageEmployees } = useAuth();
-  const { getDisplayName, getAppTitle, getThemeColors, userType } = useUserType();
+  const { getDisplayName, getAppTitle, getThemeColors, userType } =
+    useUserType();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [success, setSuccess] = useState('');
-  const [error, setError] = useState('');
-  
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
+
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalEmployees: 0,
@@ -90,7 +91,7 @@ const DashboardPage = () => {
     pendingChecklists: 0,
     completedChecklists: 0,
   });
-  
+
   const [checklistGenerationInfo, setChecklistGenerationInfo] = useState(null);
 
   const themeColors = getThemeColors();
@@ -104,26 +105,28 @@ const DashboardPage = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      console.log('Loading dashboard with check-in based checklist system...');
-      
+      console.log("Loading dashboard with check-in based checklist system...");
+
       // SIMPLIFIED: Just get current stats - no generation logic
       const [checklistStats, generationStatus] = await Promise.all([
         checklistService.getDashboardStats(userType, user),
-        canManageEmployees() ? checklistService.getGenerationStatus(userType) : null
+        canManageEmployees()
+          ? checklistService.getGenerationStatus(userType)
+          : null,
       ]);
-      
+
       setChecklistGenerationInfo(generationStatus);
-      
-      console.log('Dashboard loaded:', {
+
+      console.log("Dashboard loaded:", {
         checklistStats,
-        generationMethod: 'check_in_based'
+        generationMethod: "check_in_based",
       });
-      
+
       // TODO: Load other dashboard stats (customers, employees, sales)
       // For now, using placeholder values
       setStats({
         totalCustomers: 0, // TODO: Load from customer service
-        totalEmployees: 0, // TODO: Load from employee service  
+        totalEmployees: 0, // TODO: Load from employee service
         totalSales: 0, // TODO: Load from sales service
         pendingEMIs: 0, // TODO: Load from sales service
         pendingDeliveries: 0, // TODO: Load from sales service
@@ -133,10 +136,9 @@ const DashboardPage = () => {
         pendingChecklists: checklistStats.todayPending,
         completedChecklists: checklistStats.todayCompleted,
       });
-      
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      setError('Failed to load dashboard data. Please refresh the page.');
+      console.error("Error loading dashboard data:", error);
+      setError("Failed to load dashboard data. Please refresh the page.");
       setStats({
         totalCustomers: 0,
         totalEmployees: 0,
@@ -157,27 +159,31 @@ const DashboardPage = () => {
   const handleManualGeneration = async () => {
     try {
       setRefreshing(true);
-      setSuccess('');
-      setError('');
+      setSuccess("");
+      setError("");
 
-      console.log('Admin triggered manual checklist generation...');
-      
-      const result = await checklistService.manualGenerateAllAssignments(userType, user);
-      
-      console.log('Manual generation result:', result);
-      
+      console.log("Admin triggered manual checklist generation...");
+
+      const result = await checklistService.manualGenerateAllAssignments(
+        userType,
+        user
+      );
+
+      console.log("Manual generation result:", result);
+
       // Reload dashboard data to show updated stats
       await loadDashboardData();
-      
-      setSuccess(`Manual generation completed! Generated ${result.totalGenerated} assignments for checked-in employees`);
-      
+
+      setSuccess(
+        `Manual generation completed! Generated ${result.totalGenerated} assignments for checked-in employees`
+      );
+
       // Clear success message after 5 seconds
-      setTimeout(() => setSuccess(''), 5000);
-      
+      setTimeout(() => setSuccess(""), 5000);
     } catch (error) {
-      console.error('Error in manual generation:', error);
+      console.error("Error in manual generation:", error);
       setError(`Manual generation failed: ${error.message}`);
-      setTimeout(() => setError(''), 5000);
+      setTimeout(() => setError(""), 5000);
     } finally {
       setRefreshing(false);
     }
@@ -261,9 +267,9 @@ const DashboardPage = () => {
     {
       label: "Employee Reports",
       icon: ReportsIcon,
-      path: '/reports/employees',
-      adminOnly: true
-    }
+      path: "/reports/employees",
+      adminOnly: true,
+    },
   ];
 
   // UPDATED: Stats cards with new checklist messaging
@@ -316,9 +322,10 @@ const DashboardPage = () => {
         value: `${stats.completedChecklists}/${stats.todayChecklists}`,
         icon: ChecklistIcon,
         color: "#9c27b0",
-        subtitle: stats.todayChecklists === 0 ? 
-          'Generated on employee check-in' : 
-          `${stats.pendingChecklists} pending tasks`,
+        subtitle:
+          stats.todayChecklists === 0
+            ? "Generated on employee check-in"
+            : `${stats.pendingChecklists} pending tasks`,
         action: () => navigate("/checklists"),
       });
     } else {
@@ -328,9 +335,10 @@ const DashboardPage = () => {
         value: `${stats.completedChecklists}/${stats.todayChecklists}`,
         icon: TaskIcon,
         color: "#9c27b0",
-        subtitle: stats.todayChecklists === 0 ? 
-          'Check in to get your assignments' : 
-          `${stats.pendingChecklists} pending tasks`,
+        subtitle:
+          stats.todayChecklists === 0
+            ? "Check in to get your assignments"
+            : `${stats.pendingChecklists} pending tasks`,
         action: () => navigate("/my-checklists"),
       });
     }
@@ -504,7 +512,11 @@ const DashboardPage = () => {
               onClick={() => navigate("/notifications")}
             >
               <Badge
-                badgeContent={stats.pendingEMIs + stats.pendingDeliveries + stats.pendingChecklists}
+                badgeContent={
+                  stats.pendingEMIs +
+                  stats.pendingDeliveries +
+                  stats.pendingChecklists
+                }
                 color="error"
               >
                 <NotificationsIcon />
@@ -563,13 +575,17 @@ const DashboardPage = () => {
         <Container maxWidth="xl">
           {/* Error/Success Alerts */}
           {error && (
-            <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+            <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
               {error}
             </Alert>
           )}
 
           {success && (
-            <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>
+            <Alert
+              severity="success"
+              sx={{ mb: 3 }}
+              onClose={() => setSuccess("")}
+            >
               {success}
             </Alert>
           )}
@@ -598,71 +614,217 @@ const DashboardPage = () => {
           </Box>
 
           {/* NEW: Check-in Based System Info Card (Admin Only) */}
+          {/* NEW: Check-in Based System Info Card (Admin Only) - Mobile Responsive */}
           {canManageEmployees() && (
             <Box mb={4}>
-              <Card sx={{ bgcolor: 'background.paper', border: 1, borderColor: 'primary.main' }}>
+              <Card
+                sx={{
+                  bgcolor: "background.paper",
+                  border: 1,
+                  borderColor: "primary.main",
+                }}
+              >
                 <CardContent>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Box flex={1}>
-                      <Typography variant="h6" gutterBottom>
+                  {/* Main content area - responsive layout */}
+                  <Box
+                    display="flex"
+                    flexDirection={{ xs: "column", md: "row" }}
+                    justifyContent={{ xs: "flex-start", md: "space-between" }}
+                    alignItems={{ xs: "stretch", md: "center" }}
+                    gap={{ xs: 2, md: 0 }}
+                  >
+                    {/* Content section */}
+                    <Box flex={1} sx={{ minWidth: 0 }}>
+                      <Typography
+                        variant="h6"
+                        gutterBottom
+                        sx={{
+                          fontSize: { xs: "1.1rem", sm: "1.25rem" },
+                          lineHeight: { xs: 1.3, sm: 1.4 },
+                        }}
+                      >
                         Check-in Based Checklist System
                       </Typography>
-                      
-                      <Box display="flex" alignItems="center" gap={1} mb={2}>
-                        <CheckCircleIcon color="success" />
-                        <Typography variant="body2" color="success.main">
-                          Assignments generated automatically on employee check-in
-                        </Typography>
-                      </Box>
-                      
-                      {checklistGenerationInfo && checklistGenerationInfo.todayStats && (
-                        <Box>
-                          <Typography variant="body2" color="textSecondary">
-                            Today's Status: {checklistGenerationInfo.todayStats.todayCompleted}/{checklistGenerationInfo.todayStats.todayTotal} assignments completed
+
+                      <Box
+                        display="flex"
+                        alignItems={{ xs: "flex-start", sm: "center" }}
+                        flexDirection={{ xs: "column", sm: "row" }}
+                        gap={1}
+                        mb={2}
+                      >
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <CheckCircleIcon
+                            color="success"
+                            sx={{ fontSize: { xs: "1.2rem", sm: "1.5rem" } }}
+                          />
+                          <Typography
+                            variant="body2"
+                            color="success.main"
+                            sx={{
+                              fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                              lineHeight: { xs: 1.3, sm: 1.4 },
+                            }}
+                          >
+                            Assignments generated automatically on employee
+                            check-in
                           </Typography>
-                          
-                          {checklistGenerationInfo.todayStats.todayTotal === 0 && (
-                            <Typography variant="caption" color="info.main" sx={{ display: 'block', mt: 1 }}>
-                              ℹ️ No assignments yet - employees will get assignments when they check in
-                            </Typography>
-                          )}
                         </Box>
-                      )}
+                      </Box>
+
+                      {checklistGenerationInfo &&
+                        checklistGenerationInfo.todayStats && (
+                          <Box>
+                            <Typography
+                              variant="body2"
+                              color="textSecondary"
+                              sx={{
+                                fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                                mb: { xs: 1, sm: 0 },
+                              }}
+                            >
+                              Today's Status:{" "}
+                              {
+                                checklistGenerationInfo.todayStats
+                                  .todayCompleted
+                              }
+                              /{checklistGenerationInfo.todayStats.todayTotal}{" "}
+                              assignments completed
+                            </Typography>
+
+                            {checklistGenerationInfo.todayStats.todayTotal ===
+                              0 && (
+                              <Typography
+                                variant="caption"
+                                color="info.main"
+                                sx={{
+                                  display: "block",
+                                  mt: 1,
+                                  fontSize: { xs: "0.75rem", sm: "0.75rem" },
+                                  lineHeight: { xs: 1.3, sm: 1.4 },
+                                }}
+                              >
+                                ℹ️ No assignments yet - employees will get
+                                assignments when they check in
+                              </Typography>
+                            )}
+                          </Box>
+                        )}
                     </Box>
-                    
-                    <Box display="flex" gap={2}>
+
+                    {/* Buttons section - responsive */}
+                    <Box
+                      display="flex"
+                      flexDirection={{ xs: "column", sm: "row" }}
+                      gap={{ xs: 1, sm: 2 }}
+                      width={{ xs: "100%", md: "auto" }}
+                      sx={{ minWidth: { xs: 0, md: "max-content" } }}
+                    >
                       <Button
                         variant="outlined"
-                        startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
+                        startIcon={
+                          refreshing ? (
+                            <CircularProgress size={16} />
+                          ) : (
+                            <RefreshIcon />
+                          )
+                        }
                         onClick={loadDashboardData}
                         disabled={refreshing}
                         size="small"
+                        sx={{
+                          minWidth: { xs: "auto", sm: "max-content" },
+                          fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                          px: { xs: 2, sm: 2 },
+                          py: { xs: 0.5, sm: 0.5 },
+                        }}
                       >
                         Refresh
                       </Button>
-                      
+
                       <Button
                         variant="contained"
-                        startIcon={refreshing ? <CircularProgress size={16} /> : <AddIcon />}
+                        startIcon={
+                          refreshing ? (
+                            <CircularProgress size={16} />
+                          ) : (
+                            <AddIcon />
+                          )
+                        }
                         onClick={handleManualGeneration}
                         disabled={refreshing}
                         color="primary"
+                        size="small"
+                        sx={{
+                          minWidth: { xs: "auto", sm: "max-content" },
+                          fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                          px: { xs: 2, sm: 2 },
+                          py: { xs: 0.5, sm: 0.5 },
+                          whiteSpace: "nowrap",
+                        }}
                       >
-                        {refreshing ? 'Generating...' : 'Generate for Checked-in'}
+                        {refreshing
+                          ? "Generating..."
+                          : "Generate for Checked-in"}
                       </Button>
                     </Box>
                   </Box>
-                  
-                  {/* How it works info */}
-                  <Box mt={2} sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 1 }}>
-                    <Typography variant="body2" color="textSecondary" gutterBottom>
+
+                  {/* How it works info - responsive */}
+                  <Box
+                    mt={{ xs: 2, sm: 2 }}
+                    sx={{
+                      bgcolor: "grey.50",
+                      p: { xs: 1.5, sm: 2 },
+                      borderRadius: 1,
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
+                      color="textSecondary"
+                      gutterBottom
+                      sx={{
+                        fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                        fontWeight: 600,
+                      }}
+                    >
                       <strong>How Check-in Based System Works:</strong>
                     </Typography>
-                    <Typography variant="caption" color="textSecondary" component="div">
-                      • <strong>Employee checks in:</strong> Automatically gets today's checklist assignments<br/>
-                      • <strong>Employee marks leave:</strong> Assignments automatically go to checked-in backup employees<br/>
-                      • <strong>Manual generation:</strong> Generates assignments for all currently checked-in employees<br/>
-                      • <strong>No login complexity:</strong> Simple, reliable, based on actual attendance
+                    <Typography
+                      variant="caption"
+                      color="textSecondary"
+                      component="div"
+                      sx={{
+                        fontSize: { xs: "0.7rem", sm: "0.75rem" },
+                        lineHeight: { xs: 1.4, sm: 1.5 },
+                        "& br": { display: { xs: "none", sm: "block" } },
+                      }}
+                    >
+                      <Box
+                        component="span"
+                        sx={{ display: "block", mb: { xs: 0.5, sm: 0 } }}
+                      >
+                        • <strong>Employee checks in:</strong> Automatically
+                        gets today's checklist assignments
+                      </Box>
+                      <Box
+                        component="span"
+                        sx={{ display: "block", mb: { xs: 0.5, sm: 0 } }}
+                      >
+                        • <strong>Employee marks leave:</strong> Assignments
+                        automatically go to checked-in backup employees
+                      </Box>
+                      <Box
+                        component="span"
+                        sx={{ display: "block", mb: { xs: 0.5, sm: 0 } }}
+                      >
+                        • <strong>Manual generation:</strong> Generates
+                        assignments for all currently checked-in employees
+                      </Box>
+                      <Box component="span" sx={{ display: "block" }}>
+                        • <strong>No login complexity:</strong> Simple,
+                        reliable, based on actual attendance
+                      </Box>
                     </Typography>
                   </Box>
                 </CardContent>
@@ -708,7 +870,9 @@ const DashboardPage = () => {
                           >
                             {card.badge ? (
                               <Badge
-                                badgeContent={card.badge === true ? card.value : card.badge}
+                                badgeContent={
+                                  card.badge === true ? card.value : card.badge
+                                }
                                 color="error"
                                 max={999}
                               >
@@ -722,7 +886,7 @@ const DashboardPage = () => {
                             <Typography
                               variant="caption"
                               color="textSecondary"
-                              sx={{ display: 'block', mt: 0.5 }}
+                              sx={{ display: "block", mt: 0.5 }}
                             >
                               {card.subtitle}
                             </Typography>
@@ -776,7 +940,7 @@ const DashboardPage = () => {
                         Create Invoice
                       </Button>
                     </Grid>
-                    
+
                     {/* Admin Actions */}
                     {canManageEmployees() && (
                       <>
@@ -811,7 +975,9 @@ const DashboardPage = () => {
                             sx={{ mb: 1 }}
                             color="primary"
                           >
-                            {refreshing ? 'Generating...' : 'Generate for Checked-in'}
+                            {refreshing
+                              ? "Generating..."
+                              : "Generate for Checked-in"}
                           </Button>
                         </Grid>
                         <Grid item xs={12} sm={6}>
@@ -819,7 +985,9 @@ const DashboardPage = () => {
                             fullWidth
                             variant="outlined"
                             startIcon={<TrophyIcon />}
-                            onClick={() => navigate("/analytics/employee-sales")}
+                            onClick={() =>
+                              navigate("/analytics/employee-sales")
+                            }
                             sx={{ mb: 1 }}
                           >
                             Employee Analytics
@@ -830,14 +998,14 @@ const DashboardPage = () => {
                             fullWidth
                             variant="outlined"
                             startIcon={<ReportsIcon />}
-                            onClick={() => navigate('/reports/employees')}
+                            onClick={() => navigate("/reports/employees")}
                           >
                             Employee Reports
                           </Button>
                         </Grid>
                       </>
                     )}
-                    
+
                     {/* Employee Actions */}
                     {user?.role === USER_ROLES.EMPLOYEE && (
                       <>
@@ -865,7 +1033,7 @@ const DashboardPage = () => {
                         </Grid>
                       </>
                     )}
-                    
+
                     <Grid item xs={12} sm={6}>
                       <Button
                         fullWidth
