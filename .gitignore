@@ -261,3 +261,6 @@ bundle-analyzer-report.html
 
 # Husky (if added later)
 .husky/
+
+# Package manager lock files
+package-lock.json
