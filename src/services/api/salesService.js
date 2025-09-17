@@ -194,6 +194,7 @@ class SalesService extends BaseService {
             gstAmount: 0, // Not applicable with bulk pricing
             totalAmount: 0, // Not applicable with bulk pricing
             bulkPricing: true, // Flag to indicate bulk pricing
+            hsnCode: item.hsnCode || '',
           }));
         } else {
           // USE INDIVIDUAL ITEM CALCULATIONS (existing logic)
@@ -213,6 +214,7 @@ class SalesService extends BaseService {
               gstAmount: itemCalc.gstAmount,
               totalAmount: itemCalc.totalAmount,
               gstBreakdown: itemCalc.gstBreakdown,
+              hsnCode: item.hsnCode || '' ,
             });
           });
         }
@@ -465,6 +467,7 @@ class SalesService extends BaseService {
               gstAmount: itemCalc.gstAmount,
               totalAmount: itemCalc.totalAmount,
               gstBreakdown: itemCalc.gstBreakdown,
+              hsnCode: item.hsnCode || '',
             });
           });
 

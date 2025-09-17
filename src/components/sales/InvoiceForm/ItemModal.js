@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -17,18 +17,18 @@ import {
   InputAdornment,
   Chip,
   useTheme,
-  useMediaQuery
-} from '@mui/material';
+  useMediaQuery,
+} from "@mui/material";
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Close as CloseIcon,
   Calculate as CalculatorIcon,
   Info as InfoIcon,
-  AttachMoney as MoneyIcon
-} from '@mui/icons-material';
+  AttachMoney as MoneyIcon,
+} from "@mui/icons-material";
 
-import { calculateItemWithGST } from '../../../utils/helpers/gstCalculator';
+import { calculateItemWithGST } from "../../../utils/helpers/gstCalculator";
 
 // GST Tax Slabs
 const GST_TAX_SLABS = [
@@ -56,29 +56,30 @@ const ItemModal = ({
   onClose,
   onSave,
   item = null,
-  customerState = '',
+  customerState = "",
   includeGST = true,
-  loading = false
+  loading = false,
 }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const isEdit = Boolean(item);
 
   // Form state
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
+    name: "",
+    description: "",
     quantity: 1,
     rate: 0,
     gstSlab: 18,
-    isPriceInclusive: false
+    isPriceInclusive: false,
+    hsnCode: "",
   });
 
   const [formErrors, setFormErrors] = useState({});
   const [gstCalculation, setGstCalculation] = useState({
     baseAmount: 0,
     gstAmount: 0,
-    totalAmount: 0
+    totalAmount: 0,
   });
 
   // FIX: Helper function to get the display rate (what user should see in the rate field)
@@ -87,7 +88,7 @@ const ItemModal = ({
     if (!itemData.baseAmount && !itemData.totalAmount) {
       return itemData.rate || 0;
     }
-    
+
     // For existing items with calculation data:
     // - If price-inclusive: show the total amount (what user originally entered)
     // - If price-exclusive: show the base amount (rate without GST)
@@ -104,24 +105,26 @@ const ItemModal = ({
       if (isEdit && item) {
         // FIX: Properly initialize the rate field based on pricing type
         const displayRate = getDisplayRate(item);
-        
+
         setFormData({
-          name: item.name || '',
-          description: item.description || '',
+          name: item.name || "",
+          description: item.description || "",
           quantity: item.quantity || 1,
           rate: displayRate,
           gstSlab: item.gstSlab || 18,
-          isPriceInclusive: item.isPriceInclusive || false
+          isPriceInclusive: item.isPriceInclusive || false,
+          hsnCode: item.hsnCode || "",
         });
       } else {
         // Reset for new item
         setFormData({
-          name: '',
-          description: '',
+          name: "",
+          description: "",
           quantity: 1,
           rate: 0,
           gstSlab: 18,
-          isPriceInclusive: false
+          isPriceInclusive: false,
+          hsnCode: "",
         });
       }
       setFormErrors({});
@@ -140,31 +143,41 @@ const ItemModal = ({
       setGstCalculation({
         baseAmount: itemCalc.baseAmount || 0,
         gstAmount: itemCalc.gstAmount || 0,
-        totalAmount: itemCalc.totalAmount || 0
+        totalAmount: itemCalc.totalAmount || 0,
       });
     } else {
       setGstCalculation({
         baseAmount: 0,
         gstAmount: 0,
-        totalAmount: 0
+        totalAmount: 0,
       });
     }
-  }, [formData.quantity, formData.rate, formData.gstSlab, formData.isPriceInclusive, customerState, includeGST]);
+  }, [
+    formData.quantity,
+    formData.rate,
+    formData.gstSlab,
+    formData.isPriceInclusive,
+    customerState,
+    includeGST,
+  ]);
 
   // Handle form field changes
   const handleChange = (field) => (event) => {
-    const value = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
-    
-    setFormData(prev => ({
+    const value =
+      event.target.type === "checkbox"
+        ? event.target.checked
+        : event.target.value;
+
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
 
     // Clear field error
     if (formErrors[field]) {
-      setFormErrors(prev => ({
+      setFormErrors((prev) => ({
         ...prev,
-        [field]: null
+        [field]: null,
       }));
     }
   };
@@ -172,17 +185,17 @@ const ItemModal = ({
   // FIX: Handle price inclusive toggle - maintain the user's entered rate
   const handlePriceInclusiveChange = (event) => {
     const isInclusive = event.target.checked;
-    
-    setFormData(prev => ({
+
+    setFormData((prev) => ({
       ...prev,
-      isPriceInclusive: isInclusive
+      isPriceInclusive: isInclusive,
     }));
 
     // Clear error if any
     if (formErrors.isPriceInclusive) {
-      setFormErrors(prev => ({
+      setFormErrors((prev) => ({
         ...prev,
-        isPriceInclusive: null
+        isPriceInclusive: null,
       }));
     }
   };
@@ -192,15 +205,15 @@ const ItemModal = ({
     const errors = {};
 
     if (!formData.name.trim()) {
-      errors.name = 'Item name is required';
+      errors.name = "Item name is required";
     }
 
     if (!formData.quantity || parseFloat(formData.quantity) <= 0) {
-      errors.quantity = 'Quantity must be greater than 0';
+      errors.quantity = "Quantity must be greater than 0";
     }
 
     if (parseFloat(formData.rate) < 0) {
-      errors.rate = 'Rate cannot be negative';
+      errors.rate = "Rate cannot be negative";
     }
 
     return errors;
@@ -223,10 +236,11 @@ const ItemModal = ({
       rate: parseFloat(formData.rate), // This is what the user entered
       gstSlab: parseFloat(formData.gstSlab),
       isPriceInclusive: formData.isPriceInclusive,
+      hsnCode: formData.hsnCode,
       // FIX: Include calculated values for proper handling
       baseAmount: gstCalculation.baseAmount,
       gstAmount: gstCalculation.gstAmount,
-      totalAmount: gstCalculation.totalAmount
+      totalAmount: gstCalculation.totalAmount,
     };
 
     onSave(itemData);
@@ -249,31 +263,27 @@ const ItemModal = ({
       PaperProps={{
         sx: {
           borderRadius: isMobile ? 0 : 2,
-          maxHeight: isMobile ? '100vh' : '90vh'
-        }
+          maxHeight: isMobile ? "100vh" : "90vh",
+        },
       }}
     >
       {/* Header */}
       <DialogTitle
         sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          pb: 1
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          pb: 1,
         }}
       >
         <Box display="flex" alignItems="center" gap={1}>
           {isEdit ? <EditIcon /> : <AddIcon />}
           <Typography variant="h6">
-            {isEdit ? 'Edit Item' : 'Add Item'}
+            {isEdit ? "Edit Item" : "Add Item"}
           </Typography>
         </Box>
-        
-        <IconButton
-          onClick={handleClose}
-          disabled={loading}
-          size="small"
-        >
+
+        <IconButton onClick={handleClose} disabled={loading} size="small">
           <CloseIcon />
         </IconButton>
       </DialogTitle>
@@ -288,7 +298,7 @@ const ItemModal = ({
               label="Item Name"
               placeholder="Enter item name..."
               value={formData.name}
-              onChange={handleChange('name')}
+              onChange={handleChange("name")}
               error={!!formErrors.name}
               helperText={formErrors.name}
               disabled={loading}
@@ -303,10 +313,27 @@ const ItemModal = ({
               label="Description"
               placeholder="Enter item description..."
               value={formData.description}
-              onChange={handleChange('description')}
+              onChange={handleChange("description")}
               disabled={loading}
               multiline
               rows={2}
+            />
+          </Grid>
+
+          {/* NEW - HSN Code Field */}
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="HSN Code"
+              placeholder="e.g., 8504, 9403, 6109"
+              value={formData.hsnCode}
+              onChange={handleChange("hsnCode")}
+              disabled={loading}
+              helperText="Harmonized System of Nomenclature code for GST"
+              inputProps={{
+                maxLength: 8,
+                style: { textTransform: "uppercase" },
+              }}
             />
           </Grid>
 
@@ -317,7 +344,7 @@ const ItemModal = ({
               label="Quantity"
               type="number"
               value={formData.quantity}
-              onChange={handleChange('quantity')}
+              onChange={handleChange("quantity")}
               error={!!formErrors.quantity}
               helperText={formErrors.quantity}
               disabled={loading}
@@ -329,19 +356,21 @@ const ItemModal = ({
           <Grid item xs={12} sm={6}>
             <TextField
               fullWidth
-              label={formData.isPriceInclusive ? "Rate (Including GST)" : "Rate (Excluding GST)"}
+              label={
+                formData.isPriceInclusive
+                  ? "Rate (Including GST)"
+                  : "Rate (Excluding GST)"
+              }
               type="number"
               value={formData.rate}
-              onChange={handleChange('rate')}
+              onChange={handleChange("rate")}
               error={!!formErrors.rate}
-              helperText={formErrors.rate || 'Enter 0 to set price later'}
+              helperText={formErrors.rate || "Enter 0 to set price later"}
               disabled={loading}
               inputProps={{ min: 0, step: 0.01 }}
               InputProps={{
                 startAdornment: (
-                  <InputAdornment position="start">
-                    ₹
-                  </InputAdornment>
+                  <InputAdornment position="start">₹</InputAdornment>
                 ),
               }}
             />
@@ -355,7 +384,7 @@ const ItemModal = ({
                 select
                 label="GST Slab"
                 value={formData.gstSlab}
-                onChange={handleChange('gstSlab')}
+                onChange={handleChange("gstSlab")}
                 disabled={loading}
                 helperText="Select applicable GST rate"
               >
@@ -371,16 +400,18 @@ const ItemModal = ({
           {/* Price Type Toggle */}
           {includeGST && parseFloat(formData.rate) > 0 && (
             <Grid item xs={12} sm={includeGST ? 6 : 12}>
-              <Box sx={{ 
-                p: 2, 
-                backgroundColor: 'rgba(25, 118, 210, 0.05)', 
-                borderRadius: 1,
-                border: '1px solid rgba(25, 118, 210, 0.1)',
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center'
-              }}>
+              <Box
+                sx={{
+                  p: 2,
+                  backgroundColor: "rgba(25, 118, 210, 0.05)",
+                  borderRadius: 1,
+                  border: "1px solid rgba(25, 118, 210, 0.1)",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                }}
+              >
                 <FormControlLabel
                   control={
                     <Switch
@@ -395,10 +426,9 @@ const ItemModal = ({
                         Price includes GST
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {formData.isPriceInclusive 
-                          ? 'The entered rate includes GST amount'
-                          : 'GST will be added to the entered rate'
-                        }
+                        {formData.isPriceInclusive
+                          ? "The entered rate includes GST amount"
+                          : "GST will be added to the entered rate"}
                       </Typography>
                     </Box>
                   }
@@ -408,118 +438,157 @@ const ItemModal = ({
           )}
 
           {/* GST Calculation Display */}
-          {includeGST && parseFloat(formData.rate) > 0 && parseFloat(formData.quantity) > 0 && (
-            <Grid item xs={12}>
-              <Box sx={{ 
-                p: 2, 
-                backgroundColor: 'rgba(76, 175, 80, 0.05)', 
-                borderRadius: 1,
-                border: '1px solid rgba(76, 175, 80, 0.2)'
-              }}>
-                <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CalculatorIcon fontSize="small" />
-                  Price Breakdown (Per Unit)
-                </Typography>
-                
-                <Grid container spacing={2}>
-                  <Grid item xs={6} sm={3}>
-                    <Typography variant="body2" color="text.secondary">
-                      Entered Rate:
-                    </Typography>
-                    <Typography variant="body1" fontWeight={600}>
-                      ₹{parseFloat(formData.rate).toFixed(2)}
-                    </Typography>
-                  </Grid>
-                  
-                  <Grid item xs={6} sm={3}>
-                    <Typography variant="body2" color="text.secondary">
-                      Base Amount:
-                    </Typography>
-                    <Typography variant="body1" fontWeight={600}>
-                      ₹{gstCalculation.baseAmount.toFixed(2)}
-                    </Typography>
-                  </Grid>
-                  
-                  <Grid item xs={6} sm={3}>
-                    <Typography variant="body2" color="text.secondary">
-                      GST ({formData.gstSlab}%):
-                    </Typography>
-                    <Typography variant="body1" fontWeight={600}>
-                      ₹{gstCalculation.gstAmount.toFixed(2)}
-                    </Typography>
-                  </Grid>
-                  
-                  <Grid item xs={6} sm={3}>
-                    <Typography variant="body2" color="text.secondary">
-                      Total Amount:
-                    </Typography>
-                    <Typography variant="h6" color="primary.main" fontWeight={700}>
-                      ₹{gstCalculation.totalAmount.toFixed(2)}
-                    </Typography>
-                  </Grid>
-                </Grid>
+          {includeGST &&
+            parseFloat(formData.rate) > 0 &&
+            parseFloat(formData.quantity) > 0 && (
+              <Grid item xs={12}>
+                <Box
+                  sx={{
+                    p: 2,
+                    backgroundColor: "rgba(76, 175, 80, 0.05)",
+                    borderRadius: 1,
+                    border: "1px solid rgba(76, 175, 80, 0.2)",
+                  }}
+                >
+                  <Typography
+                    variant="subtitle2"
+                    gutterBottom
+                    sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                  >
+                    <CalculatorIcon fontSize="small" />
+                    Price Breakdown (Per Unit)
+                  </Typography>
 
-                {/* FIX: Enhanced breakdown for total quantity */}
-                {parseFloat(formData.quantity) > 1 && (
-                  <>
-                    <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
-                      Total for {formData.quantity} units:
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={4}>
-                        <Typography variant="body2" color="text.secondary">
-                          Total Base:
-                        </Typography>
-                        <Typography variant="body1" fontWeight={600}>
-                          ₹{(gstCalculation.baseAmount * parseFloat(formData.quantity)).toFixed(2)}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={4}>
-                        <Typography variant="body2" color="text.secondary">
-                          Total GST:
-                        </Typography>
-                        <Typography variant="body1" fontWeight={600}>
-                          ₹{(gstCalculation.gstAmount * parseFloat(formData.quantity)).toFixed(2)}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={4}>
-                        <Typography variant="body2" color="text.secondary">
-                          Grand Total:
-                        </Typography>
-                        <Typography variant="h6" color="primary.main" fontWeight={700}>
-                          ₹{(gstCalculation.totalAmount * parseFloat(formData.quantity)).toFixed(2)}
-                        </Typography>
-                      </Grid>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6} sm={3}>
+                      <Typography variant="body2" color="text.secondary">
+                        Entered Rate:
+                      </Typography>
+                      <Typography variant="body1" fontWeight={600}>
+                        ₹{parseFloat(formData.rate).toFixed(2)}
+                      </Typography>
                     </Grid>
-                  </>
-                )}
 
-                {/* Price Mode Indicator */}
-                <Box sx={{ mt: 2 }}>
-                  <Chip
-                    size="small"
-                    icon={<InfoIcon />}
-                    label={
-                      formData.isPriceInclusive
-                        ? `Rate ₹${parseFloat(formData.rate).toFixed(2)} includes ₹${gstCalculation.gstAmount.toFixed(2)} GST`
-                        : `Rate ₹${parseFloat(formData.rate).toFixed(2)} + ₹${gstCalculation.gstAmount.toFixed(2)} GST = ₹${gstCalculation.totalAmount.toFixed(2)}`
-                    }
-                    color={formData.isPriceInclusive ? 'secondary' : 'primary'}
-                    variant="outlined"
-                    sx={{ fontSize: '0.75rem' }}
-                  />
+                    <Grid item xs={6} sm={3}>
+                      <Typography variant="body2" color="text.secondary">
+                        Base Amount:
+                      </Typography>
+                      <Typography variant="body1" fontWeight={600}>
+                        ₹{gstCalculation.baseAmount.toFixed(2)}
+                      </Typography>
+                    </Grid>
+
+                    <Grid item xs={6} sm={3}>
+                      <Typography variant="body2" color="text.secondary">
+                        GST ({formData.gstSlab}%):
+                      </Typography>
+                      <Typography variant="body1" fontWeight={600}>
+                        ₹{gstCalculation.gstAmount.toFixed(2)}
+                      </Typography>
+                    </Grid>
+
+                    <Grid item xs={6} sm={3}>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Amount:
+                      </Typography>
+                      <Typography
+                        variant="h6"
+                        color="primary.main"
+                        fontWeight={700}
+                      >
+                        ₹{gstCalculation.totalAmount.toFixed(2)}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+
+                  {/* FIX: Enhanced breakdown for total quantity */}
+                  {parseFloat(formData.quantity) > 1 && (
+                    <>
+                      <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
+                        Total for {formData.quantity} units:
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={4}>
+                          <Typography variant="body2" color="text.secondary">
+                            Total Base:
+                          </Typography>
+                          <Typography variant="body1" fontWeight={600}>
+                            ₹
+                            {(
+                              gstCalculation.baseAmount *
+                              parseFloat(formData.quantity)
+                            ).toFixed(2)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Typography variant="body2" color="text.secondary">
+                            Total GST:
+                          </Typography>
+                          <Typography variant="body1" fontWeight={600}>
+                            ₹
+                            {(
+                              gstCalculation.gstAmount *
+                              parseFloat(formData.quantity)
+                            ).toFixed(2)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Typography variant="body2" color="text.secondary">
+                            Grand Total:
+                          </Typography>
+                          <Typography
+                            variant="h6"
+                            color="primary.main"
+                            fontWeight={700}
+                          >
+                            ₹
+                            {(
+                              gstCalculation.totalAmount *
+                              parseFloat(formData.quantity)
+                            ).toFixed(2)}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </>
+                  )}
+
+                  {/* Price Mode Indicator */}
+                  <Box sx={{ mt: 2 }}>
+                    <Chip
+                      size="small"
+                      icon={<InfoIcon />}
+                      label={
+                        formData.isPriceInclusive
+                          ? `Rate ₹${parseFloat(formData.rate).toFixed(
+                              2
+                            )} includes ₹${gstCalculation.gstAmount.toFixed(
+                              2
+                            )} GST`
+                          : `Rate ₹${parseFloat(formData.rate).toFixed(
+                              2
+                            )} + ₹${gstCalculation.gstAmount.toFixed(
+                              2
+                            )} GST = ₹${gstCalculation.totalAmount.toFixed(2)}`
+                      }
+                      color={
+                        formData.isPriceInclusive ? "secondary" : "primary"
+                      }
+                      variant="outlined"
+                      sx={{ fontSize: "0.75rem" }}
+                    />
+                  </Box>
                 </Box>
-              </Box>
-            </Grid>
-          )}
+              </Grid>
+            )}
 
           {/* Info for zero rate */}
           {parseFloat(formData.rate) === 0 && (
             <Grid item xs={12}>
               <Alert severity="info" icon={<MoneyIcon />}>
                 <Typography variant="body2">
-                  <strong>Zero Rate Item:</strong> You can add this item with zero rate and update the price later. 
-                  This is useful when adding multiple items and setting prices at the end.
+                  <strong>Zero Rate Item:</strong> You can add this item with
+                  zero rate and update the price later. This is useful when
+                  adding multiple items and setting prices at the end.
                 </Typography>
               </Alert>
             </Grid>
@@ -532,13 +601,24 @@ const ItemModal = ({
                 <Typography variant="body2">
                   <strong>Pricing Help:</strong>
                   {formData.isPriceInclusive ? (
-                    <> The rate you entered (₹{parseFloat(formData.rate).toFixed(2)}) includes GST. 
-                    The system will automatically calculate the base amount (₹{gstCalculation.baseAmount.toFixed(2)}) 
-                    and GST component (₹{gstCalculation.gstAmount.toFixed(2)}) for proper accounting.</>
+                    <>
+                      {" "}
+                      The rate you entered (₹
+                      {parseFloat(formData.rate).toFixed(2)}) includes GST. The
+                      system will automatically calculate the base amount (₹
+                      {gstCalculation.baseAmount.toFixed(2)}) and GST component
+                      (₹{gstCalculation.gstAmount.toFixed(2)}) for proper
+                      accounting.
+                    </>
                   ) : (
-                    <> The rate you entered (₹{parseFloat(formData.rate).toFixed(2)}) is the base amount. 
-                    GST of ₹{gstCalculation.gstAmount.toFixed(2)} will be added, 
-                    making the total ₹{gstCalculation.totalAmount.toFixed(2)} per unit.</>
+                    <>
+                      {" "}
+                      The rate you entered (₹
+                      {parseFloat(formData.rate).toFixed(2)}) is the base
+                      amount. GST of ₹{gstCalculation.gstAmount.toFixed(2)} will
+                      be added, making the total ₹
+                      {gstCalculation.totalAmount.toFixed(2)} per unit.
+                    </>
                   )}
                 </Typography>
               </Alert>
@@ -558,16 +638,16 @@ const ItemModal = ({
         >
           Cancel
         </Button>
-        
+
         <Button
           onClick={handleSave}
           disabled={loading}
           variant="contained"
           size="large"
           fullWidth={isMobile}
-          startIcon={loading ? null : (isEdit ? <EditIcon /> : <AddIcon />)}
+          startIcon={loading ? null : isEdit ? <EditIcon /> : <AddIcon />}
         >
-          {loading ? 'Saving...' : (isEdit ? 'Update Item' : 'Add Item')}
+          {loading ? "Saving..." : isEdit ? "Update Item" : "Add Item"}
         </Button>
       </DialogActions>
     </Dialog>

@@ -177,6 +177,7 @@ const InvoiceForm = ({
           rate: item.rate || 0,
           gstSlab: item.gstSlab || 18,
           isPriceInclusive: item.isPriceInclusive || false,
+          hsnCode: item.hsnCode || ""
         })),
         includeGST: invoice.includeGST !== false,
         paymentStatus: invoice.paymentStatus || PAYMENT_STATUS.PAID,
@@ -533,6 +534,7 @@ const InvoiceForm = ({
           rate: itemData.rate,
           gstSlab: itemData.gstSlab,
           isPriceInclusive: itemData.isPriceInclusive,
+          hsnCode: itemData.hsnCode || ''
         };
       } else {
         newItems.push({
@@ -542,6 +544,7 @@ const InvoiceForm = ({
           rate: itemData.rate,
           gstSlab: itemData.gstSlab,
           isPriceInclusive: itemData.isPriceInclusive,
+          hsnCode: itemData.hsnCode || ''
         });
       }
 
@@ -1038,6 +1041,7 @@ const InvoiceForm = ({
                     <TableHead>
                       <TableRow>
                         <TableCell>Item</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 700 }}>HSN</TableCell>
                         <TableCell align="center">Qty</TableCell>
                         <TableCell align="right">Rate</TableCell>
                         {formData.includeGST && (
@@ -1078,6 +1082,11 @@ const InvoiceForm = ({
                               )}
                             </Box>
                           </TableCell>
+                          <TableCell align="center">
+    <Typography variant="body2" fontFamily="monospace">
+      {item.hsnCode || '-'}
+    </Typography>
+  </TableCell>
                           <TableCell align="center">
                             <Typography variant="body2">
                               {item.quantity}
