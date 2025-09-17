@@ -167,6 +167,7 @@ const InvoiceForm = ({
         customerPhone: invoice.customerPhone || "",
         customerAddress: invoice.customerAddress || "",
         customerState: invoice.customerState || "",
+        customerGSTNumber: invoice.customerGSTNumber || "",
         salesPersonId: invoice.salesPersonId || "",
         salesPersonName: invoice.salesPersonName || "",
         items: (invoice.items || []).map((item) => ({
@@ -444,6 +445,7 @@ const InvoiceForm = ({
   };
 
   const handleCustomerSelect = (customer) => {
+    console.log('SELECTED CUSTOMER', customer)
     setSelectedCustomer(customer);
     if (customer) {
       setFormData((prev) => ({
@@ -453,6 +455,7 @@ const InvoiceForm = ({
         customerPhone: customer.phone,
         customerAddress: customer.address,
         customerState: customer.state || "",
+        customerGSTNumber: customer.gstNumber || "",
       }));
     } else {
       setFormData((prev) => ({
@@ -462,6 +465,7 @@ const InvoiceForm = ({
         customerPhone: "",
         customerAddress: "",
         customerState: "",
+        customerGSTNumber: "",
       }));
     }
   };
@@ -816,7 +820,10 @@ const InvoiceForm = ({
       // FIX: Include bulk pricing information in submission
       bulkPricingApplied,
       bulkPricingDetails: bulkPricingApplied ? formData.bulkPricingDetails : null,
+      customerGSTNumber: formData?.customerGSTNumber,
     };
+
+    console.log('CUSTOMER,GST')
 
     if (onSubmit) {
       await onSubmit(invoiceData);

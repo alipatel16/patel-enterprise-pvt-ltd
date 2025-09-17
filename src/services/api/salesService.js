@@ -31,7 +31,7 @@ class SalesService extends BaseService {
       if (obj.hasOwnProperty(key)) {
         const value = obj[key];
 
-        if (value !== undefined) {
+        if (value !== undefined && value !== null) {
           // Special handling for bulk pricing removal
           if (key === "bulkPricingDetails" && value === null) {
             // Explicitly remove bulk pricing
@@ -39,7 +39,6 @@ class SalesService extends BaseService {
           }
 
           if (
-            value !== null &&
             typeof value === "object" &&
             !Array.isArray(value) &&
             !(value instanceof Date)
@@ -53,10 +52,90 @@ class SalesService extends BaseService {
             cleaned[key] = value;
           }
         }
+        // Skip undefined and null values entirely
       }
     }
 
     return cleaned;
+  }
+
+  /**
+   * Generate unique invoice number with new format
+   * Format: EL_GST_001, EL_NGST_001, FN_GST_001, FN_NGST_001
+   * @param {string} userType - User type (electronics/furniture)
+   * @param {boolean} includeGST - Whether GST is included in invoice
+   * @returns {Promise<string>} Generated invoice number
+   */
+  async generateInvoiceNumber(userType, includeGST = true) {
+    try {
+      // Determine prefix based on user type and GST inclusion
+      let prefix;
+      if (userType === "electronics") {
+        prefix = includeGST ? "EL_GST_" : "EL_NGST_";
+      } else {
+        // furniture
+        prefix = includeGST ? "FN_GST_" : "FN_NGST_";
+      }
+
+      // Get the current year and month for tracking period
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const currentPeriod = `${year}${month}`;
+
+      // Get all invoices with this prefix to find the highest sequence number
+      const allInvoices = await this.getAll(userType, {
+        orderBy: "createdAt",
+        orderDirection: "desc",
+        limit: 1000, // Get enough to find the max sequence
+      });
+
+      // Filter invoices with the same prefix and find the highest sequence
+      let maxSequence = 0;
+
+      if (allInvoices && allInvoices.length > 0) {
+        allInvoices.forEach((invoice) => {
+          if (
+            invoice.invoiceNumber &&
+            invoice.invoiceNumber.startsWith(prefix)
+          ) {
+            // Extract sequence number from invoice number (last 3 digits)
+            const match = invoice.invoiceNumber.match(/(\d{3})$/);
+            if (match) {
+              const sequence = parseInt(match[1]);
+              if (sequence > maxSequence) {
+                maxSequence = sequence;
+              }
+            }
+          }
+        });
+      }
+
+      // Increment sequence for new invoice
+      const newSequence = maxSequence + 1;
+      const sequenceStr = String(newSequence).padStart(3, "0");
+
+      const invoiceNumber = `${prefix}${sequenceStr}`;
+
+      console.log(
+        `Generated invoice number: ${invoiceNumber} (userType: ${userType}, includeGST: ${includeGST})`
+      );
+
+      return invoiceNumber;
+    } catch (error) {
+      console.error("Error generating invoice number:", error);
+      // Fallback to timestamp-based number
+      const timestamp = Date.now().toString().slice(-6);
+      const fallbackPrefix =
+        userType === "electronics"
+          ? includeGST
+            ? "EL_GST_"
+            : "EL_NGST_"
+          : includeGST
+          ? "FN_GST_"
+          : "FN_NGST_";
+      return `${fallbackPrefix}${timestamp}`;
+    }
   }
 
   /**
@@ -67,8 +146,11 @@ class SalesService extends BaseService {
    */
   async createInvoice(userType, invoiceData) {
     try {
-      // Generate invoice number
-      const invoiceNumber = await this.generateInvoiceNumber(userType);
+      // IMPORTANT: Generate invoice number with GST consideration
+      const invoiceNumber = await this.generateInvoiceNumber(
+        userType,
+        invoiceData.includeGST
+      );
 
       // Calculate totals with GST slabs
       let subtotal = 0;
@@ -151,6 +233,8 @@ class SalesService extends BaseService {
         customerPhone: invoiceData.customerPhone,
         customerAddress: invoiceData.customerAddress,
         customerState: invoiceData.customerState,
+        // NEW - Add customer GST number
+        customerGSTNumber: invoiceData.customerGSTNumber || "",
         salesPersonId: invoiceData.salesPersonId,
         salesPersonName: invoiceData.salesPersonName,
         items: processedItems,
@@ -273,215 +357,262 @@ class SalesService extends BaseService {
     }
   }
 
-/**
- * FIXED: Update invoice method that preserves EMI payment history
- * @param {string} userType - User type
- * @param {string} invoiceId - Invoice ID
- * @param {Object} updates - Update data
- * @returns {Promise<Object>} Updated invoice
- */
-async updateInvoice(userType, invoiceId, updates) {
-  try {
-    // CRITICAL FIX: Get existing invoice first to preserve EMI history
-    const existingInvoice = await this.getById(userType, invoiceId);
-    
-    // Clean undefined values from updates
-    const cleanUpdates = this.cleanUndefinedValues(updates);
+  /**
+   * FIXED: Update invoice method that preserves EMI payment history
+   * IMPORTANT: Invoice number should NOT be changed during updates
+   * @param {string} userType - User type
+   * @param {string} invoiceId - Invoice ID
+   * @param {Object} updates - Update data
+   * @returns {Promise<Object>} Updated invoice
+   */
+  async updateInvoice(userType, invoiceId, updates) {
+    try {
+      // CRITICAL FIX: Get existing invoice first to preserve EMI history
+      const existingInvoice = await this.getById(userType, invoiceId);
 
-    // CRITICAL FIX: Preserve existing EMI details before any processing
-    const existingEmiDetails = existingInvoice.emiDetails;
-    const hasExistingEmiSchedule = existingEmiDetails?.schedule?.length > 0;
-    
-    // Log for debugging
-    if (hasExistingEmiSchedule) {
-      console.log('🔒 Preserving EMI schedule with', existingEmiDetails.schedule.length, 'installments');
-      
-      // Count paid installments for verification
-      const paidCount = existingEmiDetails.schedule.filter(emi => emi.paid).length;
-      console.log('📊 Preserving', paidCount, 'paid installments');
-    }
+      // Clean undefined values from updates
+      const cleanUpdates = this.cleanUndefinedValues(updates);
 
-    // Recalculate totals if items changed
-    if (cleanUpdates.items) {
-      let subtotal = 0;
-      let totalGST = 0;
-      const processedItems = [];
+      // CRITICAL: Remove invoiceNumber from updates to prevent changes during edit
+      if (cleanUpdates.invoiceNumber) {
+        console.log(
+          "Removing invoiceNumber from updates to prevent modification during edit"
+        );
+        delete cleanUpdates.invoiceNumber;
+      }
 
-      // CHECK: Is bulk pricing applied in the update?
-      if (
-        cleanUpdates.bulkPricingDetails &&
-        cleanUpdates.bulkPricingDetails.totalPrice > 0
-      ) {
-        // USE BULK PRICING - ignore individual item calculations
-        const bulkDetails = cleanUpdates.bulkPricingDetails;
+      // CRITICAL FIX: Preserve existing EMI details before any processing
+      const existingEmiDetails = existingInvoice.emiDetails;
+      const hasExistingEmiSchedule = existingEmiDetails?.schedule?.length > 0;
 
-        if (!cleanUpdates.includeGST || bulkDetails.gstSlab === 0) {
-          // No GST
-          subtotal = bulkDetails.totalPrice;
-          totalGST = 0;
-        } else if (bulkDetails.isPriceInclusive) {
-          // GST included in bulk price
-          const baseAmount =
-            bulkDetails.totalPrice / (1 + bulkDetails.gstSlab / 100);
-          subtotal = Math.round(baseAmount * 100) / 100;
-          totalGST =
-            Math.round((bulkDetails.totalPrice - baseAmount) * 100) / 100;
+      // Log for debugging
+      if (hasExistingEmiSchedule) {
+        console.log(
+          "🔒 Preserving EMI schedule with",
+          existingEmiDetails.schedule.length,
+          "installments"
+        );
+
+        // Count paid installments for verification
+        const paidCount = existingEmiDetails.schedule.filter(
+          (emi) => emi.paid
+        ).length;
+        console.log("📊 Preserving", paidCount, "paid installments");
+      }
+
+      // Recalculate totals if items changed
+      if (cleanUpdates.items) {
+        let subtotal = 0;
+        let totalGST = 0;
+        const processedItems = [];
+
+        // CHECK: Is bulk pricing applied in the update?
+        if (
+          cleanUpdates.bulkPricingDetails &&
+          cleanUpdates.bulkPricingDetails.totalPrice > 0
+        ) {
+          // USE BULK PRICING - ignore individual item calculations
+          const bulkDetails = cleanUpdates.bulkPricingDetails;
+
+          if (!cleanUpdates.includeGST || bulkDetails.gstSlab === 0) {
+            // No GST
+            subtotal = bulkDetails.totalPrice;
+            totalGST = 0;
+          } else if (bulkDetails.isPriceInclusive) {
+            // GST included in bulk price
+            const baseAmount =
+              bulkDetails.totalPrice / (1 + bulkDetails.gstSlab / 100);
+            subtotal = Math.round(baseAmount * 100) / 100;
+            totalGST =
+              Math.round((bulkDetails.totalPrice - baseAmount) * 100) / 100;
+          } else {
+            // GST to be added to bulk price
+            subtotal = bulkDetails.totalPrice;
+            totalGST =
+              Math.round(
+                ((bulkDetails.totalPrice * bulkDetails.gstSlab) / 100) * 100
+              ) / 100;
+          }
+
+          // Store items without individual calculations
+          cleanUpdates.items.forEach((item) => {
+            processedItems.push({
+              ...item,
+              baseAmount: 0,
+              gstAmount: 0,
+              totalAmount: 0,
+              bulkPricing: true,
+            });
+          });
+
+          // Set bulk pricing flags
+          cleanUpdates.bulkPricingApplied = true;
         } else {
-          // GST to be added to bulk price
-          subtotal = bulkDetails.totalPrice;
-          totalGST =
-            Math.round(
-              ((bulkDetails.totalPrice * bulkDetails.gstSlab) / 100) * 100
-            ) / 100;
+          // USE INDIVIDUAL ITEM CALCULATIONS (existing logic)
+          cleanUpdates.items.forEach((item) => {
+            const itemCalc = calculateItemWithGST(
+              item,
+              cleanUpdates.customerState || existingInvoice.customerState,
+              cleanUpdates.includeGST !== false
+            );
+
+            subtotal += itemCalc.baseAmount;
+            totalGST += itemCalc.gstAmount;
+
+            processedItems.push({
+              ...item,
+              baseAmount: itemCalc.baseAmount,
+              gstAmount: itemCalc.gstAmount,
+              totalAmount: itemCalc.totalAmount,
+              gstBreakdown: itemCalc.gstBreakdown,
+            });
+          });
+
+          // Remove bulk pricing if switching back to individual items
+          if (cleanUpdates.bulkPricingDetails === undefined) {
+            cleanUpdates.bulkPricingApplied = false;
+          }
         }
 
-        // Store items without individual calculations
-        cleanUpdates.items.forEach((item) => {
-          processedItems.push({
-            ...item,
-            baseAmount: 0,
-            gstAmount: 0,
-            totalAmount: 0,
-            bulkPricing: true,
-          });
-        });
+        cleanUpdates.items = processedItems;
+        cleanUpdates.subtotal = Math.round(subtotal * 100) / 100;
+        cleanUpdates.totalGST = Math.round(totalGST * 100) / 100;
+        cleanUpdates.grandTotal = Math.round((subtotal + totalGST) * 100) / 100;
+        cleanUpdates.totalAmount = cleanUpdates.grandTotal;
 
-        // Set bulk pricing flags
-        cleanUpdates.bulkPricingApplied = true;
-      } else {
-        // USE INDIVIDUAL ITEM CALCULATIONS (existing logic)
-        cleanUpdates.items.forEach((item) => {
-          const itemCalc = calculateItemWithGST(
-            item,
-            cleanUpdates.customerState || existingInvoice.customerState,
-            cleanUpdates.includeGST !== false
+        // CRITICAL FIX: If this is an EMI invoice with existing schedule,
+        // preserve the schedule and only update unpaid installment amounts
+        if (hasExistingEmiSchedule && existingInvoice.paymentStatus === "emi") {
+          console.log("💰 EMI invoice detected - preserving payment history");
+
+          const newTotal = cleanUpdates.grandTotal;
+          const existingSchedule = [...existingEmiDetails.schedule];
+
+          // Calculate how much has been paid already
+          const totalPaid = existingSchedule
+            .filter((emi) => emi.paid)
+            .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
+
+          // Calculate new remaining balance
+          const newRemainingBalance = newTotal - totalPaid;
+
+          // Get unpaid installments
+          const unpaidInstallments = existingSchedule.filter(
+            (emi) => !emi.paid
           );
 
-          subtotal += itemCalc.baseAmount;
-          totalGST += itemCalc.gstAmount;
+          if (unpaidInstallments.length > 0 && newRemainingBalance > 0) {
+            // Redistribute only the unpaid amounts
+            const equalAmount = newRemainingBalance / unpaidInstallments.length;
 
-          processedItems.push({
-            ...item,
-            baseAmount: itemCalc.baseAmount,
-            gstAmount: itemCalc.gstAmount,
-            totalAmount: itemCalc.totalAmount,
-            gstBreakdown: itemCalc.gstBreakdown,
-          });
-        });
+            unpaidInstallments.forEach((unpaidEmi, index) => {
+              const scheduleIndex = existingSchedule.findIndex(
+                (emi) => emi.installmentNumber === unpaidEmi.installmentNumber
+              );
 
-        // Remove bulk pricing if switching back to individual items
-        if (cleanUpdates.bulkPricingDetails === undefined) {
-          cleanUpdates.bulkPricingApplied = false;
+              if (index === unpaidInstallments.length - 1) {
+                // Last installment gets remainder to handle rounding
+                const distributedSoFar =
+                  equalAmount * (unpaidInstallments.length - 1);
+                existingSchedule[scheduleIndex].amount =
+                  Math.round((newRemainingBalance - distributedSoFar) * 100) /
+                  100;
+              } else {
+                existingSchedule[scheduleIndex].amount =
+                  Math.round(equalAmount * 100) / 100;
+              }
+            });
+
+            console.log("✅ Redistributed unpaid amounts:", {
+              newTotal,
+              totalPaid,
+              newRemainingBalance,
+              unpaidCount: unpaidInstallments.length,
+            });
+          }
+
+          // CRITICAL: Preserve the EMI details with updated schedule
+          let updatedEmiDetails = {
+            ...existingEmiDetails,
+            schedule: existingSchedule,
+            // Update totals but preserve all other data
+            totalPaid: Math.round(totalPaid * 100) / 100,
+            totalRemaining: Math.round(newRemainingBalance * 100) / 100,
+            // Preserve last payment date and other metadata
+            // Keep any other existing properties
+          };
+
+          if (
+            existingEmiDetails.lastPaymentDate !== undefined &&
+            existingEmiDetails.lastPaymentDate !== null
+          ) {
+            updatedEmiDetails = {
+            ...existingEmiDetails,
+            schedule: existingSchedule,
+            // Update totals but preserve all other data
+            totalPaid: Math.round(totalPaid * 100) / 100,
+            totalRemaining: Math.round(newRemainingBalance * 100) / 100,
+            // Preserve last payment date and other metadata
+            // Keep any other existing properties
+          };
+          }
+
+          cleanUpdates.emiDetails = updatedEmiDetails;
         }
       }
 
-      cleanUpdates.items = processedItems;
-      cleanUpdates.subtotal = Math.round(subtotal * 100) / 100;
-      cleanUpdates.totalGST = Math.round(totalGST * 100) / 100;
-      cleanUpdates.grandTotal = Math.round((subtotal + totalGST) * 100) / 100;
-      cleanUpdates.totalAmount = cleanUpdates.grandTotal;
-
-      // CRITICAL FIX: If this is an EMI invoice with existing schedule, 
-      // preserve the schedule and only update unpaid installment amounts
-      if (hasExistingEmiSchedule && existingInvoice.paymentStatus === 'emi') {
-        console.log('💰 EMI invoice detected - preserving payment history');
-        
-        const newTotal = cleanUpdates.grandTotal;
-        const existingSchedule = [...existingEmiDetails.schedule];
-        
-        // Calculate how much has been paid already
-        const totalPaid = existingSchedule
-          .filter(emi => emi.paid)
-          .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
-        
-        // Calculate new remaining balance
-        const newRemainingBalance = newTotal - totalPaid;
-        
-        // Get unpaid installments
-        const unpaidInstallments = existingSchedule.filter(emi => !emi.paid);
-        
-        if (unpaidInstallments.length > 0 && newRemainingBalance > 0) {
-          // Redistribute only the unpaid amounts
-          const equalAmount = newRemainingBalance / unpaidInstallments.length;
-          
-          unpaidInstallments.forEach((unpaidEmi, index) => {
-            const scheduleIndex = existingSchedule.findIndex(
-              emi => emi.installmentNumber === unpaidEmi.installmentNumber
-            );
-            
-            if (index === unpaidInstallments.length - 1) {
-              // Last installment gets remainder to handle rounding
-              const distributedSoFar = equalAmount * (unpaidInstallments.length - 1);
-              existingSchedule[scheduleIndex].amount = 
-                Math.round((newRemainingBalance - distributedSoFar) * 100) / 100;
-            } else {
-              existingSchedule[scheduleIndex].amount = 
-                Math.round(equalAmount * 100) / 100;
-            }
-          });
-          
-          console.log('✅ Redistributed unpaid amounts:', {
-            newTotal,
-            totalPaid,
-            newRemainingBalance,
-            unpaidCount: unpaidInstallments.length
-          });
-        }
-        
-        // CRITICAL: Preserve the EMI details with updated schedule
-        cleanUpdates.emiDetails = {
-          ...existingEmiDetails,
-          schedule: existingSchedule,
-          // Update totals but preserve all other data
-          totalPaid: Math.round(totalPaid * 100) / 100,
-          totalRemaining: Math.round(newRemainingBalance * 100) / 100,
-          // Preserve last payment date and other metadata
-          lastPaymentDate: existingEmiDetails.lastPaymentDate,
-          // Keep any other existing properties
+      // Handle payment details updates (preserve existing logic)
+      if (cleanUpdates.paymentDetails) {
+        cleanUpdates.paymentDetails = {
+          downPayment: parseFloat(cleanUpdates.paymentDetails.downPayment || 0),
+          remainingBalance: parseFloat(
+            cleanUpdates.paymentDetails.remainingBalance || 0
+          ),
+          paymentMethod: cleanUpdates.paymentDetails.paymentMethod || "cash",
+          bankName: cleanUpdates.paymentDetails.bankName || "",
+          financeCompany: cleanUpdates.paymentDetails.financeCompany || "",
+          paymentReference: cleanUpdates.paymentDetails.paymentReference || "",
+          // CRITICAL: Preserve existing payment history
+          paymentHistory:
+            cleanUpdates.paymentDetails.paymentHistory ||
+            existingInvoice.paymentDetails?.paymentHistory ||
+            [],
         };
       }
-    }
 
-    // Handle payment details updates (preserve existing logic)
-    if (cleanUpdates.paymentDetails) {
-      cleanUpdates.paymentDetails = {
-        downPayment: parseFloat(cleanUpdates.paymentDetails.downPayment || 0),
-        remainingBalance: parseFloat(
-          cleanUpdates.paymentDetails.remainingBalance || 0
-        ),
-        paymentMethod:
-          cleanUpdates.paymentDetails.paymentMethod || 'cash',
-        bankName: cleanUpdates.paymentDetails.bankName || "",
-        financeCompany: cleanUpdates.paymentDetails.financeCompany || "",
-        paymentReference: cleanUpdates.paymentDetails.paymentReference || "",
-        // CRITICAL: Preserve existing payment history
-        paymentHistory: cleanUpdates.paymentDetails.paymentHistory || 
-                       existingInvoice.paymentDetails?.paymentHistory || [],
-      };
-    }
+      // CRITICAL FIX: Preserve customer due date change flags
+      if (
+        existingInvoice.customerDueDateChangeFlags &&
+        !cleanUpdates.customerDueDateChangeFlags
+      ) {
+        cleanUpdates.customerDueDateChangeFlags =
+          existingInvoice.customerDueDateChangeFlags;
+      }
 
-    // CRITICAL FIX: Preserve customer due date change flags
-    if (existingInvoice.customerDueDateChangeFlags && !cleanUpdates.customerDueDateChangeFlags) {
-      cleanUpdates.customerDueDateChangeFlags = existingInvoice.customerDueDateChangeFlags;
-    }
+      cleanUpdates.updatedAt = new Date().toISOString();
 
-    cleanUpdates.updatedAt = new Date().toISOString();
+      const result = await this.update(userType, invoiceId, cleanUpdates);
 
-    const result = await this.update(userType, invoiceId, cleanUpdates);
-    
-    // Verification log
-    if (hasExistingEmiSchedule && result.emiDetails?.schedule) {
-      const finalPaidCount = result.emiDetails.schedule.filter(emi => emi.paid).length;
-      console.log('✅ EMI history preserved - Final paid count:', finalPaidCount);
+      // Verification log
+      if (hasExistingEmiSchedule && result.emiDetails?.schedule) {
+        const finalPaidCount = result.emiDetails.schedule.filter(
+          (emi) => emi.paid
+        ).length;
+        console.log(
+          "✅ EMI history preserved - Final paid count:",
+          finalPaidCount
+        );
+      }
+
+      return result;
+    } catch (error) {
+      console.error("Error updating invoice:", error);
+      throw error;
     }
-    
-    return result;
-  } catch (error) {
-    console.error("Error updating invoice:", error);
-    throw error;
   }
-}
 
+  // ... rest of the methods remain the same as in the original file ...
+  // (copying all other methods as they were, with no changes to functionality)
 
   /**
    * Delete invoice
@@ -951,62 +1082,6 @@ async updateInvoice(userType, invoiceId, updates) {
   }
 
   /**
-   * Generate unique invoice number
-   * @param {string} userType - User type
-   * @returns {Promise<string>} Generated invoice number
-   */
-  async generateInvoiceNumber(userType) {
-    try {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, "0");
-
-      // Get prefix based on user type
-      const prefix = userType === "electronics" ? "ELE" : "FUR";
-
-      // Get last invoice number for this month
-      const startOfMonth = new Date(year, now.getMonth(), 1).toISOString();
-      const endOfMonth = new Date(
-        year,
-        now.getMonth() + 1,
-        0,
-        23,
-        59,
-        59
-      ).toISOString();
-
-      const monthlyInvoices = await this.getAll(userType, {
-        where: [
-          ["createdAt", ">=", startOfMonth],
-          ["createdAt", "<=", endOfMonth],
-        ],
-        orderBy: "createdAt",
-        orderDirection: "desc",
-        limit: 1,
-      });
-
-      let sequence = 1;
-      if (monthlyInvoices.length > 0) {
-        const lastInvoice = monthlyInvoices[0];
-        const lastNumber = lastInvoice.invoiceNumber || "";
-        const match = lastNumber.match(/(\d+)$/);
-        if (match) {
-          sequence = parseInt(match[1]) + 1;
-        }
-      }
-
-      const sequenceStr = String(sequence).padStart(4, "0");
-      return `${prefix}${year}${month}${sequenceStr}`;
-    } catch (error) {
-      console.error("Error generating invoice number:", error);
-      // Fallback to timestamp-based number
-      const timestamp = Date.now();
-      const prefix = userType === "electronics" ? "ELE" : "FUR";
-      return `${prefix}${timestamp}`;
-    }
-  }
-
-  /**
    * Simple EMI payment recording with basic redistribution
    * No complex logic - just basic math
    */
@@ -1321,7 +1396,7 @@ async updateInvoice(userType, invoiceId, updates) {
         remainingAmount: Math.round(remainingAmount * 100) / 100,
         paymentPercentage: Math.round((paidAmount / totalAmount) * 100),
         nextDueInstallment,
-        lastPaymentDate: invoice.emiDetails.lastPaymentDate,
+        lastPaymentDate: invoice.emiDetails?.lastPaymentDate,
         schedule,
       };
     } catch (error) {

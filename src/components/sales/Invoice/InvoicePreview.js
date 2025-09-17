@@ -33,7 +33,8 @@ import {
   AccountBalance as BankIcon,
   Money as MoneyIcon,
   CreditCard as CardIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  Assignment as GSTIcon
 } from '@mui/icons-material';
 
 import { useUserType } from '../../../contexts/UserTypeContext/UserTypeContext';
@@ -74,6 +75,7 @@ const InvoicePreview = forwardRef(({
     customerPhone: '',
     customerAddress: '',
     customerState: '',
+    customerGSTNumber: '', // NEW - Customer GST Number
     salesPersonName: '',
     items: [],
     subtotal: 0,
@@ -298,7 +300,8 @@ const InvoicePreview = forwardRef(({
                   />
                   {companyDetails.gst && (
                     <InfoItem 
-                      label="GST"
+                      icon={<GSTIcon fontSize="small" />}
+                      label="Company GST"
                       value={companyDetails.gst}
                     />
                   )}
@@ -350,6 +353,11 @@ const InvoicePreview = forwardRef(({
                           value={formatDate(invoiceData.dueDate)}
                         />
                       )}
+                      {/* NEW - Show GST/Non-GST indicator */}
+                      <InfoItem 
+                        label="Invoice Type"
+                        value={invoiceData.includeGST ? "GST Invoice" : "Non-GST Invoice"}
+                      />
                     </Stack>
                     
                     <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
@@ -424,6 +432,15 @@ const InvoicePreview = forwardRef(({
                     <InfoItem 
                       label="State"
                       value={invoiceData.customerState}
+                    />
+                  )}
+
+                  {/* NEW - Display Customer GST Number if available */}
+                  {invoiceData.customerGSTNumber && (
+                    <InfoItem 
+                      icon={<GSTIcon fontSize="small" />}
+                      label="Customer GST"
+                      value={invoiceData.customerGSTNumber}
                     />
                   )}
                 </Stack>
@@ -954,6 +971,17 @@ const InvoicePreview = forwardRef(({
                 </Typography>
               </Grid>
             </Grid>
+
+            {/* NEW - Invoice Type Footer Note */}
+            <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+              <Typography variant="caption" color="text.secondary" fontStyle="italic">
+                This is a {invoiceData.includeGST ? 'GST' : 'Non-GST'} invoice 
+                {invoiceData.customerGSTNumber && ' for GST registered customer'}
+                {invoiceData.includeGST && invoiceData.customerState && (
+                  ` • ${invoiceData.customerState?.toLowerCase() === 'gujarat' ? 'Intra-State' : 'Inter-State'} Transaction`
+                )}
+              </Typography>
+            </Box>
           </Box>
         </CardContent>
       </Card>
