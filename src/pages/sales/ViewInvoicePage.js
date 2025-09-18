@@ -7,28 +7,19 @@ import {
   Box,
   Button,
   Alert,
-  Breadcrumbs,
-  Link,
   Grid,
-  Card,
-  CardContent,
   Chip,
-  Divider,
-  IconButton,
   useTheme,
   useMediaQuery,
   Tabs,
   Tab,
-  Badge
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
   Print as PrintIcon,
   Download as DownloadIcon,
   Receipt as ReceiptIcon,
-  Share as ShareIcon,
   AccountBalance as EMIIcon,
   LocalShipping as DeliveryIcon,
   Payment as PaymentIcon
@@ -36,12 +27,11 @@ import {
 
 import Layout from '../../components/common/Layout/Layout';
 import LoadingSpinner from '../../components/common/UI/LoadingSpinner';
-import ConfirmDialog from '../../components/common/UI/ConfirmDialog';
 import InvoicePreview from '../../components/sales/Invoice/InvoicePreview';
 import { SalesProvider, useSales } from '../../contexts/SalesContext/SalesContext';
 import { useAuth } from '../../contexts/AuthContext/AuthContext';
 import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
-import { formatCurrency, formatDate } from '../../utils/helpers/formatHelpers';
+import { formatDate } from '../../utils/helpers/formatHelpers';
 import { USER_ROLES, PAYMENT_STATUS, DELIVERY_STATUS } from '../../utils/constants/appConstants';
 // Import the EMI Management component (adjust path as needed)
 import EMIManagement from '../../components/sales/EMI/EMIManagement';
@@ -61,7 +51,6 @@ const ViewInvoicePageContent = () => {
     currentInvoice,
     loading,
     error,
-    deleteInvoice,
     getInvoiceById,
     clearError,
     recordInstallmentPayment,
@@ -69,10 +58,8 @@ const ViewInvoicePageContent = () => {
   } = useSales();
   
   const { user } = useAuth();
-  const { getDisplayName, getThemeColors } = useUserType();
-  
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const { getDisplayName } = useUserType();
+
   const [currentTab, setCurrentTab] = useState(0);
   
   // NEW: EMI Payment states
@@ -80,8 +67,6 @@ const ViewInvoicePageContent = () => {
   const [selectedInstallment, setSelectedInstallment] = useState(null);
   const [pendingInstallments, setPendingInstallments] = useState([]);
   
-  const themeColors = getThemeColors();
-
   // Load invoice data
   useEffect(() => {
     if (id) {
@@ -160,27 +145,6 @@ const ViewInvoicePageContent = () => {
   // Handle edit
   const handleEdit = () => {
     navigate(`/sales/edit/${id}`);
-  };
-
-  // Handle delete
-  const handleDelete = async () => {
-    try {
-      setDeleteLoading(true);
-      const success = await deleteInvoice(id);
-      if (success) {
-        navigate('/sales', { 
-          state: { 
-            message: 'Invoice deleted successfully',
-            severity: 'success'
-          }
-        });
-      }
-    } catch (err) {
-      console.error('Error deleting invoice:', err);
-    } finally {
-      setDeleteLoading(false);
-      setShowDeleteDialog(false);
-    }
   };
 
   const breadcrumbs = [
@@ -399,7 +363,7 @@ const ViewInvoicePageContent = () => {
                 </Button>
               )}
               
-              {canDelete && (
+              {/* {canDelete && (
                 <IconButton
                   color="error"
                   onClick={() => setShowDeleteDialog(true)}
@@ -411,7 +375,7 @@ const ViewInvoicePageContent = () => {
                 >
                   <DeleteIcon />
                 </IconButton>
-              )}
+              )} */}
             </Box>
           </Box>
 
@@ -555,19 +519,6 @@ const ViewInvoicePageContent = () => {
             onPaymentRecorded={handlePaymentRecord}
           />
         )}
-
-        {/* Delete Confirmation Dialog */}
-        <ConfirmDialog
-          open={showDeleteDialog}
-          title="Delete Invoice"
-          message={`Are you sure you want to delete invoice #${currentInvoice.invoiceNumber}? This action cannot be undone.`}
-          confirmText="Delete"
-          cancelText="Cancel"
-          onConfirm={handleDelete}
-          onCancel={() => setShowDeleteDialog(false)}
-          loading={deleteLoading}
-          severity="error"
-        />
       </Container>
     </Layout>
   );
