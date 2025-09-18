@@ -28,6 +28,7 @@ import RegisterPage from "./pages/auth/RegisterPage";
 // Pages - Dashboard
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import NotificationsPage from "./pages/dashboard/Notifications/NotificationsPage";
+import SalesStatisticsPage from "./pages/admin/SalesStatisticsPage";
 
 // Pages - Customers
 import CustomersPage from "./pages/customers/CustomersPage";
@@ -245,6 +246,14 @@ const AppContent = () => {
             element={
               <ProtectedRoute>
                 <SalesHistoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/sales/statistics"
+            element={
+              <ProtectedRoute requiredRole={USER_ROLES.ADMIN}>
+                <SalesStatisticsPage />
               </ProtectedRoute>
             }
           />

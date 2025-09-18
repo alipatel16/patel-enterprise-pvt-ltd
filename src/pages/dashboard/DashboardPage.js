@@ -12,11 +12,7 @@ import {
   AppBar,
   Toolbar,
   Drawer,
-  List,
-  ListItem,
   ListItemIcon,
-  ListItemText,
-  ListItemButton,
   Badge,
   Avatar,
   Menu,
@@ -25,14 +21,11 @@ import {
   useTheme,
   useMediaQuery,
   Fab,
-  Chip,
   Alert,
   CircularProgress,
-  Paper,
 } from "@mui/material";
 import {
   Menu as MenuIcon,
-  Dashboard as DashboardIcon,
   People as PeopleIcon,
   Badge as BadgeIcon,
   Receipt as ReceiptIcon,
@@ -41,19 +34,16 @@ import {
   ExitToApp as LogoutIcon,
   Add as AddIcon,
   Person as PersonIcon,
-  Store as StoreIcon,
   TrendingUp as TrendingUpIcon,
   AttachMoney as MoneyIcon,
   Schedule as ScheduleIcon,
   AccessTime as AttendanceIcon,
   Assessment as ReportsIcon,
-  Analytics as AnalyticsIcon,
   EmojiEvents as TrophyIcon,
   ChecklistRtl as ChecklistIcon,
   AssignmentTurnedIn as TaskIcon,
   Refresh as RefreshIcon,
   CheckCircle as CheckCircleIcon,
-  Info as InfoIcon,
 } from "@mui/icons-material";
 
 import { useAuth } from "../../contexts/AuthContext/AuthContext";
@@ -61,6 +51,7 @@ import { useUserType } from "../../contexts/UserTypeContext/UserTypeContext";
 import { USER_ROLES } from "../../utils/constants/appConstants";
 import LoadingSpinner from "../../components/common/UI/LoadingSpinner";
 import checklistService from "../../services/checklistService";
+import DrawerContent from "../../components/common/Navigation/DrawerContent";
 
 const DRAWER_WIDTH = 240;
 
@@ -213,65 +204,6 @@ const DashboardPage = () => {
     }
   };
 
-  // Navigation items - Updated with checklist management
-  const navigationItems = [
-    {
-      label: "Dashboard",
-      icon: DashboardIcon,
-      path: "/dashboard",
-      active: true,
-    },
-    {
-      label: "Customers",
-      icon: PeopleIcon,
-      path: "/customers",
-    },
-    {
-      label: "Employees",
-      icon: BadgeIcon,
-      path: "/employees",
-      adminOnly: true,
-    },
-    // Employee attendance for employees only
-    {
-      label: "Attendance",
-      icon: AttendanceIcon,
-      path: "/attendance",
-      employeeOnly: true,
-    },
-    // Checklist management for admin
-    {
-      label: "Checklists",
-      icon: ChecklistIcon,
-      path: "/checklists",
-      adminOnly: true,
-    },
-    // My Checklists for employees
-    {
-      label: "My Checklists",
-      icon: TaskIcon,
-      path: "/my-checklists",
-      employeeOnly: true,
-    },
-    {
-      label: "Create Invoice",
-      icon: ReceiptIcon,
-      path: "/sales/create",
-    },
-    {
-      label: "Sales History",
-      icon: HistoryIcon,
-      path: "/sales/history",
-    },
-    // Employee Reports for admin only
-    {
-      label: "Employee Reports",
-      icon: ReportsIcon,
-      path: "/reports/employees",
-      adminOnly: true,
-    },
-  ];
-
   // UPDATED: Stats cards with new checklist messaging
   const getStatsCards = () => {
     const baseCards = [
@@ -345,134 +277,6 @@ const DashboardPage = () => {
 
     return baseCards;
   };
-
-  // Drawer content
-  const DrawerContent = () => (
-    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <Toolbar>
-        <Box display="flex" alignItems="center" gap={2} width="100%">
-          <StoreIcon sx={{ color: themeColors.primary }} />
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography
-              variant="h6"
-              noWrap
-              sx={{
-                fontSize: "1rem",
-                fontWeight: 600,
-                lineHeight: 1.2,
-              }}
-            >
-              {getDisplayName()}
-            </Typography>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{
-                display: "block",
-                lineHeight: 1,
-              }}
-            >
-              Management
-            </Typography>
-          </Box>
-        </Box>
-      </Toolbar>
-      <Divider />
-
-      <List sx={{ mt: 1, flex: 1 }}>
-        {navigationItems.map((item) => {
-          // Filter based on user role
-          if (item.adminOnly && !canManageEmployees()) {
-            return null;
-          }
-
-          // Show attendance and employee checklists only for employees (not admins)
-          if (item.employeeOnly && user?.role === USER_ROLES.ADMIN) {
-            return null;
-          }
-
-          const Icon = item.icon;
-          return (
-            <ListItem key={item.label} disablePadding sx={{ mb: 0.5 }}>
-              <ListItemButton
-                selected={item.active}
-                onClick={() => {
-                  navigate(item.path);
-                  if (isMobile) setMobileOpen(false);
-                }}
-                sx={{
-                  mx: 1,
-                  borderRadius: 2,
-                  "&.Mui-selected": {
-                    backgroundColor: `${themeColors.primary}15`,
-                    border: `1px solid ${themeColors.primary}30`,
-                    "& .MuiListItemIcon-root": {
-                      color: themeColors.primary,
-                    },
-                    "& .MuiListItemText-primary": {
-                      color: themeColors.primary,
-                      fontWeight: 600,
-                    },
-                  },
-                  "&:hover": {
-                    backgroundColor: `${themeColors.primary}08`,
-                  },
-                  "&.Mui-selected:hover": {
-                    backgroundColor: `${themeColors.primary}20`,
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 40 }}>
-                  <Icon />
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  primaryTypographyProps={{
-                    fontSize: "0.875rem",
-                    fontWeight: item.active ? 600 : 500,
-                  }}
-                />
-              </ListItemButton>
-            </ListItem>
-          );
-        })}
-      </List>
-
-      {/* User Info in Drawer */}
-      <Box sx={{ p: 2 }}>
-        <Divider sx={{ mb: 2 }} />
-        <Box display="flex" alignItems="center" gap={2}>
-          <Avatar
-            sx={{
-              width: 32,
-              height: 32,
-              bgcolor: themeColors.primary,
-              fontSize: "0.875rem",
-            }}
-          >
-            {user?.name?.charAt(0)?.toUpperCase() || "U"}
-          </Avatar>
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography variant="body2" noWrap fontWeight={600}>
-              {user?.name}
-            </Typography>
-            <Box display="flex" alignItems="center" gap={1}>
-              <Chip
-                label={user?.role}
-                size="small"
-                variant="outlined"
-                sx={{
-                  fontSize: "0.75rem",
-                  height: 20,
-                  "& .MuiChip-label": { px: 1 },
-                }}
-              />
-            </Box>
-          </Box>
-        </Box>
-      </Box>
-    </Box>
-  );
 
   // Show loading spinner while data is loading
   if (loading) {
@@ -558,7 +362,11 @@ const DashboardPage = () => {
             },
           }}
         >
-          <DrawerContent />
+          <DrawerContent
+            onItemClick={() => {
+              if (isMobile) setMobileOpen(false);
+            }}
+          />
         </Drawer>
       </Box>
 
