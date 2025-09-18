@@ -10,6 +10,7 @@ import {
   calculateGSTWithSlab,
   calculateItemWithGST,
 } from "../../utils/helpers/gstCalculator";
+import productService from "./productService";
 
 /**
  * Sales service for managing sales and invoices
@@ -194,7 +195,7 @@ class SalesService extends BaseService {
             gstAmount: 0, // Not applicable with bulk pricing
             totalAmount: 0, // Not applicable with bulk pricing
             bulkPricing: true, // Flag to indicate bulk pricing
-            hsnCode: item.hsnCode || '',
+            hsnCode: item.hsnCode || "",
           }));
         } else {
           // USE INDIVIDUAL ITEM CALCULATIONS (existing logic)
@@ -214,7 +215,7 @@ class SalesService extends BaseService {
               gstAmount: itemCalc.gstAmount,
               totalAmount: itemCalc.totalAmount,
               gstBreakdown: itemCalc.gstBreakdown,
-              hsnCode: item.hsnCode || '' ,
+              hsnCode: item.hsnCode || "",
             });
           });
         }
@@ -306,25 +307,77 @@ class SalesService extends BaseService {
         }
       }
 
-      // Handle EMI details
+      // Handle EMI details with down payment support
       if (
         invoiceData.paymentStatus === PAYMENT_STATUS.EMI &&
         invoiceData.emiDetails
       ) {
+        const downPayment = parseFloat(
+          invoiceData.paymentDetails?.downPayment || 0
+        );
+        const totalAmount = cleanInvoiceData.grandTotal;
+        const emiAmount = totalAmount - downPayment; // EMI calculated on remaining amount
+
         const emiDetails = {
           monthlyAmount: parseFloat(invoiceData.emiDetails.monthlyAmount || 0),
           numberOfInstallments: parseInt(
             invoiceData.emiDetails.numberOfInstallments || 1
           ),
+          downPayment: downPayment,
+          totalAmount: totalAmount,
+          emiAmount: emiAmount, // EMI is calculated on this amount
         };
 
         // Only add startDate and schedule if startDate exists
         if (invoiceData.emiDetails.startDate) {
           emiDetails.startDate = invoiceData.emiDetails.startDate;
-          emiDetails.schedule = invoiceData.emiDetails.schedule || [];
+
+          // Generate schedule based on EMI amount (after down payment)
+          if (
+            invoiceData.emiDetails.schedule &&
+            invoiceData.emiDetails.schedule.length > 0
+          ) {
+            emiDetails.schedule = invoiceData.emiDetails.schedule;
+          }
         }
 
         cleanInvoiceData.emiDetails = emiDetails;
+
+        // Record down payment in payment history if provided
+        if (downPayment > 0) {
+          cleanInvoiceData.paymentDetails = {
+            downPayment: downPayment,
+            remainingBalance: emiAmount,
+            paymentMethod:
+              invoiceData.paymentDetails?.paymentMethod || PAYMENT_METHODS.CASH,
+            paymentHistory: [
+              {
+                amount: downPayment,
+                date: new Date().toISOString(),
+                method:
+                  invoiceData.paymentDetails?.paymentMethod ||
+                  PAYMENT_METHODS.CASH,
+                type: "emi_down_payment",
+                notes: "Down payment for EMI",
+                recordedBy: invoiceData.createdBy,
+                recordedByName: invoiceData.createdByName,
+              },
+            ],
+          };
+        }
+      }
+
+      // NEW: Save products to catalog after processing items
+      if (processedItems && processedItems.length > 0) {
+        // Save each item as a product in the catalog (non-blocking)
+        processedItems.forEach(async (item) => {
+          try {
+            await productService.saveProductFromInvoiceItem(userType, item);
+          } catch (error) {
+            console.error("Error saving product:", error);
+            // Don't fail invoice creation if product save fails
+          }
+        });
       }
 
       return await this.create(userType, cleanInvoiceData);
@@ -467,7 +520,7 @@ class SalesService extends BaseService {
               gstAmount: itemCalc.gstAmount,
               totalAmount: itemCalc.totalAmount,
               gstBreakdown: itemCalc.gstBreakdown,
-              hsnCode: item.hsnCode || '',
+              hsnCode: item.hsnCode || "",
             });
           });
 
@@ -550,14 +603,14 @@ class SalesService extends BaseService {
             existingEmiDetails.lastPaymentDate !== null
           ) {
             updatedEmiDetails = {
-            ...existingEmiDetails,
-            schedule: existingSchedule,
-            // Update totals but preserve all other data
-            totalPaid: Math.round(totalPaid * 100) / 100,
-            totalRemaining: Math.round(newRemainingBalance * 100) / 100,
-            // Preserve last payment date and other metadata
-            // Keep any other existing properties
-          };
+              ...existingEmiDetails,
+              schedule: existingSchedule,
+              // Update totals but preserve all other data
+              totalPaid: Math.round(totalPaid * 100) / 100,
+              totalRemaining: Math.round(newRemainingBalance * 100) / 100,
+              // Preserve last payment date and other metadata
+              // Keep any other existing properties
+            };
           }
 
           cleanUpdates.emiDetails = updatedEmiDetails;
@@ -857,7 +910,7 @@ class SalesService extends BaseService {
   }
 
   /**
-   * UPDATED - Record additional payment for finance/bank transfer invoices with date selection
+   * UPDATED - Record additional payment for PENDING, FINANCE, and BANK_TRANSFER invoices
    * @param {string} userType - User type
    * @param {string} invoiceId - Invoice ID
    * @param {number} paymentAmount - Payment amount
@@ -873,8 +926,14 @@ class SalesService extends BaseService {
     try {
       const invoice = await this.getById(userType, invoiceId);
 
+      // Initialize paymentDetails if it doesn't exist (for PENDING invoices)
       if (!invoice.paymentDetails) {
-        throw new Error("This invoice doesn't support additional payments");
+        invoice.paymentDetails = {
+          downPayment: 0,
+          remainingBalance: invoice.grandTotal || invoice.totalAmount || 0,
+          paymentMethod: PAYMENT_METHODS.CASH,
+          paymentHistory: [],
+        };
       }
 
       const currentPaid = parseFloat(invoice.paymentDetails.downPayment || 0);
@@ -883,19 +942,22 @@ class SalesService extends BaseService {
       const totalAmount = invoice.grandTotal || invoice.totalAmount || 0;
       const newRemainingBalance = Math.max(0, totalAmount - newTotalPaid);
 
-      // NEW - Use provided payment date or current date
+      // Use provided payment date or current date
       const paymentDate =
         paymentDetails.paymentDate || new Date().toISOString();
 
       // Add to payment history
       const newPaymentRecord = {
         amount: additionalAmount,
-        date: paymentDate, // NEW - Use provided date
+        date: paymentDate,
         method: paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
         reference: paymentDetails.reference || "",
         recordedBy: paymentDetails.recordedBy,
         recordedByName: paymentDetails.recordedByName,
-        type: "additional_payment",
+        type:
+          invoice.paymentStatus === PAYMENT_STATUS.PENDING
+            ? "pending_payment"
+            : "additional_payment",
         notes: paymentDetails.notes || "",
       };
 
@@ -912,11 +974,11 @@ class SalesService extends BaseService {
         updatedAt: new Date().toISOString(),
       };
 
-      // NEW - If fully paid, set fullyPaid flag but KEEP original payment status for tracking
+      // If fully paid, set fullyPaid flag but KEEP original payment status for tracking
       if (newRemainingBalance === 0) {
         updates.fullyPaid = true;
         updates.paymentDate = paymentDate;
-        // DON'T change paymentStatus - keep it as FINANCE/BANK_TRANSFER for tracking
+        // DON'T change paymentStatus - keep it as PENDING/FINANCE/BANK_TRANSFER for tracking
       }
 
       return await this.update(userType, invoiceId, updates);
@@ -1366,15 +1428,15 @@ class SalesService extends BaseService {
       const paidInstallments = schedule.filter((emi) => emi.paid).length;
       const pendingInstallments = totalInstallments - paidInstallments;
 
-      // FIX: Use original invoice total, NOT sum of current installment amounts
       const totalAmount = invoice.grandTotal || invoice.totalAmount;
+      const downPayment = invoice.emiDetails?.downPayment || 0; // Add down payment
 
-      // Calculate actual amount paid
-      const paidAmount = schedule
+      // Calculate actual amount paid (down payment + paid installments)
+      const installmentsPaid = schedule
         .filter((emi) => emi.paid)
         .reduce((sum, emi) => sum + (emi.paidAmount || 0), 0);
 
-      // Remaining is simply: original total - actual payments made
+      const paidAmount = downPayment + installmentsPaid; // Include down payment
       const remainingAmount = totalAmount - paidAmount;
 
       const today = new Date();
@@ -1395,6 +1457,11 @@ class SalesService extends BaseService {
         pendingInstallments,
         overdueInstallments,
         totalAmount: Math.round(totalAmount * 100) / 100,
+        downPayment: Math.round(downPayment * 100) / 100, // Add to return
+        emiAmount:
+          Math.round(
+            (invoice.emiDetails?.emiAmount || totalAmount - downPayment) * 100
+          ) / 100,
         paidAmount: Math.round(paidAmount * 100) / 100,
         remainingAmount: Math.round(remainingAmount * 100) / 100,
         paymentPercentage: Math.round((paidAmount / totalAmount) * 100),

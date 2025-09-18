@@ -19,6 +19,7 @@ import {
   alpha,
   Stack,
   Paper,
+  Button,
 } from "@mui/material";
 import {
   Business as BusinessIcon,
@@ -35,6 +36,7 @@ import {
   CreditCard as CardIcon,
   Info as InfoIcon,
   Assignment as GSTIcon,
+  PaymentOutlined as RecordPaymentIcon,
 } from "@mui/icons-material";
 
 import { useUserType } from "../../../contexts/UserTypeContext/UserTypeContext";
@@ -56,9 +58,10 @@ import {
  * @param {Object} props.invoice - Invoice data
  * @param {boolean} props.showActions - Whether to show action buttons
  * @param {string} props.variant - Display variant (preview, print, email)
+ * @param {Function} props.onRecordPayment - Callback for recording payment
  */
 const InvoicePreview = forwardRef(
-  ({ invoice = {}, showActions = false, variant = "preview" }, ref) => {
+  ({ invoice = {}, showActions = false, variant = "preview", onRecordPayment }, ref) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down("md"));
     const isSmallMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -215,10 +218,46 @@ const InvoicePreview = forwardRef(
       return iconMap[method] || <PaymentIcon />;
     };
 
-    // Check if payment is partial (finance or bank transfer)
+    // UPDATED: Check if payment is partial (finance or bank transfer or PENDING)
     const isPartialPayment =
+      invoiceData.paymentStatus === PAYMENT_STATUS.PENDING ||
       invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE ||
       invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER;
+
+    // Calculate actual amount paid and remaining balance
+    const getActualAmountPaid = () => {
+      if (invoiceData.paymentStatus === PAYMENT_STATUS.PENDING) {
+        return invoiceData.paymentDetails?.downPayment || 0;
+      }
+      if (
+        invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE ||
+        invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
+      ) {
+        return invoiceData.paymentDetails?.downPayment || 0;
+      }
+      if (invoiceData.paymentStatus === PAYMENT_STATUS.PAID || invoiceData.fullyPaid) {
+        return invoiceData.grandTotal || invoiceData.totalAmount || 0;
+      }
+      if (
+        invoiceData.paymentStatus === PAYMENT_STATUS.EMI &&
+        invoiceData.emiDetails?.schedule
+      ) {
+        return invoiceData.emiDetails.schedule
+          .filter((emi) => emi.paid)
+          .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
+      }
+      return 0;
+    };
+
+    const getRemainingBalance = () => {
+      const totalAmount = invoiceData.grandTotal || invoiceData.totalAmount || 0;
+      const paidAmount = getActualAmountPaid();
+      return Math.max(0, totalAmount - paidAmount);
+    };
+
+    const actualPaid = getActualAmountPaid();
+    const remainingBalance = getRemainingBalance();
+    const canRecordPayment = remainingBalance > 0 && isPartialPayment && !invoiceData.fullyPaid;
 
     return (
       <Box
@@ -701,7 +740,7 @@ const InvoicePreview = forwardRef(
                       {invoiceData.items.length === 0 && (
                         <TableRow>
                           <TableCell
-                            colSpan={invoiceData.includeGST ? 6 : 5}
+                            colSpan={invoiceData.includeGST ? 7 : 6}
                             align="center"
                             sx={{ py: 4 }}
                           >
@@ -938,7 +977,7 @@ const InvoicePreview = forwardRef(
               </Grid>
             </Grid>
 
-            {/* Payment Details Section */}
+            {/* UPDATED: Payment Details Section - Now includes PENDING status */}
             {(isPartialPayment ||
               invoiceData.paymentStatus === PAYMENT_STATUS.EMI) && (
               <Paper
@@ -957,23 +996,83 @@ const InvoicePreview = forwardRef(
                   borderRadius: 2,
                 }}
               >
-                <Typography
-                  variant="h6"
-                  fontWeight={600}
-                  gutterBottom
-                  sx={{
-                    color: getStatusColor(invoiceData.paymentStatus),
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                  }}
-                >
-                  {getPaymentMethodIcon(
-                    invoiceData.paymentDetails?.paymentMethod
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography
+                    variant="h6"
+                    fontWeight={600}
+                    sx={{
+                      color: getStatusColor(invoiceData.paymentStatus),
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                    }}
+                  >
+                    {getPaymentMethodIcon(
+                      invoiceData.paymentDetails?.paymentMethod
+                    )}
+                    Payment Details -{" "}
+                    {PAYMENT_STATUS_DISPLAY[invoiceData.paymentStatus]}
+                  </Typography>
+                  
+                  {/* NEW: Record Payment Button */}
+                  {canRecordPayment && onRecordPayment && showActions && (
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      size="small"
+                      startIcon={<RecordPaymentIcon />}
+                      onClick={() => onRecordPayment(invoiceData)}
+                      className="no-print"
+                      sx={{ ml: 2 }}
+                    >
+                      Record Payment
+                    </Button>
                   )}
-                  Payment Details -{" "}
-                  {PAYMENT_STATUS_DISPLAY[invoiceData.paymentStatus]}
-                </Typography>
+                </Box>
+
+                {/* NEW: PENDING Payment Details */}
+                {invoiceData.paymentStatus === PAYMENT_STATUS.PENDING && (
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <InfoItem
+                        label="Payment Method"
+                        value={
+                          PAYMENT_METHOD_DISPLAY[invoiceData.paymentDetails?.paymentMethod] ||
+                          invoiceData.paymentDetails?.paymentMethod ||
+                          "Not specified"
+                        }
+                      />
+                    </Grid>
+                    {invoiceData.paymentDetails?.paymentReference && (
+                      <Grid item xs={12} sm={6}>
+                        <InfoItem
+                          label="Payment Reference"
+                          value={invoiceData.paymentDetails.paymentReference}
+                        />
+                      </Grid>
+                    )}
+                    {invoiceData.paymentDetails?.downPayment > 0 && (
+                      <>
+                        <Grid item xs={12} sm={6}>
+                          <InfoItem
+                            label="Amount Paid"
+                            value={formatCurrency(
+                              invoiceData.paymentDetails?.downPayment || 0
+                            )}
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <InfoItem
+                            label="Remaining Balance"
+                            value={formatCurrency(
+                              invoiceData.paymentDetails?.remainingBalance || 0
+                            )}
+                          />
+                        </Grid>
+                      </>
+                    )}
+                  </Grid>
+                )}
 
                 {/* Finance Payment Details */}
                 {invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE && (
@@ -1061,6 +1160,29 @@ const InvoicePreview = forwardRef(
                 {invoiceData.paymentStatus === PAYMENT_STATUS.EMI &&
                   invoiceData.emiDetails && (
                     <Grid container spacing={2}>
+                      {/* Show down payment if exists */}
+                      {invoiceData.emiDetails.downPayment > 0 && (
+                        <>
+                          <Grid item xs={12} sm={6}>
+                            <InfoItem
+                              label="Down Payment"
+                              value={formatCurrency(
+                                invoiceData.emiDetails.downPayment || 0
+                              )}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <InfoItem
+                              label="EMI Amount"
+                              value={formatCurrency(
+                                invoiceData.emiDetails.emiAmount ||
+                                  invoiceData.grandTotal
+                              )}
+                            />
+                          </Grid>
+                        </>
+                      )}
+
                       <Grid item xs={12} sm={6}>
                         <InfoItem
                           label="Monthly EMI"
@@ -1083,7 +1205,7 @@ const InvoicePreview = forwardRef(
                       </Grid>
                       <Grid item xs={12} sm={6}>
                         <InfoItem
-                          label="Total EMI Amount"
+                          label="Total Invoice"
                           value={formatCurrency(invoiceData.grandTotal || 0)}
                         />
                       </Grid>
@@ -1130,9 +1252,7 @@ const InvoicePreview = forwardRef(
                           fontWeight={500}
                           color="success.main"
                         >
-                          {formatCurrency(
-                            invoiceData.paymentDetails?.downPayment || 0
-                          )}
+                          {formatCurrency(actualPaid)}
                         </Typography>
                       </Box>
                       <Box
@@ -1149,9 +1269,7 @@ const InvoicePreview = forwardRef(
                           fontWeight={500}
                           color="warning.main"
                         >
-                          {formatCurrency(
-                            invoiceData.paymentDetails?.remainingBalance || 0
-                          )}
+                          {formatCurrency(remainingBalance)}
                         </Typography>
                       </Box>
                       <Divider sx={{ my: 0.5 }} />

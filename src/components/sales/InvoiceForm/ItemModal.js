@@ -18,6 +18,8 @@ import {
   Chip,
   useTheme,
   useMediaQuery,
+  Autocomplete,
+  CircularProgress,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -26,9 +28,12 @@ import {
   Calculate as CalculatorIcon,
   Info as InfoIcon,
   AttachMoney as MoneyIcon,
+  Inventory as ProductIcon,
 } from "@mui/icons-material";
 
 import { calculateItemWithGST } from "../../../utils/helpers/gstCalculator";
+import productService from "../../../services/api/productService";
+import { useUserType } from "../../../contexts/UserTypeContext/UserTypeContext";
 
 // GST Tax Slabs
 const GST_TAX_SLABS = [
@@ -40,16 +45,7 @@ const GST_TAX_SLABS = [
 ];
 
 /**
- * ItemModal component for adding/editing invoice items
- * @param {Object} props
- * @param {boolean} props.open - Whether modal is open
- * @param {Function} props.onClose - Close handler
- * @param {Function} props.onSave - Save handler
- * @param {Object} props.item - Item data for editing (null for new item)
- * @param {string} props.customerState - Customer state for GST calculation
- * @param {boolean} props.includeGST - Whether GST is enabled for invoice
- * @param {boolean} props.loading - Loading state
- * @returns {React.ReactElement}
+ * Enhanced ItemModal component with product autocomplete
  */
 const ItemModal = ({
   open = false,
@@ -63,6 +59,7 @@ const ItemModal = ({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const isEdit = Boolean(item);
+  const { userType } = useUserType();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -82,16 +79,16 @@ const ItemModal = ({
     totalAmount: 0,
   });
 
-  // FIX: Helper function to get the display rate (what user should see in the rate field)
+  // Product autocomplete state
+  const [productOptions, setProductOptions] = useState([]);
+  const [productLoading, setProductLoading] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+
+  // Helper function to get display rate
   const getDisplayRate = (itemData) => {
-    // For new items or items without calculation data, use the rate as-is
     if (!itemData.baseAmount && !itemData.totalAmount) {
       return itemData.rate || 0;
     }
-
-    // For existing items with calculation data:
-    // - If price-inclusive: show the total amount (what user originally entered)
-    // - If price-exclusive: show the base amount (rate without GST)
     if (itemData.isPriceInclusive) {
       return itemData.totalAmount || itemData.rate || 0;
     } else {
@@ -103,9 +100,7 @@ const ItemModal = ({
   useEffect(() => {
     if (open) {
       if (isEdit && item) {
-        // FIX: Properly initialize the rate field based on pricing type
         const displayRate = getDisplayRate(item);
-
         setFormData({
           name: item.name || "",
           description: item.description || "",
@@ -116,7 +111,6 @@ const ItemModal = ({
           hsnCode: item.hsnCode || "",
         });
       } else {
-        // Reset for new item
         setFormData({
           name: "",
           description: "",
@@ -128,6 +122,7 @@ const ItemModal = ({
         });
       }
       setFormErrors({});
+      setSelectedProduct(null);
     }
   }, [open, isEdit, item]);
 
@@ -161,6 +156,44 @@ const ItemModal = ({
     includeGST,
   ]);
 
+  // Product search handler
+  const handleProductSearch = async (searchTerm) => {
+    if (!searchTerm || searchTerm.length < 2) {
+      setProductOptions([]);
+      return;
+    }
+
+    setProductLoading(true);
+    try {
+      const suggestions = await productService.getProductSuggestions(
+        userType,
+        searchTerm
+      );
+      setProductOptions(suggestions);
+    } catch (error) {
+      console.error("Error fetching product suggestions:", error);
+      setProductOptions([]);
+    } finally {
+      setProductLoading(false);
+    }
+  };
+
+  // Product selection handler
+  const handleProductSelect = (product) => {
+    setSelectedProduct(product);
+    if (product) {
+      setFormData((prev) => ({
+        ...prev,
+        name: product.name,
+        description: product.description || "",
+        hsnCode: product.hsnCode || "",
+        rate: product.defaultRate || 0,
+        gstSlab: product.defaultGstSlab || 18,
+        isPriceInclusive: product.isPriceInclusive || false,
+      }));
+    }
+  };
+
   // Handle form field changes
   const handleChange = (field) => (event) => {
     const value =
@@ -173,7 +206,6 @@ const ItemModal = ({
       [field]: value,
     }));
 
-    // Clear field error
     if (formErrors[field]) {
       setFormErrors((prev) => ({
         ...prev,
@@ -182,7 +214,21 @@ const ItemModal = ({
     }
   };
 
-  // FIX: Handle price inclusive toggle - maintain the user's entered rate
+  // Handle name change (for manual entry)
+  const handleNameChange = (event, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      name: value || "",
+    }));
+
+    if (formErrors.name) {
+      setFormErrors((prev) => ({
+        ...prev,
+        name: null,
+      }));
+    }
+  };
+
   const handlePriceInclusiveChange = (event) => {
     const isInclusive = event.target.checked;
 
@@ -191,7 +237,6 @@ const ItemModal = ({
       isPriceInclusive: isInclusive,
     }));
 
-    // Clear error if any
     if (formErrors.isPriceInclusive) {
       setFormErrors((prev) => ({
         ...prev,
@@ -228,16 +273,14 @@ const ItemModal = ({
       return;
     }
 
-    // FIX: Prepare item data with correct rate based on pricing type
     const itemData = {
       name: formData.name.trim(),
       description: formData.description.trim(),
       quantity: parseFloat(formData.quantity),
-      rate: parseFloat(formData.rate), // This is what the user entered
+      rate: parseFloat(formData.rate),
       gstSlab: parseFloat(formData.gstSlab),
       isPriceInclusive: formData.isPriceInclusive,
       hsnCode: formData.hsnCode,
-      // FIX: Include calculated values for proper handling
       baseAmount: gstCalculation.baseAmount,
       gstAmount: gstCalculation.gstAmount,
       totalAmount: gstCalculation.totalAmount,
@@ -246,7 +289,6 @@ const ItemModal = ({
     onSave(itemData);
   };
 
-  // Handle close
   const handleClose = () => {
     if (!loading) {
       onClose();
@@ -267,7 +309,6 @@ const ItemModal = ({
         },
       }}
     >
-      {/* Header */}
       <DialogTitle
         sx={{
           display: "flex",
@@ -288,21 +329,125 @@ const ItemModal = ({
         </IconButton>
       </DialogTitle>
 
-      {/* Content */}
       <DialogContent dividers>
         <Grid container spacing={3}>
-          {/* Item Name */}
+          {/* Product Autocomplete - FIX: Allow free text entry */}
           <Grid item xs={12}>
-            <TextField
-              fullWidth
-              label="Item Name"
-              placeholder="Enter item name..."
-              value={formData.name}
-              onChange={handleChange("name")}
-              error={!!formErrors.name}
-              helperText={formErrors.name}
-              disabled={loading}
-              required
+            <Autocomplete
+              freeSolo
+              options={productOptions}
+              getOptionLabel={(option) => {
+                if (typeof option === "string") return option;
+                return option.label || option.name || "";
+              }}
+              loading={productLoading}
+              inputValue={formData.name}
+              onInputChange={(event, value, reason) => {
+                // Update name field as user types
+                if (reason === "input") {
+                  setFormData((prev) => ({
+                    ...prev,
+                    name: value || "",
+                  }));
+                  // Trigger product search
+                  handleProductSearch(value);
+                }
+                // Clear error when typing
+                if (formErrors.name) {
+                  setFormErrors((prev) => ({
+                    ...prev,
+                    name: null,
+                  }));
+                }
+              }}
+              onChange={(event, value) => {
+                // Handle product selection from dropdown
+                if (typeof value === "object" && value !== null) {
+                  handleProductSelect(value);
+                } else if (typeof value === "string") {
+                  // Manual text entry
+                  setFormData((prev) => ({
+                    ...prev,
+                    name: value,
+                  }));
+                  setSelectedProduct(null);
+                }
+              }}
+              disabled={loading || isEdit}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Item Name / Search Products"
+                  placeholder="Start typing to search or enter new item..."
+                  required
+                  error={!!formErrors.name}
+                  helperText={
+                    formErrors.name ||
+                    "Search existing products or enter new item name"
+                  }
+                  InputProps={{
+                    ...params.InputProps,
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <ProductIcon />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <>
+                        {productLoading ? (
+                          <CircularProgress color="inherit" size={20} />
+                        ) : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
+              renderOption={(props, option) => (
+                <li {...props}>
+                  <Box sx={{ width: "100%" }}>
+                    <Typography variant="body1" fontWeight={600}>
+                      {option.name}
+                    </Typography>
+                    {option.description && (
+                      <Typography variant="caption" color="text.secondary">
+                        {option.description}
+                      </Typography>
+                    )}
+                    <Box
+                      sx={{
+                        display: "flex",
+                        gap: 1,
+                        mt: 0.5,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      {option.hsnCode && (
+                        <Chip
+                          size="small"
+                          label={`HSN: ${option.hsnCode}`}
+                          variant="outlined"
+                        />
+                      )}
+                      {option.defaultRate > 0 && (
+                        <Chip
+                          size="small"
+                          label={`₹${option.defaultRate}`}
+                          color="primary"
+                          variant="outlined"
+                        />
+                      )}
+                      {option.usageCount > 0 && (
+                        <Chip
+                          size="small"
+                          label={`Used ${option.usageCount}x`}
+                          variant="outlined"
+                        />
+                      )}
+                    </Box>
+                  </Box>
+                </li>
+              )}
             />
           </Grid>
 
@@ -320,7 +465,7 @@ const ItemModal = ({
             />
           </Grid>
 
-          {/* NEW - HSN Code Field */}
+          {/* HSN Code */}
           <Grid item xs={12} sm={6}>
             <TextField
               fullWidth
@@ -337,7 +482,7 @@ const ItemModal = ({
             />
           </Grid>
 
-          {/* Quantity and Rate */}
+          {/* Quantity */}
           <Grid item xs={12} sm={6}>
             <TextField
               fullWidth
@@ -353,6 +498,7 @@ const ItemModal = ({
             />
           </Grid>
 
+          {/* Rate */}
           <Grid item xs={12} sm={6}>
             <TextField
               fullWidth
@@ -437,7 +583,7 @@ const ItemModal = ({
             </Grid>
           )}
 
-          {/* GST Calculation Display */}
+          {/* GST Calculation Display - Rest remains the same */}
           {includeGST &&
             parseFloat(formData.rate) > 0 &&
             parseFloat(formData.quantity) > 0 && (
@@ -501,7 +647,6 @@ const ItemModal = ({
                     </Grid>
                   </Grid>
 
-                  {/* FIX: Enhanced breakdown for total quantity */}
                   {parseFloat(formData.quantity) > 1 && (
                     <>
                       <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
@@ -552,7 +697,6 @@ const ItemModal = ({
                     </>
                   )}
 
-                  {/* Price Mode Indicator */}
                   <Box sx={{ mt: 2 }}>
                     <Chip
                       size="small"
@@ -581,20 +725,18 @@ const ItemModal = ({
               </Grid>
             )}
 
-          {/* Info for zero rate */}
+          {/* Info alerts - Rest remains the same */}
           {parseFloat(formData.rate) === 0 && (
             <Grid item xs={12}>
               <Alert severity="info" icon={<MoneyIcon />}>
                 <Typography variant="body2">
                   <strong>Zero Rate Item:</strong> You can add this item with
-                  zero rate and update the price later. This is useful when
-                  adding multiple items and setting prices at the end.
+                  zero rate and update the price later.
                 </Typography>
               </Alert>
             </Grid>
           )}
 
-          {/* FIX: Help text for price inclusive/exclusive */}
           {includeGST && parseFloat(formData.rate) > 0 && (
             <Grid item xs={12}>
               <Alert severity="info" icon={<InfoIcon />}>
@@ -602,22 +744,12 @@ const ItemModal = ({
                   <strong>Pricing Help:</strong>
                   {formData.isPriceInclusive ? (
                     <>
-                      {" "}
-                      The rate you entered (₹
-                      {parseFloat(formData.rate).toFixed(2)}) includes GST. The
-                      system will automatically calculate the base amount (₹
-                      {gstCalculation.baseAmount.toFixed(2)}) and GST component
-                      (₹{gstCalculation.gstAmount.toFixed(2)}) for proper
-                      accounting.
+                      The rate includes GST. Base amount and GST will be
+                      calculated automatically.
                     </>
                   ) : (
                     <>
-                      {" "}
-                      The rate you entered (₹
-                      {parseFloat(formData.rate).toFixed(2)}) is the base
-                      amount. GST of ₹{gstCalculation.gstAmount.toFixed(2)} will
-                      be added, making the total ₹
-                      {gstCalculation.totalAmount.toFixed(2)} per unit.
+                      GST will be added to this base rate for the final amount.
                     </>
                   )}
                 </Typography>
@@ -627,7 +759,6 @@ const ItemModal = ({
         </Grid>
       </DialogContent>
 
-      {/* Actions */}
       <DialogActions sx={{ p: 3, gap: 1 }}>
         <Button
           onClick={handleClose}

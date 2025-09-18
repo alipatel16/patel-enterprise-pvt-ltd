@@ -13,6 +13,13 @@ import {
   useMediaQuery,
   Tabs,
   Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  InputAdornment,
+  CircularProgress,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -22,8 +29,12 @@ import {
   Receipt as ReceiptIcon,
   AccountBalance as EMIIcon,
   LocalShipping as DeliveryIcon,
-  Payment as PaymentIcon
+  Payment as PaymentIcon,
+  Save as SaveIcon,
+  Close as CloseIcon,
+  DateRange as DateRangeIcon,
 } from '@mui/icons-material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 import Layout from '../../components/common/Layout/Layout';
 import LoadingSpinner from '../../components/common/UI/LoadingSpinner';
@@ -31,11 +42,17 @@ import InvoicePreview from '../../components/sales/Invoice/InvoicePreview';
 import { SalesProvider, useSales } from '../../contexts/SalesContext/SalesContext';
 import { useAuth } from '../../contexts/AuthContext/AuthContext';
 import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
-import { formatDate } from '../../utils/helpers/formatHelpers';
-import { USER_ROLES, PAYMENT_STATUS, DELIVERY_STATUS } from '../../utils/constants/appConstants';
-// Import the EMI Management component (adjust path as needed)
+import { formatDate, formatCurrency } from '../../utils/helpers/formatHelpers';
+import { 
+  USER_ROLES, 
+  PAYMENT_STATUS, 
+  DELIVERY_STATUS,
+  PAYMENT_METHODS,
+  PAYMENT_METHOD_DISPLAY 
+} from '../../utils/constants/appConstants';
 import EMIManagement from '../../components/sales/EMI/EMIManagement';
 import InstallmentPaymentDialog from '../../components/sales/EMI/InstallmentPaymentDialog';
+import salesService from '../../services/api/salesService';
 
 /**
  * View Invoice page content component (wrapped in providers)
@@ -58,14 +75,26 @@ const ViewInvoicePageContent = () => {
   } = useSales();
   
   const { user } = useAuth();
-  const { getDisplayName } = useUserType();
+  const { getDisplayName, userType } = useUserType();
 
   const [currentTab, setCurrentTab] = useState(0);
   
-  // NEW: EMI Payment states
+  // EMI Payment states
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedInstallment, setSelectedInstallment] = useState(null);
   const [pendingInstallments, setPendingInstallments] = useState([]);
+  
+  // NEW: Regular payment recording states
+  const [recordPaymentDialogOpen, setRecordPaymentDialogOpen] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    paymentMethod: PAYMENT_METHODS.CASH,
+    reference: '',
+    notes: '',
+    paymentDate: new Date(),
+  });
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
   
   // Load invoice data
   useEffect(() => {
@@ -103,7 +132,142 @@ const ViewInvoicePageContent = () => {
     clearError();
   }, [clearError]);
 
-  // NEW: Handle EMI payment recording
+  // Helper function to calculate remaining balance
+  const getRemainingBalance = (invoice) => {
+    if (!invoice) return 0;
+    
+    const totalAmount = invoice.grandTotal || invoice.totalAmount || 0;
+    let paidAmount = 0;
+
+    if (
+      invoice.paymentStatus === PAYMENT_STATUS.PENDING ||
+      invoice.paymentStatus === PAYMENT_STATUS.FINANCE ||
+      invoice.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
+    ) {
+      paidAmount = invoice.paymentDetails?.downPayment || 0;
+    } else if (invoice.paymentStatus === PAYMENT_STATUS.PAID || invoice.fullyPaid) {
+      paidAmount = totalAmount;
+    } else if (
+      invoice.paymentStatus === PAYMENT_STATUS.EMI &&
+      invoice.emiDetails?.schedule
+    ) {
+      paidAmount = invoice.emiDetails.schedule
+        .filter((emi) => emi.paid)
+        .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
+    }
+
+    return Math.max(0, totalAmount - paidAmount);
+  };
+
+  // NEW: Handle record payment click
+  const handleRecordPayment = (invoice) => {
+    const remainingBalance = getRemainingBalance(invoice);
+    setPaymentForm({
+      amount: remainingBalance.toString(),
+      paymentMethod: PAYMENT_METHODS.CASH,
+      reference: '',
+      notes: '',
+      paymentDate: new Date(),
+    });
+    setPaymentError('');
+    setRecordPaymentDialogOpen(true);
+  };
+
+  // NEW: Handle payment form change
+  const handlePaymentFormChange = (field) => (event) => {
+    setPaymentForm((prev) => ({
+      ...prev,
+      [field]: event.target.value,
+    }));
+  };
+
+  // NEW: Handle payment date change
+  const handlePaymentDateChange = (date) => {
+    setPaymentForm((prev) => ({
+      ...prev,
+      paymentDate: date,
+    }));
+  };
+
+  // NEW: Handle payment submit
+  const handlePaymentSubmit = async () => {
+    if (!currentInvoice) return;
+
+    const amount = parseFloat(paymentForm.amount);
+    const remainingBalance = getRemainingBalance(currentInvoice);
+
+    // Validation
+    if (!amount || amount <= 0) {
+      setPaymentError('Please enter a valid payment amount');
+      return;
+    }
+
+    if (amount > remainingBalance) {
+      setPaymentError(
+        `Payment amount cannot exceed remaining balance of ${formatCurrency(remainingBalance)}`
+      );
+      return;
+    }
+
+    if (!paymentForm.paymentDate) {
+      setPaymentError('Please select a payment date');
+      return;
+    }
+
+    setPaymentLoading(true);
+    setPaymentError('');
+
+    try {
+      const paymentDetails = {
+        paymentMethod: paymentForm.paymentMethod,
+        reference: paymentForm.reference,
+        notes: paymentForm.notes,
+        paymentDate: paymentForm.paymentDate.toISOString(),
+        recordedBy: user?.uid || 'current-user-id',
+        recordedByName: user?.displayName || 'Current User',
+      };
+
+      await salesService.recordAdditionalPayment(
+        userType,
+        currentInvoice?.id,
+        amount,
+        paymentDetails
+      );
+
+      // Reload invoice
+      await getInvoiceById(id);
+
+      setRecordPaymentDialogOpen(false);
+      setPaymentForm({
+        amount: '',
+        paymentMethod: PAYMENT_METHODS.CASH,
+        reference: '',
+        notes: '',
+        paymentDate: new Date(),
+      });
+
+      console.log('Payment recorded successfully');
+    } catch (error) {
+      setPaymentError(error.message || 'Failed to record payment');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  // NEW: Handle payment cancel
+  const handlePaymentCancel = () => {
+    setRecordPaymentDialogOpen(false);
+    setPaymentForm({
+      amount: '',
+      paymentMethod: PAYMENT_METHODS.CASH,
+      reference: '',
+      notes: '',
+      paymentDate: new Date(),
+    });
+    setPaymentError('');
+  };
+
+  // Handle EMI payment recording
   const handlePaymentRecord = async (installmentNumber, paymentAmount, paymentDetails) => {
     if (!currentInvoice || !recordInstallmentPayment) return;
 
@@ -129,7 +293,7 @@ const ViewInvoicePageContent = () => {
     }
   };
 
-  // NEW: Handle quick payment click
+  // Handle quick payment click
   const handleQuickPaymentClick = () => {
     if (pendingInstallments.length > 0) {
       // Get the most urgent installment (overdue or due today)
@@ -179,7 +343,7 @@ const ViewInvoicePageContent = () => {
     (user?.role === USER_ROLES.EMPLOYEE && user?.canCreateInvoices);
   const canDelete = user?.role === USER_ROLES.ADMIN;
 
-  // NEW: Get urgent installment count
+  // Get urgent installment count
   const urgentInstallmentCount = pendingInstallments.filter(inst => 
     inst.isOverdue || inst.isDueToday
   ).length;
@@ -232,7 +396,7 @@ const ViewInvoicePageContent = () => {
     );
   }
 
-  // NEW: Define tabs based on invoice type
+  // Define tabs based on invoice type
   const tabs = [
     { label: 'Invoice Details', icon: <ReceiptIcon /> },
     { label: 'Delivery', icon: <DeliveryIcon /> }
@@ -308,7 +472,7 @@ const ViewInvoicePageContent = () => {
                 Back
               </Button>
 
-              {/* NEW: Quick EMI Payment Button - Only show for EMI invoices with pending installments */}
+              {/* Quick EMI Payment Button - Only show for EMI invoices with pending installments */}
               {currentInvoice.paymentStatus === PAYMENT_STATUS.EMI && 
                pendingInstallments.length > 0 && 
                recordInstallmentPayment && (
@@ -362,20 +526,6 @@ const ViewInvoicePageContent = () => {
                   Edit
                 </Button>
               )}
-              
-              {/* {canDelete && (
-                <IconButton
-                  color="error"
-                  onClick={() => setShowDeleteDialog(true)}
-                  sx={{
-                    alignSelf: { xs: 'stretch', sm: 'center' },
-                    width: { xs: '100%', sm: 'auto' },
-                    height: { xs: '40px', sm: 'auto' }
-                  }}
-                >
-                  <DeleteIcon />
-                </IconButton>
-              )} */}
             </Box>
           </Box>
 
@@ -397,7 +547,7 @@ const ViewInvoicePageContent = () => {
               variant="outlined"
               size={isMobile ? 'small' : 'medium'}
             />
-            {/* NEW: EMI Status Chip */}
+            {/* EMI Status Chip */}
             {currentInvoice.paymentStatus === PAYMENT_STATUS.EMI && (
               <Chip
                 label={`${currentInvoice.emiDetails?.schedule?.filter(emi => emi.paid)?.length || 0}/${currentInvoice.emiDetails?.schedule?.length || 0} Installments Paid`}
@@ -416,7 +566,7 @@ const ViewInvoicePageContent = () => {
           </Alert>
         )}
 
-        {/* NEW: Tabs for different sections */}
+        {/* Tabs for different sections */}
         <Paper 
           sx={{ 
             backgroundColor: 'background.paper',
@@ -454,7 +604,8 @@ const ViewInvoicePageContent = () => {
             {currentTab === 0 && (
               <InvoicePreview 
                 invoice={currentInvoice}
-                showActions={false}
+                showActions={true}
+                onRecordPayment={handleRecordPayment}
               />
             )}
 
@@ -495,14 +646,14 @@ const ViewInvoicePageContent = () => {
               </Box>
             )}
 
-            {/* NEW: EMI Management Tab */}
+            {/* EMI Management Tab */}
             {currentTab === 2 && currentInvoice.paymentStatus === PAYMENT_STATUS.EMI && (
               <EMIManagement invoice={currentInvoice} />
             )}
           </Box>
         </Paper>
 
-        {/* NEW: Quick Payment Dialog for EMI invoices */}
+        {/* Quick Payment Dialog for EMI invoices */}
         {recordInstallmentPayment && paymentDialogOpen && selectedInstallment && (
           <InstallmentPaymentDialog
             open={paymentDialogOpen}
@@ -519,6 +670,216 @@ const ViewInvoicePageContent = () => {
             onPaymentRecorded={handlePaymentRecord}
           />
         )}
+
+        {/* NEW: Regular Payment Recording Dialog */}
+        <Dialog
+          open={recordPaymentDialogOpen}
+          onClose={paymentLoading ? undefined : handlePaymentCancel}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PaymentIcon color="primary" />
+            Record Payment - {currentInvoice?.invoiceNumber}
+          </DialogTitle>
+          <DialogContent>
+            {currentInvoice && (
+              <Box sx={{ mb: 3, mt: 2 }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Customer:
+                    </Typography>
+                    <Typography variant="body1" fontWeight={500}>
+                      {currentInvoice.customerName}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Invoice Total:
+                    </Typography>
+                    <Typography variant="body1" fontWeight={500}>
+                      {formatCurrency(
+                        currentInvoice.grandTotal || currentInvoice.totalAmount
+                      )}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Amount Paid:
+                    </Typography>
+                    <Typography
+                      variant="body1"
+                      fontWeight={500}
+                      color="success.main"
+                    >
+                      {formatCurrency(currentInvoice.paymentDetails?.downPayment || 0)}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Remaining Balance:
+                    </Typography>
+                    <Typography
+                      variant="body1"
+                      fontWeight={500}
+                      color="warning.main"
+                    >
+                      {formatCurrency(getRemainingBalance(currentInvoice))}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+            )}
+
+            {paymentError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {paymentError}
+              </Alert>
+            )}
+
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Payment Amount"
+                  type="number"
+                  value={paymentForm.amount}
+                  onChange={handlePaymentFormChange('amount')}
+                  disabled={paymentLoading}
+                  inputProps={{
+                    min: 0,
+                    max: currentInvoice
+                      ? getRemainingBalance(currentInvoice)
+                      : 0,
+                    step: 0.01,
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">₹</InputAdornment>
+                    ),
+                  }}
+                  helperText={
+                    currentInvoice
+                      ? `Maximum: ${formatCurrency(
+                          getRemainingBalance(currentInvoice)
+                        )}`
+                      : ''
+                  }
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <DatePicker
+                  label="Payment Date"
+                  value={paymentForm.paymentDate}
+                  onChange={handlePaymentDateChange}
+                  disabled={paymentLoading}
+                  format="dd/MM/yyyy"
+                  maxDate={new Date()}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      InputProps: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <DateRangeIcon />
+                          </InputAdornment>
+                        ),
+                      },
+                    },
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Payment Method"
+                  value={paymentForm.paymentMethod}
+                  onChange={handlePaymentFormChange('paymentMethod')}
+                  disabled={paymentLoading}
+                  SelectProps={{
+                    native: true,
+                  }}
+                >
+                  <option value={PAYMENT_METHODS.CASH}>
+                    {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CASH]}
+                  </option>
+                  <option value={PAYMENT_METHODS.CARD}>
+                    {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CARD]}
+                  </option>
+                  <option value={PAYMENT_METHODS.CREDIT_CARD}>
+                    {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CREDIT_CARD]}
+                  </option>
+                  <option value={PAYMENT_METHODS.UPI}>
+                    {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.UPI]}
+                  </option>
+                  <option value={PAYMENT_METHODS.NET_BANKING}>
+                    {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.NET_BANKING]}
+                  </option>
+                  <option value={PAYMENT_METHODS.CHEQUE}>
+                    {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CHEQUE]}
+                  </option>
+                  <option value={PAYMENT_METHODS.BANK_TRANSFER}>
+                    {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.BANK_TRANSFER]}
+                  </option>
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Payment Reference"
+                  placeholder="Transaction ID, Cheque No, etc."
+                  value={paymentForm.reference}
+                  onChange={handlePaymentFormChange('reference')}
+                  disabled={paymentLoading}
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Notes"
+                  placeholder="Additional notes about this payment..."
+                  value={paymentForm.notes}
+                  onChange={handlePaymentFormChange('notes')}
+                  disabled={paymentLoading}
+                  multiline
+                  rows={2}
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button
+              onClick={handlePaymentCancel}
+              disabled={paymentLoading}
+              startIcon={<CloseIcon />}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePaymentSubmit}
+              color="primary"
+              variant="contained"
+              disabled={
+                paymentLoading || !paymentForm.amount || !paymentForm.paymentDate
+              }
+              startIcon={
+                paymentLoading ? (
+                  <CircularProgress size={20} color="inherit" />
+                ) : (
+                  <SaveIcon />
+                )
+              }
+            >
+              {paymentLoading ? 'Recording...' : 'Record Payment'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Container>
     </Layout>
   );
