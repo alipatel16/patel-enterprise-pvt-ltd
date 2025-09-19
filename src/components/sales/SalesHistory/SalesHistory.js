@@ -19,9 +19,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
-  InputAdornment,
-  CircularProgress,
   useTheme,
   useMediaQuery,
   Avatar,
@@ -49,13 +46,10 @@ import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   PaymentOutlined as RecordPaymentIcon,
-  Save as SaveIcon,
-  Close as CloseIcon,
   DateRange as DateRangeIcon,
 } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 
-import salesService from "../../../services/api/salesService";
 import { useSales } from "../../../contexts/SalesContext/SalesContext";
 import { useAuth } from "../../../contexts/AuthContext/AuthContext";
 import SearchBar from "../../common/UI/SearchBar";
@@ -64,18 +58,15 @@ import {
   PAYMENT_STATUS,
   PAYMENT_STATUS_DISPLAY,
   PAYMENT_METHODS,
-  PAYMENT_METHOD_DISPLAY,
   DELIVERY_STATUS,
-  PAYMENT_CATEGORIES,
   PAYMENT_CATEGORY_DISPLAY,
 } from "../../../utils/constants/appConstants";
 import { useUserType } from "../../../contexts/UserTypeContext";
+import RecordPaymentDialog from "../Payment/RecordPaymentDialog";
 
 const SalesHistory = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const { userType } = useUserType();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [searchParams, setSearchParams] = useSearchParams();
 
   const { sales, loading, error, loadSales, deleteInvoice, clearError } =
@@ -111,18 +102,8 @@ const SalesHistory = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
-  // Payment recording state with date picker
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-  const [paymentForm, setPaymentForm] = useState({
-    amount: "",
-    paymentMethod: PAYMENT_METHODS.CASH,
-    reference: "",
-    notes: "",
-    paymentDate: new Date(), // NEW - Add payment date
-  });
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentError, setPaymentError] = useState("");
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] =
+    useState(null);
 
   // Load sales on component mount
   useEffect(() => {
@@ -410,107 +391,8 @@ const SalesHistory = () => {
   };
 
   const handleRecordPayment = () => {
-    if (!selectedInvoice) return;
-
-    const remainingBalance = getRemainingBalance(selectedInvoice);
-    setPaymentForm({
-      amount: remainingBalance.toString(),
-      paymentMethod: PAYMENT_METHODS.CASH,
-      reference: "",
-      notes: "",
-      paymentDate: new Date(), // NEW - Default to today
-    });
-    setPaymentError("");
-    setPaymentDialogOpen(true);
+    setSelectedInvoiceForPayment(selectedInvoice);
     handleActionMenuClose();
-  };
-
-  const handlePaymentFormChange = (field) => (event) => {
-    setPaymentForm((prev) => ({
-      ...prev,
-      [field]: event.target.value,
-    }));
-  };
-
-  // NEW - Handle payment date change
-  const handlePaymentDateChange = (date) => {
-    setPaymentForm((prev) => ({
-      ...prev,
-      paymentDate: date,
-    }));
-  };
-
-  const handlePaymentSubmit = async () => {
-    if (!selectedInvoice) return;
-
-    const amount = parseFloat(paymentForm.amount);
-    const remainingBalance = getRemainingBalance(selectedInvoice);
-
-    // Validation
-    if (!amount || amount <= 0) {
-      setPaymentError("Please enter a valid payment amount");
-      return;
-    }
-
-    if (amount > remainingBalance) {
-      setPaymentError(
-        `Payment amount cannot exceed remaining balance of ${formatCurrency(
-          remainingBalance
-        )}`
-      );
-      return;
-    }
-
-    if (!paymentForm.paymentDate) {
-      setPaymentError("Please select a payment date");
-      return;
-    }
-
-    setPaymentLoading(true);
-    setPaymentError("");
-
-    try {
-      const paymentDetails = {
-        paymentMethod: paymentForm.paymentMethod,
-        reference: paymentForm.reference,
-        notes: paymentForm.notes,
-        paymentDate: paymentForm.paymentDate.toISOString(), // NEW - Include payment date
-        recordedBy: "current-user-id",
-        recordedByName: "Current User",
-      };
-
-      await salesService.recordAdditionalPayment(
-        userType,
-        selectedInvoice?.id,
-        amount,
-        paymentDetails
-      );
-
-      // Reload sales
-      await loadSales();
-
-      setPaymentDialogOpen(false);
-      setSelectedInvoice(null);
-
-      console.log("Payment recorded successfully");
-    } catch (error) {
-      setPaymentError(error.message || "Failed to record payment");
-    } finally {
-      setPaymentLoading(false);
-    }
-  };
-
-  const handlePaymentCancel = () => {
-    setPaymentDialogOpen(false);
-    setPaymentForm({
-      amount: "",
-      paymentMethod: PAYMENT_METHODS.CASH,
-      reference: "",
-      notes: "",
-      paymentDate: new Date(),
-    });
-    setPaymentError("");
-    setSelectedInvoice(null);
   };
 
   // Get payment status color with new statuses
@@ -549,11 +431,9 @@ const SalesHistory = () => {
 
   // Calculate actual amount paid for partial payments
   const getActualAmountPaid = (sale) => {
-     if (
-    sale.paymentStatus === PAYMENT_STATUS.PENDING
-    ) {
-    // For pending payments, check if there's any payment history
-    return sale.paymentDetails?.downPayment || 0;
+    if (sale.paymentStatus === PAYMENT_STATUS.PENDING) {
+      // For pending payments, check if there's any payment history
+      return sale.paymentDetails?.downPayment || 0;
     }
     if (
       sale.paymentStatus === PAYMENT_STATUS.FINANCE ||
@@ -1379,215 +1259,15 @@ const SalesHistory = () => {
       </Dialog>
 
       {/* Payment Recording Dialog with Date Picker */}
-      <Dialog
-        open={paymentDialogOpen}
-        onClose={paymentLoading ? undefined : handlePaymentCancel}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <RecordPaymentIcon color="primary" />
-          Record Payment - {selectedInvoice?.invoiceNumber}
-        </DialogTitle>
-        <DialogContent>
-          {selectedInvoice && (
-            <Box sx={{ mb: 3 }}>
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">
-                    Customer:
-                  </Typography>
-                  <Typography variant="body1" fontWeight={500}>
-                    {selectedInvoice.customerName}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">
-                    Invoice Total:
-                  </Typography>
-                  <Typography variant="body1" fontWeight={500}>
-                    {formatCurrency(
-                      selectedInvoice.grandTotal || selectedInvoice.totalAmount
-                    )}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">
-                    Amount Paid:
-                  </Typography>
-                  <Typography
-                    variant="body1"
-                    fontWeight={500}
-                    color="success.main"
-                  >
-                    {formatCurrency(getActualAmountPaid(selectedInvoice))}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">
-                    Remaining Balance:
-                  </Typography>
-                  <Typography
-                    variant="body1"
-                    fontWeight={500}
-                    color="warning.main"
-                  >
-                    {formatCurrency(getRemainingBalance(selectedInvoice))}
-                  </Typography>
-                </Grid>
-              </Grid>
-            </Box>
-          )}
-
-          {paymentError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {paymentError}
-            </Alert>
-          )}
-
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Payment Amount"
-                type="number"
-                value={paymentForm.amount}
-                onChange={handlePaymentFormChange("amount")}
-                disabled={paymentLoading}
-                inputProps={{
-                  min: 0,
-                  max: selectedInvoice
-                    ? getRemainingBalance(selectedInvoice)
-                    : 0,
-                  step: 0.01,
-                }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">₹</InputAdornment>
-                  ),
-                }}
-                helperText={
-                  selectedInvoice
-                    ? `Maximum: ${formatCurrency(
-                        getRemainingBalance(selectedInvoice)
-                      )}`
-                    : ""
-                }
-              />
-            </Grid>
-
-            {/* NEW - Payment Date Picker */}
-            <Grid item xs={12} sm={6}>
-              <DatePicker
-                label="Payment Date"
-                value={paymentForm.paymentDate}
-                onChange={handlePaymentDateChange}
-                disabled={paymentLoading}
-                format="dd/MM/yyyy"
-                maxDate={new Date()}
-                slotProps={{
-                  textField: {
-                    fullWidth: true,
-                    InputProps: {
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <DateRangeIcon />
-                        </InputAdornment>
-                      ),
-                    },
-                  },
-                }}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                select
-                label="Payment Method"
-                value={paymentForm.paymentMethod}
-                onChange={handlePaymentFormChange("paymentMethod")}
-                disabled={paymentLoading}
-                SelectProps={{
-                  native: true,
-                }}
-              >
-                <option value={PAYMENT_METHODS.CASH}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CASH]}
-                </option>
-                <option value={PAYMENT_METHODS.CARD}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CARD]}
-                </option>
-                <option value={PAYMENT_METHODS.CREDIT_CARD}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CREDIT_CARD]}
-                </option>
-                <option value={PAYMENT_METHODS.UPI}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.UPI]}
-                </option>
-                <option value={PAYMENT_METHODS.NET_BANKING}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.NET_BANKING]}
-                </option>
-                <option value={PAYMENT_METHODS.CHEQUE}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CHEQUE]}
-                </option>
-                <option value={PAYMENT_METHODS.BANK_TRANSFER}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.BANK_TRANSFER]}
-                </option>
-              </TextField>
-            </Grid>
-
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Payment Reference"
-                placeholder="Transaction ID, Cheque No, etc."
-                value={paymentForm.reference}
-                onChange={handlePaymentFormChange("reference")}
-                disabled={paymentLoading}
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Notes"
-                placeholder="Additional notes about this payment..."
-                value={paymentForm.notes}
-                onChange={handlePaymentFormChange("notes")}
-                disabled={paymentLoading}
-                multiline
-                rows={2}
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button
-            onClick={handlePaymentCancel}
-            disabled={paymentLoading}
-            startIcon={<CloseIcon />}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handlePaymentSubmit}
-            color="primary"
-            variant="contained"
-            disabled={
-              paymentLoading || !paymentForm.amount || !paymentForm.paymentDate
-            }
-            startIcon={
-              paymentLoading ? (
-                <CircularProgress size={20} color="inherit" />
-              ) : (
-                <SaveIcon />
-              )
-            }
-          >
-            {paymentLoading ? "Recording..." : "Record Payment"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <RecordPaymentDialog
+        open={Boolean(selectedInvoiceForPayment)}
+        onClose={() => setSelectedInvoiceForPayment(null)}
+        invoice={selectedInvoiceForPayment}
+        onSuccess={async () => {
+          await loadSales();
+          setSelectedInvoiceForPayment(null);
+        }}
+      />
     </Box>
   );
 };
