@@ -21,10 +21,8 @@ import {
   DialogContent,
   DialogActions,
   useTheme,
-  useMediaQuery
 } from '@mui/material';
 import {
-  Person as PersonIcon,
   Badge as BadgeIcon,
   Phone as PhoneIcon,
   Email as EmailIcon,
@@ -50,7 +48,6 @@ import {
 const EmployeeList = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const {
     employees,

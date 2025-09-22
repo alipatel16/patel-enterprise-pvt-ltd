@@ -37,7 +37,6 @@ import {
   AttachMoney as MoneyIcon,
   Person as PersonIcon,
   Delete as DeleteIcon,
-  Visibility as ViewIcon,
   Save as SaveIcon,
   Cancel as CancelIcon
 } from '@mui/icons-material';

@@ -6,8 +6,6 @@ import {
   Typography,
   Button,
   Paper,
-  useTheme,
-  useMediaQuery
 } from '@mui/material';
 import {
   Home as HomeIcon,
@@ -17,8 +15,6 @@ import {
 
 const NotFoundPage = () => {
   const navigate = useNavigate();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const handleGoHome = () => {
     navigate('/dashboard');

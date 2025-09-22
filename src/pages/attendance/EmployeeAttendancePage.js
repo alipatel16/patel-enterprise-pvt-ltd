@@ -43,15 +43,11 @@ import {
   Schedule as ScheduleIcon,
   Coffee as BreakIcon,
   TrendingUp as TrendingUpIcon,
-  EventBusy as LeaveIcon,
-  CalendarToday as CalendarIcon,
-  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 import Layout from '../../components/common/Layout/Layout';
 import AttendanceChecker from '../../components/attendance/AttendanceChecker';
-import LoadingSpinner from '../../components/common/UI/LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext/AuthContext';
 import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 import attendanceService from '../../services/attendance/attendanceService';

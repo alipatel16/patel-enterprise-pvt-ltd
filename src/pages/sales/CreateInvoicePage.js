@@ -7,13 +7,11 @@ import InvoiceForm from '../../components/sales/InvoiceForm/InvoiceForm';
 import { SalesProvider, useSales } from '../../contexts/SalesContext/SalesContext';
 import { CustomerProvider } from '../../contexts/CustomerContext/CustomerContext';
 import { EmployeeProvider } from '../../contexts/EmployeeContext/EmployeeContext';
-import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 
 // Page Content Component
 const CreateInvoicePageContent = () => {
   const navigate = useNavigate();
   const { createInvoice, loading, error } = useSales();
-  const { getDisplayName } = useUserType();
   
   const [submitError, setSubmitError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);

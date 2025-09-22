@@ -6,7 +6,6 @@ import {
   DialogContentText,
   DialogActions,
   Button,
-  Box,
   Typography,
   useTheme,
   useMediaQuery

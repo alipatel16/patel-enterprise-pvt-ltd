@@ -6,14 +6,12 @@ import {
   Typography,
   Avatar,
   Chip,
-  IconButton,
   alpha,
   useTheme
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
-  MoreVert as MoreVertIcon,
   ArrowForward as ArrowForwardIcon
 } from '@mui/icons-material';
 

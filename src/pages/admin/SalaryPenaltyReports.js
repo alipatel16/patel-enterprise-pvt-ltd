@@ -43,15 +43,10 @@ import {
   ExpandLess as ExpandLessIcon,
   AttachMoney as MoneyIcon,
   EventBusy as LeaveIcon,
-  Schedule as ScheduleIcon,
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon,
   Refresh as RefreshIcon,
-  Edit as EditIcon,
-  CalendarToday as CalendarIcon,
   DateRange as DateRangeIcon,
-  AccessTime as AccessTimeIcon
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
@@ -71,7 +66,6 @@ const SalaryPenaltyTab = () => {
   // Main state
   const [employees, setEmployees] = useState([]);
   const [salaryReports, setSalaryReports] = useState([]);
-  const [penalties, setPenalties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(new Date());

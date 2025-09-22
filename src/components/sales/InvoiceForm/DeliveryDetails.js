@@ -15,8 +15,6 @@ import {
   useTheme
 } from '@mui/material';
 import {
-  LocalShipping as DeliveryIcon,
-  Schedule as ScheduleIcon,
   Home as HomeIcon,
   Store as StoreIcon,
   LocationOn as LocationIcon,
@@ -29,9 +27,8 @@ import FormField from '../../common/Forms/FormField';
 import DatePicker from '../../common/Forms/DatePicker';
 import { 
   DELIVERY_STATUS,
-  DELIVERY_TYPES 
 } from '../../../utils/constants/appConstants';
-import { formatDate, formatTime } from '../../../utils/helpers/formatHelpers';
+import { formatDate } from '../../../utils/helpers/formatHelpers';
 
 /**
  * Delivery details component for invoice form

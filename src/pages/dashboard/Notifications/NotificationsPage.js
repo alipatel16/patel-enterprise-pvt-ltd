@@ -5,14 +5,12 @@ import {
   Box,
   Paper,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
 
 import Layout from "../../../components/common/Layout/Layout";
 import NotificationPanel from "../../../components/dashboard/Notifications/NotificationPanel";
 import { SalesProvider } from '../../../contexts/SalesContext/SalesContext'; 
 
 const NotificationsPage = () => {
-  const navigate = useNavigate();
 
   const breadcrumbs = [
     {

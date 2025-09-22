@@ -9,8 +9,6 @@ import {
   RadioGroup,
   Radio,
   Alert,
-  Divider,
-  Chip,
   List,
   ListItem,
   ListItemText,
@@ -30,7 +28,6 @@ import FormField from '../../common/Forms/FormField';
 import DatePicker from '../../common/Forms/DatePicker';
 import { 
   PAYMENT_STATUS,
-  PAYMENT_METHODS 
 } from '../../../utils/constants/appConstants';
 import { formatCurrency, formatDate, addMonths } from '../../../utils/helpers/formatHelpers';
 

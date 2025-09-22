@@ -5,7 +5,6 @@ import {
   Toolbar,
   Typography,
   IconButton,
-  Button,
   Box,
   Avatar,
   Menu,
@@ -22,14 +21,11 @@ import {
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  AccountCircle as AccountIcon,
   Logout as LogoutIcon,
   Settings as SettingsIcon,
   Notifications as NotificationsIcon,
   Dashboard as DashboardIcon,
   Business as BusinessIcon,
-  Brightness4 as DarkModeIcon,
-  Brightness7 as LightModeIcon,
   Home as HomeIcon
 } from '@mui/icons-material';
 
@@ -52,7 +48,6 @@ const Navbar = ({
   title = '' 
 }) => {
   const navigate = useNavigate();
-  const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   

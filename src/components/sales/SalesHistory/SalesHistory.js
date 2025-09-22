@@ -20,7 +20,6 @@ import {
   DialogContent,
   DialogActions,
   useTheme,
-  useMediaQuery,
   Avatar,
   Tooltip,
   Paper,
@@ -57,11 +56,9 @@ import Pagination from "../../common/UI/Pagination";
 import {
   PAYMENT_STATUS,
   PAYMENT_STATUS_DISPLAY,
-  PAYMENT_METHODS,
   DELIVERY_STATUS,
   PAYMENT_CATEGORY_DISPLAY,
 } from "../../../utils/constants/appConstants";
-import { useUserType } from "../../../contexts/UserTypeContext";
 import RecordPaymentDialog from "../Payment/RecordPaymentDialog";
 
 const SalesHistory = () => {

@@ -1,6 +1,6 @@
 // src/services/penalty/penaltyService.js - UPDATED WITH SUNDAY WEEKENDS & PAID LEAVES
 import { database } from '../firebase/config';
-import { ref, set, get, push, remove, query, orderByChild, equalTo } from 'firebase/database';
+import { ref, set, get, push, query, orderByChild, equalTo } from 'firebase/database';
 import { getCollectionPath } from '../../utils/helpers/firebasePathHelper';
 
 class PenaltyService {

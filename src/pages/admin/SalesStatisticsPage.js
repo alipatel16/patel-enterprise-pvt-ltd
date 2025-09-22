@@ -13,15 +13,11 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Tabs,
-  Tab,
   CircularProgress,
   Alert,
   Chip,
   Divider,
   IconButton,
-  Tooltip,
-  Button,
   FormControl,
   InputLabel,
   Select,
@@ -30,13 +26,9 @@ import {
 import {
   TrendingUp as TrendingUpIcon,
   AttachMoney as MoneyIcon,
-  Schedule as ScheduleIcon,
   People as PeopleIcon,
   Receipt as ReceiptIcon,
-  Assessment as AssessmentIcon,
   Refresh as RefreshIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
 import Layout from '../../components/common/Layout/Layout';
 import salesStatsService from '../../services/salesStatsService';

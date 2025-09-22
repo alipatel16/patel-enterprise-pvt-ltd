@@ -24,7 +24,6 @@ import {
 import Layout from '../../components/common/Layout/Layout';
 import PenaltySettings from '../../components/admin/PenaltySettings';
 import { useAuth } from '../../contexts/AuthContext/AuthContext';
-import { UPDATED_PERMISSIONS } from '../../utils/constants/attendanceConstants';
 
 // Placeholder components for other settings tabs
 const CompanySettings = () => (

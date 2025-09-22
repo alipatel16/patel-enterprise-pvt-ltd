@@ -16,7 +16,6 @@ import {
   IconButton,
   LinearProgress,
   Alert,
-  Divider,
   Paper,
   Tooltip,
   Menu,
@@ -40,7 +39,6 @@ import {
   MoreVert as MoreVertIcon,
   History as HistoryIcon,
   CalendarToday as CalendarIcon,
-  AccountBalance as BankIcon,
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   Flag as FlagIcon

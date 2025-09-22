@@ -6,17 +6,14 @@
 import {
   validateRequired,
   validateEmail,
-  validatePhone,
   validatePassword,
   validateConfirmPassword,
-  validateStringLength,
   validateFormData
 } from '../helpers/validationHelpers';
 
 import { 
   USER_ROLES, 
   SECURITY_SETTINGS, 
-  VALIDATION_MESSAGES 
 } from '../constants';
 
 /**

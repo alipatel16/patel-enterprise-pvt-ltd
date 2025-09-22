@@ -7,13 +7,8 @@ import {
   TextField,
   Button,
   Grid,
-  FormControl,
   FormControlLabel,
   Switch,
-  Select,
-  MenuItem,
-  InputLabel,
-  Divider,
   Alert,
   LinearProgress,
   useTheme,
@@ -38,7 +33,6 @@ import FormField from "../common/Forms/FormField";
 import { DatePicker } from "@mui/x-date-pickers";
 import {
   USER_ROLES,
-  VALIDATION_MESSAGES,
 } from "../../utils/constants/appConstants";
 import { validateEmployeeData } from "../../utils/validation/employeeValidation";
 

@@ -4,7 +4,6 @@ import complaintService from './api/complaintService';
 import employeeService from './api/employeeService';
 import { 
   COMPLAINT_STATUS,
-  COMPLAINT_SEVERITY,
   ASSIGNEE_TYPE,
   getComplaintPriorityFromSeverity
 } from '../utils/constants/appConstants';

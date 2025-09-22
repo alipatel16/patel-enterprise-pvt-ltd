@@ -31,7 +31,6 @@ import {
 } from '@mui/material';
 import {
   CameraAlt as CameraIcon,
-  AccessTime as TimeIcon,
   CheckCircle as CheckInIcon,
   ExitToApp as CheckOutIcon,
   Coffee as BreakIcon,
@@ -44,7 +43,6 @@ import {
   EventBusy as LeaveIcon,
   Edit as EditIcon,
   Schedule as AutoIcon,
-  Info as InfoIcon
 } from '@mui/icons-material';
 
 import { useAuth } from '../../contexts/AuthContext/AuthContext';
@@ -53,7 +51,6 @@ import attendanceService from '../../services/attendance/attendanceService';
 import smartAutoCheckoutService from '../../services/attendance/smartAutoCheckoutService';
 import employeeService from '../../services/api/employeeService';
 import { 
-  captureAndCompressPhoto, 
   isCameraSupported, 
   base64ToImageUrl 
 } from '../../utils/helpers/photoUtils';
@@ -62,7 +59,6 @@ import {
   validateLocationProximity,
   formatCoordinates,
   generateMapsLink,
-  getDistanceStatus,
   getAccuracyStatus,
   isGeolocationSupported,
   STORE_COORDINATES

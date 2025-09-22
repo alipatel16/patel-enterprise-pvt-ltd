@@ -21,11 +21,9 @@ import {
   TableHead,
   TableRow,
   TablePagination,
-  Paper,
   Alert,
   CircularProgress,
   Tooltip,
-  Badge,
   Stack,
   useTheme,
   alpha,
@@ -38,35 +36,28 @@ import {
   Refresh as RefreshIcon,
   FilterList as FilterIcon,
   Assignment as ComplaintIcon,
-  CheckCircle as ResolvedIcon,
   Warning as OverdueIcon,
-  TrendingUp as EscalatedIcon,
 } from "@mui/icons-material";
 
 import Layout from "../../components/common/Layout/Layout";
 import RecordComplaintDialog from "../../components/complaints/RecordComplaintDialog";
 import EditComplaintDialog from "../../components/complaints/EditComplaintDialog";
 import {
-  COMPLAINT_STATUS,
   COMPLAINT_STATUS_DISPLAY,
-  COMPLAINT_SEVERITY,
   COMPLAINT_SEVERITY_DISPLAY,
   getComplaintSeverityColor,
   getComplaintStatusColor,
   PAGINATION,
 } from "../../utils/constants/appConstants";
-import { useAuth } from "../../contexts/AuthContext";
 import { useUserType } from "../../contexts/UserTypeContext";
 import { formatDate } from "../../utils/helpers/formatHelpers";
 import complaintService from "../../services/api/complaintService";
 
 import ComplaintsNotificationPanel from "../../components/complaints/ComplaintsNotificationPanel";
-import independentComplaintNotificationService from "../../services/independentComplaintNotificationService";
 
 const ComplaintsPage = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const { user } = useAuth();
   const { userType } = useUserType();
 
   // Data state

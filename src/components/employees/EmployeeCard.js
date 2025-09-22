@@ -27,7 +27,6 @@ import {
   Email as EmailIcon,
   Phone as PhoneIcon,
   Work as WorkIcon,
-  Schedule as ScheduleIcon,
   Assessment as AssessmentIcon,
   Block as BlockIcon,
   CheckCircle as ActiveIcon

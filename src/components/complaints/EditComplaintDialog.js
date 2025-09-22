@@ -24,13 +24,9 @@ import {
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import {
-  COMPLAINT_STATUS,
   COMPLAINT_STATUS_DISPLAY,
-  COMPLAINT_SEVERITY,
   COMPLAINT_SEVERITY_DISPLAY,
-  COMPLAINT_CATEGORIES,
   COMPLAINT_CATEGORY_DISPLAY,
-  ASSIGNEE_TYPE,
   ASSIGNEE_TYPE_DISPLAY
 } from '../../utils/constants/appConstants';
 import { useAuth } from '../../contexts/AuthContext';

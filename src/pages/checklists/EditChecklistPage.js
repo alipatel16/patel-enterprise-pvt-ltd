@@ -22,13 +22,8 @@ import {
   FormLabel,
   Alert,
   Grid,
-  Divider,
   CircularProgress,
   Paper,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText as MuiListItemText,
   Switch,
   Tooltip,
   IconButton
@@ -41,7 +36,6 @@ import {
   Schedule as ScheduleIcon,
   PersonAdd as BackupIcon,
   Info as InfoIcon,
-  Warning as WarningIcon
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 

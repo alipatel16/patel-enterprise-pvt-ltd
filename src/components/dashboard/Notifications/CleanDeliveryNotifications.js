@@ -26,7 +26,6 @@ import {
 } from '@mui/material';
 import {
   LocalShipping as DeliveryIcon,
-  Schedule as ScheduleIcon,
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
@@ -50,7 +49,6 @@ const CleanDeliveryNotifications = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   
   const { notifications, loading, markAsRead, refreshNotifications } = useNotifications();
 

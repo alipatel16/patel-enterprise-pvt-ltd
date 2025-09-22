@@ -22,18 +22,10 @@ import {
   Avatar,
   Alert,
   CircularProgress,
-  Tooltip,
-  IconButton,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  Divider,
   useTheme
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
   EmojiEvents as TrophyIcon,
   Person as PersonIcon,
   Assessment as AssessmentIcon,
@@ -51,7 +43,7 @@ import LoadingSpinner from '../../components/common/UI/LoadingSpinner';
 
 const EmployeeSalesAnalyticsPage = () => {
   const theme = useTheme();
-  const { user, canManageEmployees } = useAuth();
+  const { canManageEmployees } = useAuth();
   const { userType, getDisplayName } = useUserType();
 
   // State management
@@ -60,7 +52,7 @@ const EmployeeSalesAnalyticsPage = () => {
   const [error, setError] = useState(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
-  const [monthlyComparison, setMonthlyComparison] = useState(null);
+  const [ setMonthlyComparison] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // Check if user has access (admin only)

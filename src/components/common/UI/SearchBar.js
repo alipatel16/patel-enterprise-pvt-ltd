@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   TextField,
   InputAdornment,
@@ -7,9 +7,6 @@ import {
   Chip,
   Menu,
   MenuItem,
-  FormControl,
-  InputLabel,
-  Select,
   Button,
   useTheme,
   useMediaQuery

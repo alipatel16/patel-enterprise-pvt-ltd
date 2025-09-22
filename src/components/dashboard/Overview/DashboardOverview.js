@@ -7,9 +7,7 @@ import {
   CardContent,
   Typography,
   Button,
-  IconButton,
   LinearProgress,
-  Divider,
   List,
   ListItem,
   ListItemText,
@@ -22,8 +20,6 @@ import {
   useMediaQuery
 } from '@mui/material';
 import {
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
   People as PeopleIcon,
   Receipt as ReceiptIcon,
   AttachMoney as MoneyIcon,
@@ -38,10 +34,9 @@ import {
 } from '@mui/icons-material';
 
 import StatsCard from './StatsCard';
-import RecentActivity from './RecentActivity';
 import { useAuth } from '../../../contexts/AuthContext/AuthContext';
 import { useUserType } from '../../../contexts/UserTypeContext/UserTypeContext';
-import { formatCurrency, formatDate, formatPercentage } from '../../../utils/helpers/formatHelpers';
+import { formatCurrency, formatDate } from '../../../utils/helpers/formatHelpers';
 
 /**
  * Dashboard overview component showing key metrics and recent activity
@@ -60,9 +55,7 @@ const DashboardOverview = ({
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { user } = useAuth();
   const { getDisplayName, getThemeColors } = useUserType();
-  
-  const [selectedPeriod, setSelectedPeriod] = useState('month');
-  
+    
   const themeColors = getThemeColors();
 
   // Default data structure

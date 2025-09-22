@@ -7,7 +7,6 @@ import {
   Typography,
   TextField,
   Button,
-  FormControl,
   FormControlLabel,
   Switch,
   Divider,
@@ -37,10 +36,7 @@ import {
   Cancel as CancelIcon,
   Receipt as ReceiptIcon,
   Calculate as CalculateIcon,
-  Payment as PaymentIcon,
-  AccountBalance as BankIcon,
   AttachMoney as MoneyIcon,
-  CreditCard as CreditCardIcon,
   Info as InfoIcon,
 } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
@@ -50,9 +46,7 @@ import { useEmployee } from "../../../contexts/EmployeeContext/EmployeeContext";
 import { calculateItemWithGST } from "../../../utils/helpers/gstCalculator";
 import {
   PAYMENT_STATUS,
-  PAYMENT_STATUS_DISPLAY,
   PAYMENT_METHODS,
-  PAYMENT_METHOD_DISPLAY,
   DELIVERY_STATUS,
   getPaymentCategory,
 } from "../../../utils/constants/appConstants";

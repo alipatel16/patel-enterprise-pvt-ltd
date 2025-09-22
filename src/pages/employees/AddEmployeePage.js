@@ -24,14 +24,12 @@ import {
 import Layout from '../../components/common/Layout/Layout';
 import EmployeeForm from '../../components/employees/EmployeeForm';
 import { EmployeeProvider, useEmployee } from '../../contexts/EmployeeContext/EmployeeContext';
-import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 import { useAuth } from '../../contexts/AuthContext/AuthContext';
 
 // Page Content Component
 const AddEmployeePageContent = () => {
   const navigate = useNavigate();
   const { createEmployee, loading, error } = useEmployee();
-  const { getDisplayName } = useUserType();
   const { user } = useAuth(); // Get current admin user
   
   const [submitError, setSubmitError] = useState(null);

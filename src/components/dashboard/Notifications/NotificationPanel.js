@@ -28,9 +28,7 @@ import {
   Notifications as NotificationsIcon,
   Payment as PaymentIcon,
   LocalShipping as DeliveryIcon,
-  Warning as WarningIcon,
   Error as ErrorIcon,
-  Schedule as ScheduleIcon,
   CheckCircle as CheckCircleIcon,
   MoreVert as MoreVertIcon,
   Check as MarkIcon,
@@ -43,7 +41,7 @@ import {
 import CleanEMINotifications from "./CleanEMINotifications";
 import CleanDeliveryNotifications from "./CleanDeliveryNotifications";
 import { useNotifications } from "../../../hooks/useNotifications";
-import { formatDate, formatCurrency } from "../../../utils/helpers/formatHelpers";
+import { formatDate } from "../../../utils/helpers/formatHelpers";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useUserType } from "../../../contexts/UserTypeContext";
 

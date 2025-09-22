@@ -7,15 +7,10 @@ import {
   Box,
   Button,
   Alert,
-  Breadcrumbs,
-  Link,
-  useTheme,
-  useMediaQuery
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   Edit as EditIcon,
-  Receipt as ReceiptIcon
 } from '@mui/icons-material';
 
 import Layout from '../../components/common/Layout/Layout';
@@ -32,8 +27,6 @@ import { EmployeeProvider } from '../../contexts/EmployeeContext/EmployeeContext
 const EditInvoicePageContent = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
   const {
     currentInvoice,

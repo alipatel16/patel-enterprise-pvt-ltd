@@ -7,8 +7,6 @@ import {
   remove,
   query,
   orderByChild,
-  equalTo,
-  limitToFirst,
   startAt,
   endAt,
 } from "firebase/database";

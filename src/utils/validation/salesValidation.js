@@ -4,9 +4,6 @@
  */
 
 import {
-  validateRequired,
-  validateEmail,
-  validatePhone,
   validateNumeric,
   validateAmount,
   validateDate,
@@ -19,7 +16,6 @@ import {
   DELIVERY_STATUS,
   PAYMENT_METHODS,
   EMI_CONFIG,
-  VALIDATION_MESSAGES
 } from '../constants';
 
 /**

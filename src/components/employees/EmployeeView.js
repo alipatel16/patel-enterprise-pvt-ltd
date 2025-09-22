@@ -16,17 +16,9 @@ import {
   ListItemText,
   Tab,
   Tabs,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   IconButton,
   Menu,
   MenuItem,
-  ListItemButton,
   alpha,
   useTheme,
   useMediaQuery
@@ -42,14 +34,12 @@ import {
   Assessment as AssessmentIcon,
   Receipt as ReceiptIcon,
   TrendingUp as TrendingUpIcon,
-  Payment as PaymentIcon,
   Group as GroupIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   MoreVert as MoreVertIcon,
   Block as BlockIcon,
   CheckCircle as ActiveIcon,
-  Schedule as ScheduleIcon,
   AttachMoney as MoneyIcon
 } from '@mui/icons-material';
 
@@ -57,7 +47,6 @@ import { useAuth } from '../../contexts/AuthContext/AuthContext';
 import { USER_ROLES } from '../../utils/constants/appConstants';
 import { formatCurrency, formatDate } from '../../utils/helpers/formatHelpers';
 import ConfirmDialog from '../common/UI/ConfirmDialog';
-import NotificationBadge from '../common/UI/NotificationBadge';
 
 /**
  * Employee view component showing detailed employee information

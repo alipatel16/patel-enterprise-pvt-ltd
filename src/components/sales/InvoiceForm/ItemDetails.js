@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -16,7 +16,6 @@ import {
   Card,
   CardContent,
   Alert,
-  Divider,
   useTheme,
   useMediaQuery
 } from '@mui/material';
@@ -24,7 +23,6 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
-  DragIndicator as DragIcon
 } from '@mui/icons-material';
 
 import FormField from '../../common/Forms/FormField';

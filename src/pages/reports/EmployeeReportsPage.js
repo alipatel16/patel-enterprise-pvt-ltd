@@ -34,15 +34,12 @@ import {
   useTheme,
   useMediaQuery,
   Alert,
-  CircularProgress,
   Tooltip,
-  Badge
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Search as SearchIcon,
-  FilterList as FilterIcon,
   Download as DownloadIcon,
   Photo as PhotoIcon,
   Close as CloseIcon,
@@ -67,8 +64,6 @@ import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 import attendanceService from '../../services/attendance/attendanceService';
 import penaltyService from '../../services/penalty/penaltyService';
 import { base64ToImageUrl } from '../../utils/helpers/photoUtils';
-import { formatCoordinates, generateMapsLink } from '../../utils/helpers/locationUtils';
-import { UPDATED_PERMISSIONS } from '../../utils/constants/attendanceConstants';
 
 // Main content component that has access to EmployeeProvider
 const EmployeeReportsContent = () => {

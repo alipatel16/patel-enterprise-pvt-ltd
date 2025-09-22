@@ -7,7 +7,6 @@ import {
   PAYMENT_METHODS,
 } from "../../utils/constants/appConstants";
 import {
-  calculateGSTWithSlab,
   calculateItemWithGST,
 } from "../../utils/helpers/gstCalculator";
 import productService from "./productService";

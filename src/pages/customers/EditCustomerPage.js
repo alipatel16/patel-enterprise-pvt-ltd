@@ -5,7 +5,6 @@ import { Box, Alert, Skeleton, Card, CardContent } from '@mui/material';
 import Layout from '../../components/common/Layout/Layout';
 import CustomerForm from '../../components/customers/CustomerForm';
 import { CustomerProvider, useCustomer } from '../../contexts/CustomerContext/CustomerContext';
-import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 
 // Page Content Component
 const EditCustomerPageContent = () => {
@@ -18,7 +17,6 @@ const EditCustomerPageContent = () => {
     loading, 
     error 
   } = useCustomer();
-  const { getDisplayName } = useUserType();
   
   const [submitError, setSubmitError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);

@@ -12,7 +12,6 @@ import {
   FormControlLabel,
   Alert,
   CircularProgress,
-  Divider,
   InputAdornment,
   useTheme,
   useMediaQuery,
@@ -28,8 +27,6 @@ import {
   TableRow,
   Paper,
   Chip,
-  IconButton,
-  Tooltip
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -37,12 +34,8 @@ import {
   Settings as SettingsIcon,
   Schedule as ScheduleIcon,
   AttachMoney as MoneyIcon,
-  EventBusy as LeaveIcon,
   AccessTime as TimeIcon,
-  Delete as DeleteIcon,
-  History as HistoryIcon,
   Visibility as ViewIcon,
-  Weekend as WeekendIcon,
   CalendarMonth as CalendarIcon
 } from '@mui/icons-material';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';

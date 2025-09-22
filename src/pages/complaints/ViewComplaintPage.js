@@ -14,8 +14,6 @@ import {
   IconButton,
   Paper,
   Stack,
-  Tooltip,
-  useTheme,
   alpha
 } from '@mui/material';
 import {
@@ -25,20 +23,13 @@ import {
   LocationOn as LocationIcon,
   Person as PersonIcon,
   Business as BusinessIcon,
-  Schedule as ScheduleIcon,
-  Assignment as AssignmentIcon,
-  CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon,
   Warning as WarningIcon,
-  Error as ErrorIcon
 } from '@mui/icons-material';
 
 import Layout from '../../components/common/Layout/Layout';
 import EditComplaintDialog from '../../components/complaints/EditComplaintDialog';
 import {
-  COMPLAINT_STATUS,
   COMPLAINT_STATUS_DISPLAY,
-  COMPLAINT_SEVERITY,
   COMPLAINT_SEVERITY_DISPLAY,
   COMPLAINT_CATEGORY_DISPLAY,
   ASSIGNEE_TYPE_DISPLAY,
@@ -46,7 +37,6 @@ import {
   getComplaintStatusColor,
   isComplaintOverdue
 } from '../../utils/constants/appConstants';
-import { useAuth } from '../../contexts/AuthContext';
 import { useUserType } from '../../contexts/UserTypeContext';
 import { formatDate, formatDateTime } from '../../utils/helpers/formatHelpers';
 import complaintService from '../../services/api/complaintService';
@@ -54,8 +44,6 @@ import complaintService from '../../services/api/complaintService';
 const ViewComplaintPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const theme = useTheme();
-  const { user } = useAuth();
   const { userType } = useUserType();
 
   // State

@@ -17,7 +17,6 @@ import {
   Business as BusinessIcon,
   School as SchoolIcon,
   Add as AddIcon,
-  Search as SearchIcon
 } from '@mui/icons-material';
 
 import AutoCompleteField from '../../common/Forms/AutoCompleteField';

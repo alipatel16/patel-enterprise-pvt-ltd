@@ -5,7 +5,6 @@ import {
 } from '../helpers/locationUtils';
 import { 
   getCurrentTime,
-  getCurrentDate,
   checkLateArrival,
   checkOvertime,
   isValidTimeFormat

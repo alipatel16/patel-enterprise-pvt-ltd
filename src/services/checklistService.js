@@ -6,9 +6,6 @@ import {
   push,
   update,
   remove,
-  query,
-  orderByChild,
-  equalTo,
 } from "firebase/database";
 import { database } from "./firebase/config";
 import { COLLECTIONS } from "../utils/constants/appConstants";

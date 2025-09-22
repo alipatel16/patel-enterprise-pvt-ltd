@@ -16,7 +16,6 @@ import {
   Paper,
   IconButton,
   Chip,
-  Grid,
   FormControl,
   InputLabel,
   Select,
@@ -26,15 +25,11 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  List,
-  ListItem,
-  ListItemText,
   Tooltip,
   Badge,
   Alert,
   CircularProgress,
   Avatar,
-  Divider
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -42,24 +37,18 @@ import {
   Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
   ChecklistRtl as ChecklistIcon,
-  People as PeopleIcon,
-  Assessment as ReportsIcon,
   CalendarToday as CalendarIcon,
   CheckCircle as CompletedIcon,
   Cancel as NotCompletedIcon,
-  Schedule as PendingIcon,
-  Warning as WarningIcon,
   Refresh as RefreshIcon
 } from '@mui/icons-material';
 
 import Layout from '../../components/common/Layout/Layout';
-import { useAuth } from '../../contexts/AuthContext/AuthContext';
 import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 import checklistService from '../../services/checklistService';
 
 const ChecklistsManagementPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { userType } = useUserType();
   
   const [loading, setLoading] = useState(true);

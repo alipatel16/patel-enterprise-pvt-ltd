@@ -9,7 +9,6 @@ import {
   orderByChild,
   equalTo,
   orderByKey,
-  limitToLast,
 } from "firebase/database";
 import { getCollectionPath } from "../../utils/helpers/firebasePathHelper";
 import penaltyService from "../penalty/penaltyService";

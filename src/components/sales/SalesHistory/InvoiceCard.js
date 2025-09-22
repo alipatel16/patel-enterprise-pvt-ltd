@@ -26,8 +26,6 @@ import {
   Receipt as ReceiptIcon,
   Print as PrintIcon,
   Email as EmailIcon,
-  Person as PersonIcon,
-  TrendingUp as TrendingUpIcon,
   Schedule as ScheduleIcon,
   CheckCircle as CheckCircleIcon,
   Warning as WarningIcon,
