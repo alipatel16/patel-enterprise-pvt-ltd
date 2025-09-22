@@ -111,7 +111,9 @@ class EnhancedComplaintService {
             complaint.title?.toLowerCase().includes(searchTerm) ||
             complaint.customerName?.toLowerCase().includes(searchTerm) ||
             complaint.customerPhone?.includes(searchTerm) ||
-            complaint.description?.toLowerCase().includes(searchTerm)
+            complaint.description?.toLowerCase().includes(searchTerm) ||
+            // Add company complaint number to search
+            complaint.companyComplaintNumber?.toLowerCase().includes(searchTerm)
           );
         });
       }
@@ -253,7 +255,10 @@ class EnhancedComplaintService {
           changedBy: complaintData.createdBy,
           changedByName: complaintData.createdByName,
           remarks: 'Complaint created'
-        }]
+        }],
+        // Ensure company complaint fields are included even if empty
+        companyComplaintNumber: complaintData.companyComplaintNumber || '',
+        companyRecordedDate: complaintData.companyRecordedDate || ''
       };
       
       console.log('Data to store:', newComplaint);
@@ -316,7 +321,10 @@ class EnhancedComplaintService {
       
       const updateData = {
         ...updates,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        // Ensure company complaint fields are handled properly
+        companyComplaintNumber: updates.companyComplaintNumber || '',
+        companyRecordedDate: updates.companyRecordedDate || ''
       };
 
       // If status is being updated, add to status history
@@ -513,6 +521,8 @@ class EnhancedComplaintService {
         assignedEmployeeId: complaint.assignedEmployeeId || '',
         servicePersonName: complaint.servicePersonName || '',
         servicePersonContact: complaint.servicePersonContact || '',
+        companyComplaintNumber: complaint.companyComplaintNumber || '',
+        companyRecordedDate: complaint.companyRecordedDate || '',
         daysOverdue: daysDiff < 0 ? Math.abs(daysDiff) : 0,
         isDueToday: daysDiff === 0,
         isOverdue: daysDiff < 0,
@@ -634,7 +644,9 @@ class EnhancedComplaintService {
           complaint.title?.toLowerCase().includes(searchLower) ||
           complaint.customerName?.toLowerCase().includes(searchLower) ||
           complaint.customerPhone?.includes(searchTerm) ||
-          complaint.description?.toLowerCase().includes(searchLower)
+          complaint.description?.toLowerCase().includes(searchLower) ||
+          // Add company complaint number to search
+          complaint.companyComplaintNumber?.toLowerCase().includes(searchLower)
         ) {
           complaints.push(complaint);
         }
@@ -645,6 +657,11 @@ class EnhancedComplaintService {
         const aExact = a.complaintNumber?.toLowerCase().startsWith(searchTerm.toLowerCase()) ? 1 : 0;
         const bExact = b.complaintNumber?.toLowerCase().startsWith(searchTerm.toLowerCase()) ? 1 : 0;
         if (aExact !== bExact) return bExact - aExact;
+        
+        // Also consider company complaint number for relevance
+        const aCompanyExact = a.companyComplaintNumber?.toLowerCase().startsWith(searchTerm.toLowerCase()) ? 1 : 0;
+        const bCompanyExact = b.companyComplaintNumber?.toLowerCase().startsWith(searchTerm.toLowerCase()) ? 1 : 0;
+        if (aCompanyExact !== bCompanyExact) return bCompanyExact - aCompanyExact;
         
         return new Date(b.createdAt) - new Date(a.createdAt);
       });
@@ -825,6 +842,16 @@ class EnhancedComplaintService {
     // Validate status
     if (complaintData.status && !Object.values(COMPLAINT_STATUS).includes(complaintData.status)) {
       throw new Error('Invalid complaint status');
+    }
+
+    // Validate company recorded date if provided
+    if (complaintData.companyRecordedDate) {
+      const companyDate = new Date(complaintData.companyRecordedDate);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (companyDate > today) {
+        throw new Error('Company recorded date cannot be in the future');
+      }
     }
   }
 

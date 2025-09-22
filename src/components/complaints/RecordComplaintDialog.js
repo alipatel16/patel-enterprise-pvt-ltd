@@ -52,6 +52,8 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     assignedEmployeeName: '',
     servicePersonName: '',
     servicePersonContact: '',
+    companyComplaintNumber: '',
+    companyRecordedDate: null,
     expectedResolutionDate: null
   });
 
@@ -169,7 +171,9 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
         setFormData(prev => ({
           ...prev,
           servicePersonName: '',
-          servicePersonContact: ''
+          servicePersonContact: '',
+          companyComplaintNumber: '',
+          companyRecordedDate: null
         }));
       } else {
         setFormData(prev => ({
@@ -182,10 +186,10 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
   };
 
   // Handle date change
-  const handleDateChange = (date) => {
+  const handleDateChange = (field) => (date) => {
     setFormData(prev => ({
       ...prev,
-      expectedResolutionDate: date
+      [field]: date
     }));
   };
 
@@ -234,6 +238,16 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
       return 'Expected resolution date cannot be in the past';
     }
 
+    // Validate company recorded date if provided
+    if (formData.companyRecordedDate) {
+      const companyDate = new Date(formData.companyRecordedDate);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999); // Allow today
+      if (companyDate > today) {
+        return 'Company recorded date cannot be in the future';
+      }
+    }
+
     return null;
   };
 
@@ -272,6 +286,14 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
       } else {
         complaintData.servicePersonName = formData.servicePersonName.trim();
         complaintData.servicePersonContact = formData.servicePersonContact.trim();
+        
+        // Add company complaint details if provided
+        if (formData.companyComplaintNumber.trim()) {
+          complaintData.companyComplaintNumber = formData.companyComplaintNumber.trim();
+        }
+        if (formData.companyRecordedDate) {
+          complaintData.companyRecordedDate = formData.companyRecordedDate.toISOString();
+        }
       }
 
       const newComplaint = await complaintService.createComplaint(userType, complaintData);
@@ -309,6 +331,8 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
       assignedEmployeeName: '',
       servicePersonName: '',
       servicePersonContact: '',
+      companyComplaintNumber: '',
+      companyRecordedDate: null,
       expectedResolutionDate: null
     });
     setError('');
@@ -488,7 +512,7 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
               <DatePicker
                 label="Expected Resolution Date"
                 value={formData.expectedResolutionDate}
-                onChange={handleDateChange}
+                onChange={handleDateChange('expectedResolutionDate')}
                 renderInput={(params) => <TextField {...params} fullWidth required />}
                 minDate={new Date()}
               />
@@ -571,6 +595,37 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
                     required
                     inputProps={{ maxLength: 10 }}
                     helperText="Enter 10-digit mobile number"
+                  />
+                </Grid>
+                
+                {/* Company Complaint Details */}
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" gutterBottom fontWeight={600} sx={{ mt: 2 }}>
+                    Company Complaint Details (Optional)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    These details can be provided by the brand/company later and can be updated anytime
+                  </Typography>
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Company Complaint Number"
+                    value={formData.companyComplaintNumber}
+                    onChange={handleChange('companyComplaintNumber')}
+                    fullWidth
+                    placeholder="Enter complaint number provided by company/brand"
+                    helperText="Complaint number issued by the brand/company"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <DatePicker
+                    label="Company Recorded Date"
+                    value={formData.companyRecordedDate}
+                    onChange={handleDateChange('companyRecordedDate')}
+                    renderInput={(params) => <TextField {...params} fullWidth />}
+                    maxDate={new Date()}
                   />
                 </Grid>
               </>

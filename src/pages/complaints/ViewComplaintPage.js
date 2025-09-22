@@ -24,6 +24,7 @@ import {
   Person as PersonIcon,
   Business as BusinessIcon,
   Warning as WarningIcon,
+  Assignment as CompanyIcon,
 } from '@mui/icons-material';
 
 import Layout from '../../components/common/Layout/Layout';
@@ -184,6 +185,17 @@ const ViewComplaintPage = () => {
                 label="Overdue"
                 color="error"
                 variant="outlined"
+              />
+            )}
+
+            {/* Company Complaint Number Badge */}
+            {complaint.assigneeType === 'service_person' && complaint.companyComplaintNumber && (
+              <Chip
+                icon={<CompanyIcon />}
+                label={`Company: ${complaint.companyComplaintNumber}`}
+                color="info"
+                variant="outlined"
+                sx={{ fontWeight: 600 }}
               />
             )}
           </Box>
@@ -379,6 +391,42 @@ const ViewComplaintPage = () => {
                           {complaint.servicePersonContact || 'Not specified'}
                         </Typography>
                       </Box>
+                      
+                      {/* Company Complaint Details */}
+                      <Divider sx={{ my: 1 }} />
+                      <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                        Company Complaint Details
+                      </Typography>
+                      
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">
+                          Company Complaint Number
+                        </Typography>
+                        <Typography variant="body1" fontWeight={500}>
+                          {complaint.companyComplaintNumber || (
+                            <span style={{ color: 'gray', fontStyle: 'italic' }}>
+                              Not provided yet
+                            </span>
+                          )}
+                        </Typography>
+                      </Box>
+                      
+                      {complaint.companyComplaintNumber && (
+                        <Box>
+                          <Typography variant="body2" color="text.secondary">
+                            Company Recorded Date
+                          </Typography>
+                          <Typography variant="body1" fontWeight={500}>
+                            {complaint.companyRecordedDate ? 
+                              formatDate(complaint.companyRecordedDate) : (
+                                <span style={{ color: 'gray', fontStyle: 'italic' }}>
+                                  Date not provided
+                                </span>
+                              )
+                            }
+                          </Typography>
+                        </Box>
+                      )}
                     </>
                   )}
                 </Stack>
@@ -421,6 +469,18 @@ const ViewComplaintPage = () => {
                   >
                     Edit Complaint
                   </Button>
+
+                  {complaint.assigneeType === 'service_person' && !complaint.companyComplaintNumber && (
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      color="warning"
+                      startIcon={<CompanyIcon />}
+                      onClick={handleEditComplaint}
+                    >
+                      Add Company Details
+                    </Button>
+                  )}
                 </Stack>
               </CardContent>
             </Card>

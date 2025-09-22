@@ -37,6 +37,7 @@ import {
   FilterList as FilterIcon,
   Assignment as ComplaintIcon,
   Warning as OverdueIcon,
+  Business as CompanyIcon,
 } from "@mui/icons-material";
 
 import Layout from "../../components/common/Layout/Layout";
@@ -374,7 +375,7 @@ const ComplaintsPage = () => {
                 <TextField
                   fullWidth
                   label="Search"
-                  placeholder="Search by complaint number, title, or customer"
+                  placeholder="Search by complaint #, title, customer, or company complaint #"
                   value={filters.search}
                   onChange={handleFilterChange("search")}
                   onKeyPress={handleSearch}
@@ -475,6 +476,7 @@ const ComplaintsPage = () => {
                   <TableCell>Status</TableCell>
                   <TableCell>Severity</TableCell>
                   <TableCell>Assigned To</TableCell>
+                  <TableCell>Company #</TableCell>
                   <TableCell>Expected Resolution</TableCell>
                   <TableCell align="center">Actions</TableCell>
                 </TableRow>
@@ -575,6 +577,28 @@ const ComplaintsPage = () => {
                         {complaint.assigneeType === "service_person" && (
                           <Typography variant="caption" color="text.secondary">
                             External Service
+                          </Typography>
+                        )}
+                      </TableCell>
+
+                      <TableCell>
+                        {complaint.assigneeType === "service_person" && complaint.companyComplaintNumber ? (
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                            <CompanyIcon fontSize="small" color="action" />
+                            <Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                {complaint.companyComplaintNumber}
+                              </Typography>
+                              {complaint.companyRecordedDate && (
+                                <Typography variant="caption" color="text.secondary">
+                                  {formatDate(complaint.companyRecordedDate)}
+                                </Typography>
+                              )}
+                            </Box>
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            {complaint.assigneeType === "service_person" ? "Not provided" : "N/A"}
                           </Typography>
                         )}
                       </TableCell>

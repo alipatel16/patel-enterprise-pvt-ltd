@@ -56,6 +56,8 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     assignedEmployeeName: '',
     servicePersonName: '',
     servicePersonContact: '',
+    companyComplaintNumber: '',
+    companyRecordedDate: null,
     expectedResolutionDate: null,
     statusRemarks: ''
   });
@@ -86,6 +88,8 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         assignedEmployeeName: complaint.assignedEmployeeName || '',
         servicePersonName: complaint.servicePersonName || '',
         servicePersonContact: complaint.servicePersonContact || '',
+        companyComplaintNumber: complaint.companyComplaintNumber || '',
+        companyRecordedDate: complaint.companyRecordedDate ? new Date(complaint.companyRecordedDate) : null,
         expectedResolutionDate: complaint.expectedResolutionDate ? new Date(complaint.expectedResolutionDate) : null,
         statusRemarks: ''
       });
@@ -192,7 +196,9 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         setFormData(prev => ({
           ...prev,
           servicePersonName: '',
-          servicePersonContact: ''
+          servicePersonContact: '',
+          companyComplaintNumber: '',
+          companyRecordedDate: null
         }));
       } else {
         setFormData(prev => ({
@@ -205,10 +211,10 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
   };
 
   // Handle date change
-  const handleDateChange = (date) => {
+  const handleDateChange = (field) => (date) => {
     setFormData(prev => ({
       ...prev,
-      expectedResolutionDate: date
+      [field]: date
     }));
   };
 
@@ -255,6 +261,16 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
       return 'Please provide remarks for status change';
     }
 
+    // Validate company recorded date if provided
+    if (formData.companyRecordedDate) {
+      const companyDate = new Date(formData.companyRecordedDate);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999); // Allow today
+      if (companyDate > today) {
+        return 'Company recorded date cannot be in the future';
+      }
+    }
+
     return null;
   };
 
@@ -294,9 +310,17 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         // Clear service person fields
         updateData.servicePersonName = '';
         updateData.servicePersonContact = '';
+        updateData.companyComplaintNumber = '';
+        updateData.companyRecordedDate = '';
       } else {
         updateData.servicePersonName = formData.servicePersonName.trim();
         updateData.servicePersonContact = formData.servicePersonContact.trim();
+        
+        // Add company complaint details
+        updateData.companyComplaintNumber = formData.companyComplaintNumber.trim();
+        updateData.companyRecordedDate = formData.companyRecordedDate ? 
+          formData.companyRecordedDate.toISOString() : '';
+        
         // Clear employee fields
         updateData.assignedEmployeeId = '';
         updateData.assignedEmployeeName = '';
@@ -390,6 +414,16 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
                     <strong>Current Severity:</strong> {COMPLAINT_SEVERITY_DISPLAY[complaint.severity]}
                   </Typography>
                 </Grid>
+                {complaint.assigneeType === 'service_person' && complaint.companyComplaintNumber && (
+                  <Grid item xs={12}>
+                    <Typography variant="body2">
+                      <strong>Company Complaint #:</strong> {complaint.companyComplaintNumber}
+                      {complaint.companyRecordedDate && (
+                        <> (Recorded: {formatDate(complaint.companyRecordedDate)})</>
+                      )}
+                    </Typography>
+                  </Grid>
+                )}
               </Grid>
             </Box>
           )}
@@ -543,7 +577,8 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
               <DatePicker
                 label="Expected Resolution Date"
                 value={formData.expectedResolutionDate}
-                onChange={handleDateChange}
+                onChange={handleDateChange('expectedResolutionDate')}
+                format='dd/MM/yyyy'
                 renderInput={(params) => <TextField {...params} fullWidth required />}
                 minDate={new Date()}
               />
@@ -649,6 +684,38 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
                     required
                     inputProps={{ maxLength: 10 }}
                     helperText="Enter 10-digit mobile number"
+                  />
+                </Grid>
+                
+                {/* Company Complaint Details */}
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" gutterBottom fontWeight={600} sx={{ mt: 2 }}>
+                    Company Complaint Details
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    These details are provided by the brand/company and can be updated anytime
+                  </Typography>
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Company Complaint Number"
+                    value={formData.companyComplaintNumber}
+                    onChange={handleChange('companyComplaintNumber')}
+                    fullWidth
+                    placeholder="Enter complaint number provided by company/brand"
+                    helperText="Complaint number issued by the brand/company"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <DatePicker
+                    label="Company Recorded Date"
+                    value={formData.companyRecordedDate}
+                    onChange={handleDateChange('companyRecordedDate')}
+                    format='dd/MM/yyyy'
+                    renderInput={(params) => <TextField {...params} fullWidth />}
+                    maxDate={new Date()}
                   />
                 </Grid>
               </>
