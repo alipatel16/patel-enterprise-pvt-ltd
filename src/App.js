@@ -64,6 +64,10 @@ import EditChecklistPage from "./pages/checklists/EditChecklistPage";
 import ChecklistsManagementPage from "./pages/checklists/ChecklistsManagementPage";
 import EmployeeChecklistDashboard from "./pages/checklists/EmployeeChecklistDashboard";
 
+// Complaints
+import ComplaintsPage from "./pages/complaints/ComplaintsPage";
+import ViewComplaintPage from "./pages/complaints/ViewComplaintPage";
+
 // Pages - Error
 import NotFoundPage from "./pages/NotFoundPage";
 
@@ -304,14 +308,23 @@ const AppContent = () => {
               </ProtectedRoute>
             }
           />
-          {/* <Route
-            path="/checklists/reports"
+          {/* NEW: Complaint routes */}
+          <Route
+            path="/complaints"
             element={
-              <ProtectedRoute requiredRole="admin">
-                <ChecklistReportsPage />
+              <ProtectedRoute>
+                <ComplaintsPage />
               </ProtectedRoute>
             }
-          /> */}
+          />
+          <Route
+            path="/complaints/view/:id"
+            element={
+              <ProtectedRoute>
+                <ViewComplaintPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Employee Checklist Dashboard */}
           <Route

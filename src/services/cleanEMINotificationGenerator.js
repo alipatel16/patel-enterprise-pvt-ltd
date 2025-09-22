@@ -336,6 +336,72 @@ class CleanEMINotificationGenerator {
     }
   }
 
+   /**
+   * Clean up notifications for paid installments
+   * @param {string} userType - User type (electronics/furniture)
+   * @param {string} adminUserId - Admin user ID
+   */
+  async cleanupPaidInstallmentNotifications(userType, adminUserId) {
+    try {
+      // Get all EMI notifications
+      const existingNotifications = await notificationService.getNotifications(userType, adminUserId);
+      const emiNotifications = existingNotifications.filter(n => 
+        n.type === 'emi_due' || n.type === 'emi_upcoming' || n.type === 'payment_overdue'
+      );
+
+      if (emiNotifications.length === 0) {
+        return 0;
+      }
+
+      // Get all EMI sales to check payment status
+      const allSales = await salesService.getAll(userType, {
+        where: [['paymentStatus', '==', 'emi']]
+      });
+
+      const notificationsToDelete = [];
+
+      for (const notification of emiNotifications) {
+        const notificationData = notification.data;
+        if (!notificationData || !notificationData.invoiceNumber || !notificationData.installmentNumber) {
+          continue;
+        }
+
+        // Find the corresponding sale
+        const sale = allSales.find(s => 
+          s.invoiceNumber === notificationData.invoiceNumber ||
+          s.id === notificationData.invoiceId
+        );
+
+        if (sale && sale.emiDetails && sale.emiDetails.schedule) {
+          // Find the specific installment
+          const installment = sale.emiDetails.schedule.find(inst => 
+            inst.installmentNumber === notificationData.installmentNumber
+          );
+
+          // If installment is paid, mark for deletion
+          if (installment && installment.paid) {
+            notificationsToDelete.push(notification.id);
+          }
+        }
+      }
+
+      // Delete notifications in batch
+      if (notificationsToDelete.length > 0) {
+        const deleteOperations = notificationsToDelete.map(id => ({
+          type: 'delete',
+          id
+        }));
+        
+        await notificationService.batch(userType, deleteOperations);
+      }
+
+      return notificationsToDelete.length;
+      
+    } catch (error) {
+      throw error;
+    }
+  }
+
   /**
    * Clean up notifications for completed deliveries
    * @param {string} userType - User type

@@ -107,3 +107,18 @@ export const getUserTypeDisplayName = (userType) => {
   };
   return displayNames[userType] || userType;
 };
+
+/**
+ * Get complaints collection path
+ * @param {string} userType - User type
+ * @param {string} complaintId - Optional complaint ID for specific document
+ * @returns {string} Complaints collection path
+ */
+export const getComplaintsPath = (userType, complaintId = null) => {
+  if (!userType || !Object.values(USER_TYPES).includes(userType)) {
+    throw new Error(`Invalid user type: ${userType}`);
+  }
+
+  const basePath = `${userType}/${COLLECTIONS.COMPLAINTS}`;
+  return complaintId ? `${basePath}/${complaintId}` : basePath;
+};

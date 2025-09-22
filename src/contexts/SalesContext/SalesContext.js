@@ -552,7 +552,7 @@ export const SalesProvider = ({ children }) => {
           try {
             // Import the notification generator dynamically to avoid circular imports
             const { default: emiNotificationGenerator } = await import(
-              "../../services/emiNotificationGenerator"
+              "../../services/cleanEMINotificationGenerator"
             );
 
             // Clean up any notifications for this specific paid installment

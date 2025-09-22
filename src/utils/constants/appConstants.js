@@ -158,9 +158,111 @@ export const COLLECTIONS = {
   SETTINGS: 'settings',
   NOTIFICATIONS: 'notifications',
   AUDIT_LOGS: 'audit_logs',
-  // NEW: Checklist collections
   CHECKLISTS: 'checklists',
-  CHECKLIST_COMPLETIONS: 'checklist_completions'
+  CHECKLIST_COMPLETIONS: 'checklist_completions',
+  COMPLAINTS: 'complaints'
+};
+
+// NEW: Complaint Constants
+export const COMPLAINT_STATUS = {
+  OPEN: 'open',
+  IN_PROGRESS: 'in_progress',
+  RESOLVED: 'resolved',
+  CLOSED: 'closed',
+  ESCALATED: 'escalated'
+};
+
+export const COMPLAINT_STATUS_DISPLAY = {
+  [COMPLAINT_STATUS.OPEN]: 'Open',
+  [COMPLAINT_STATUS.IN_PROGRESS]: 'In Progress',
+  [COMPLAINT_STATUS.RESOLVED]: 'Resolved',
+  [COMPLAINT_STATUS.CLOSED]: 'Closed',
+  [COMPLAINT_STATUS.ESCALATED]: 'Escalated'
+};
+
+export const COMPLAINT_SEVERITY = {
+  LOW: 'low',
+  MEDIUM: 'medium',
+  HIGH: 'high',
+  CRITICAL: 'critical'
+};
+
+export const COMPLAINT_SEVERITY_DISPLAY = {
+  [COMPLAINT_SEVERITY.LOW]: 'Low',
+  [COMPLAINT_SEVERITY.MEDIUM]: 'Medium',
+  [COMPLAINT_SEVERITY.HIGH]: 'High',
+  [COMPLAINT_SEVERITY.CRITICAL]: 'Critical'
+};
+
+export const COMPLAINT_SEVERITY_COLORS = {
+  [COMPLAINT_SEVERITY.LOW]: '#4caf50',
+  [COMPLAINT_SEVERITY.MEDIUM]: '#ff9800',
+  [COMPLAINT_SEVERITY.HIGH]: '#f44336',
+  [COMPLAINT_SEVERITY.CRITICAL]: '#d32f2f'
+};
+
+export const COMPLAINT_CATEGORIES = {
+  PRODUCT_QUALITY: 'product_quality',
+  SERVICE_ISSUE: 'service_issue',
+  DELIVERY_DELAY: 'delivery_delay',
+  BILLING_ISSUE: 'billing_issue',
+  CUSTOMER_SERVICE: 'customer_service',
+  TECHNICAL_SUPPORT: 'technical_support',
+  WARRANTY_CLAIM: 'warranty_claim',
+  RETURN_REFUND: 'return_refund',
+  OTHER: 'other'
+};
+
+export const COMPLAINT_CATEGORY_DISPLAY = {
+  [COMPLAINT_CATEGORIES.PRODUCT_QUALITY]: 'Product Quality',
+  [COMPLAINT_CATEGORIES.SERVICE_ISSUE]: 'Service Issue',
+  [COMPLAINT_CATEGORIES.DELIVERY_DELAY]: 'Delivery Delay',
+  [COMPLAINT_CATEGORIES.BILLING_ISSUE]: 'Billing Issue',
+  [COMPLAINT_CATEGORIES.CUSTOMER_SERVICE]: 'Customer Service',
+  [COMPLAINT_CATEGORIES.TECHNICAL_SUPPORT]: 'Technical Support',
+  [COMPLAINT_CATEGORIES.WARRANTY_CLAIM]: 'Warranty Claim',
+  [COMPLAINT_CATEGORIES.RETURN_REFUND]: 'Return/Refund',
+  [COMPLAINT_CATEGORIES.OTHER]: 'Other'
+};
+
+export const ASSIGNEE_TYPE = {
+  EMPLOYEE: 'employee',
+  SERVICE_PERSON: 'service_person'
+};
+
+export const ASSIGNEE_TYPE_DISPLAY = {
+  [ASSIGNEE_TYPE.EMPLOYEE]: 'Internal Employee',
+  [ASSIGNEE_TYPE.SERVICE_PERSON]: 'External Service Person'
+};
+
+// Complaint Validation Rules
+export const COMPLAINT_VALIDATION_RULES = {
+  TITLE: {
+    MIN_LENGTH: 5,
+    MAX_LENGTH: 100,
+    REQUIRED: true
+  },
+  DESCRIPTION: {
+    MIN_LENGTH: 10,
+    MAX_LENGTH: 1000,
+    REQUIRED: true
+  },
+  CUSTOMER_ID: {
+    REQUIRED: true
+  },
+  EXPECTED_RESOLUTION_DATE: {
+    REQUIRED: true,
+    MIN_DAYS_FROM_NOW: 1
+  },
+  SERVICE_PERSON_NAME: {
+    MIN_LENGTH: 2,
+    MAX_LENGTH: 50,
+    REQUIRED: true // when assignee type is service_person
+  },
+  SERVICE_PERSON_CONTACT: {
+    PATTERN: /^[6-9]\d{9}$/,
+    REQUIRED: true // when assignee type is service_person
+  }
 };
 
 // UPDATED permissions with checklist permissions
@@ -211,7 +313,18 @@ export const PERMISSIONS = {
   MANAGE_SETTINGS: 'manage_settings',
   MANAGE_NOTIFICATIONS: 'manage_notifications',
   MANAGE_EMPLOYEE_PERMISSIONS: 'manage_employee_permissions',
-  VIEW_AUDIT_LOGS: 'view_audit_logs'
+  VIEW_AUDIT_LOGS: 'view_audit_logs',
+
+  // NEW: Complaint permissions
+  VIEW_COMPLAINTS: 'view_complaints',
+  CREATE_COMPLAINT: 'create_complaint',
+  EDIT_COMPLAINT: 'edit_complaint',
+  DELETE_COMPLAINT: 'delete_complaint',
+  ASSIGN_COMPLAINT: 'assign_complaint',
+  RESOLVE_COMPLAINT: 'resolve_complaint',
+  VIEW_ALL_COMPLAINTS: 'view_all_complaints',
+  VIEW_ASSIGNED_COMPLAINTS: 'view_assigned_complaints',
+  EXPORT_COMPLAINTS: 'export_complaints'
 };
 
 // Form Validation Messages
@@ -400,6 +513,40 @@ export const getCompletionRateColor = (rate) => {
   return 'error';
 };
 
+export const getComplaintSeverityColor = (severity) => {
+  return COMPLAINT_SEVERITY_COLORS[severity] || COMPLAINT_SEVERITY_COLORS[COMPLAINT_SEVERITY.LOW];
+};
+
+export const getComplaintStatusColor = (status) => {
+  const colors = {
+    [COMPLAINT_STATUS.OPEN]: '#f44336',
+    [COMPLAINT_STATUS.IN_PROGRESS]: '#ff9800',
+    [COMPLAINT_STATUS.RESOLVED]: '#4caf50',
+    [COMPLAINT_STATUS.CLOSED]: '#9e9e9e',
+    [COMPLAINT_STATUS.ESCALATED]: '#d32f2f'
+  };
+  return colors[status] || colors[COMPLAINT_STATUS.OPEN];
+};
+
+export const isComplaintOverdue = (expectedResolutionDate, status) => {
+  if (status === COMPLAINT_STATUS.RESOLVED || status === COMPLAINT_STATUS.CLOSED) {
+    return false;
+  }
+  const expected = new Date(expectedResolutionDate);
+  const now = new Date();
+  return expected < now;
+};
+
+export const getComplaintPriorityFromSeverity = (severity) => {
+  const priorityMap = {
+    [COMPLAINT_SEVERITY.LOW]: 'low',
+    [COMPLAINT_SEVERITY.MEDIUM]: 'medium',
+    [COMPLAINT_SEVERITY.HIGH]: 'high',
+    [COMPLAINT_SEVERITY.CRITICAL]: 'high'
+  };
+  return priorityMap[severity] || 'medium';
+};
+
 // UPDATED Role Configuration with checklist permissions
 export const ROLE_CONFIG = {
   [USER_ROLES.ADMIN]: {
@@ -433,7 +580,15 @@ export const ROLE_CONFIG = {
       PERMISSIONS.VIEW_SALES_REPORTS,
       PERMISSIONS.VIEW_CUSTOMER_REPORTS,
       PERMISSIONS.VIEW_EMPLOYEE_REPORTS,
-      PERMISSIONS.VIEW_ATTENDANCE_REPORTS
+      PERMISSIONS.VIEW_ATTENDANCE_REPORTS,
+      PERMISSIONS.VIEW_COMPLAINTS,
+      PERMISSIONS.CREATE_COMPLAINT,
+      PERMISSIONS.EDIT_COMPLAINT,
+      PERMISSIONS.DELETE_COMPLAINT,
+      PERMISSIONS.ASSIGN_COMPLAINT,
+      PERMISSIONS.RESOLVE_COMPLAINT,
+      PERMISSIONS.VIEW_ALL_COMPLAINTS,
+      PERMISSIONS.EXPORT_COMPLAINTS
     ]
   },
   [USER_ROLES.EMPLOYEE]: {
@@ -451,7 +606,15 @@ export const ROLE_CONFIG = {
       PERMISSIONS.MANAGE_OWN_ATTENDANCE,
       // NEW: Employee checklist permissions
       PERMISSIONS.VIEW_OWN_CHECKLISTS,
-      PERMISSIONS.COMPLETE_CHECKLIST
+      PERMISSIONS.COMPLETE_CHECKLIST,
+      PERMISSIONS.VIEW_COMPLAINTS,
+      PERMISSIONS.CREATE_COMPLAINT,
+      PERMISSIONS.EDIT_COMPLAINT,
+      PERMISSIONS.DELETE_COMPLAINT,
+      PERMISSIONS.ASSIGN_COMPLAINT,
+      PERMISSIONS.RESOLVE_COMPLAINT,
+      PERMISSIONS.VIEW_ALL_COMPLAINTS,
+      PERMISSIONS.EXPORT_COMPLAINTS
     ]
   },
   [USER_ROLES.INTERN]: {
@@ -724,7 +887,14 @@ export const NOTIFICATION_TYPES = {
   WEEKLY_SUMMARY: 'weekly_summary',
   MONTHLY_SUMMARY: 'monthly_summary',
   SYSTEM_MAINTENANCE: 'system_maintenance',
-  BACKUP_COMPLETE: 'backup_complete'
+  BACKUP_COMPLETE: 'backup_complete',
+
+  // NEW: Complaint notifications
+  COMPLAINT_ASSIGNED: 'complaint_assigned',
+  COMPLAINT_STATUS_CHANGED: 'complaint_status_changed',
+  COMPLAINT_OVERDUE: 'complaint_overdue',
+  COMPLAINT_ESCALATED: 'complaint_escalated',
+  COMPLAINT_RESOLVED: 'complaint_resolved'
 };
 
 export default {
@@ -759,5 +929,19 @@ export default {
   CHECKLIST_VALIDATION_RULES,
   getRecurrenceDisplayText,
   getOrdinalSuffix,
-  getCompletionRateColor
+  getCompletionRateColor,
+  COMPLAINT_STATUS,
+  COMPLAINT_STATUS_DISPLAY,
+  COMPLAINT_SEVERITY,
+  COMPLAINT_SEVERITY_DISPLAY,
+  COMPLAINT_SEVERITY_COLORS,
+  COMPLAINT_CATEGORIES,
+  COMPLAINT_CATEGORY_DISPLAY,
+  ASSIGNEE_TYPE,
+  ASSIGNEE_TYPE_DISPLAY,
+  COMPLAINT_VALIDATION_RULES,
+  getComplaintSeverityColor,
+  getComplaintStatusColor,
+  isComplaintOverdue,
+  getComplaintPriorityFromSeverity
 };

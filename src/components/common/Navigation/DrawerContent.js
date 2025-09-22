@@ -1,8 +1,8 @@
 // ===================================================================
 // FILE 1: src/components/common/Navigation/DrawerContent.js (NEW FILE)
 // ===================================================================
-import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
   Toolbar,
@@ -15,7 +15,7 @@ import {
   Avatar,
   Typography,
   Chip,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Dashboard as DashboardIcon,
   People as PeopleIcon,
@@ -28,11 +28,12 @@ import {
   ChecklistRtl as ChecklistIcon,
   AssignmentTurnedIn as TaskIcon,
   Assessment as AssessmentIcon,
-} from '@mui/icons-material';
+  SupportAgent as ComplaintsIcon,
+} from "@mui/icons-material";
 
-import { useAuth } from '../../../contexts/AuthContext/AuthContext';
-import { useUserType } from '../../../contexts/UserTypeContext/UserTypeContext';
-import { USER_ROLES } from '../../../utils/constants/appConstants';
+import { useAuth } from "../../../contexts/AuthContext/AuthContext";
+import { useUserType } from "../../../contexts/UserTypeContext/UserTypeContext";
+import { USER_ROLES } from "../../../utils/constants/appConstants";
 
 const DrawerContent = ({ onItemClick }) => {
   const navigate = useNavigate();
@@ -46,72 +47,79 @@ const DrawerContent = ({ onItemClick }) => {
   // Navigation items configuration
   const navigationItems = [
     {
-      label: 'Dashboard',
+      label: "Dashboard",
       icon: DashboardIcon,
-      path: '/dashboard',
-      active: location.pathname === '/dashboard' || location.pathname === '/',
+      path: "/dashboard",
+      active: location.pathname === "/dashboard" || location.pathname === "/",
     },
     {
-      label: 'Customers',
+      label: "Customers",
       icon: PeopleIcon,
-      path: '/customers',
-      active: location.pathname.startsWith('/customers'),
+      path: "/customers",
+      active: location.pathname.startsWith("/customers"),
     },
     {
-      label: 'Employees',
+      label: "Employees",
       icon: BadgeIcon,
-      path: '/employees',
-      active: location.pathname.startsWith('/employees'),
+      path: "/employees",
+      active: location.pathname.startsWith("/employees"),
       adminOnly: true,
     },
     {
-      label: 'Attendance',
+      label: "Complaints",
+      icon: ComplaintsIcon,
+      path: "/complaints",
+      active: location.pathname.startsWith("/complaints"),
+    },
+    {
+      label: "Attendance",
       icon: AttendanceIcon,
-      path: '/attendance',
-      active: location.pathname.startsWith('/attendance'),
+      path: "/attendance",
+      active: location.pathname.startsWith("/attendance"),
       employeeOnly: true,
     },
     {
-      label: 'Checklists',
+      label: "Checklists",
       icon: ChecklistIcon,
-      path: '/checklists',
-      active: location.pathname.startsWith('/checklists'),
+      path: "/checklists",
+      active: location.pathname.startsWith("/checklists"),
       adminOnly: true,
     },
     {
-      label: 'My Checklists',
+      label: "My Checklists",
       icon: TaskIcon,
-      path: '/my-checklists',
-      active: location.pathname.startsWith('/my-checklists'),
+      path: "/my-checklists",
+      active: location.pathname.startsWith("/my-checklists"),
       employeeOnly: true,
     },
     {
-      label: 'Create Invoice',
+      label: "Create Invoice",
       icon: ReceiptIcon,
-      path: '/sales/create',
-      active: location.pathname === '/sales/create',
+      path: "/sales/create",
+      active: location.pathname === "/sales/create",
     },
     {
-      label: 'Sales History',
+      label: "Sales History",
       icon: HistoryIcon,
-      path: '/sales/history',
-      active: location.pathname.startsWith('/sales/history') || 
-             location.pathname.startsWith('/sales/view') ||
-             location.pathname.startsWith('/sales/edit') ||
-             (location.pathname === '/sales'),
+      path: "/sales/history",
+      active:
+        location.pathname.startsWith("/sales/history") ||
+        location.pathname.startsWith("/sales/view") ||
+        location.pathname.startsWith("/sales/edit") ||
+        location.pathname === "/sales",
     },
     {
-      label: 'Employee Reports',
+      label: "Employee Reports",
       icon: ReportsIcon,
-      path: '/reports/employees',
-      active: location.pathname.startsWith('/reports/employees'),
+      path: "/reports/employees",
+      active: location.pathname.startsWith("/reports/employees"),
       adminOnly: true,
     },
     {
-      label: 'Sales Statistics',
+      label: "Sales Statistics",
       icon: AssessmentIcon,
-      path: '/sales/statistics',
-      active: location.pathname.startsWith('/sales/statistics'),
+      path: "/sales/statistics",
+      active: location.pathname.startsWith("/sales/statistics"),
       adminOnly: true,
     },
   ];
@@ -124,7 +132,7 @@ const DrawerContent = ({ onItemClick }) => {
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <Toolbar>
         <Box display="flex" alignItems="center" gap={2} width="100%">
           <StoreIcon sx={{ color: themeColors.primary }} />
@@ -133,7 +141,7 @@ const DrawerContent = ({ onItemClick }) => {
               variant="h6"
               noWrap
               sx={{
-                fontSize: '1rem',
+                fontSize: "1rem",
                 fontWeight: 600,
                 lineHeight: 1.2,
               }}
@@ -144,7 +152,7 @@ const DrawerContent = ({ onItemClick }) => {
               variant="caption"
               color="text.secondary"
               sx={{
-                display: 'block',
+                display: "block",
                 lineHeight: 1,
               }}
             >
@@ -153,7 +161,7 @@ const DrawerContent = ({ onItemClick }) => {
           </Box>
         </Box>
       </Toolbar>
-      
+
       <Divider />
 
       <List sx={{ mt: 1, flex: 1 }}>
@@ -167,7 +175,7 @@ const DrawerContent = ({ onItemClick }) => {
           }
 
           const Icon = item.icon;
-          
+
           return (
             <ListItem key={item.label} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
@@ -176,21 +184,21 @@ const DrawerContent = ({ onItemClick }) => {
                 sx={{
                   mx: 1,
                   borderRadius: 2,
-                  '&.Mui-selected': {
+                  "&.Mui-selected": {
                     backgroundColor: `${themeColors.primary}15`,
                     border: `1px solid ${themeColors.primary}30`,
-                    '& .MuiListItemIcon-root': {
+                    "& .MuiListItemIcon-root": {
                       color: themeColors.primary,
                     },
-                    '& .MuiListItemText-primary': {
+                    "& .MuiListItemText-primary": {
                       color: themeColors.primary,
                       fontWeight: 600,
                     },
                   },
-                  '&:hover': {
+                  "&:hover": {
                     backgroundColor: `${themeColors.primary}08`,
                   },
-                  '&.Mui-selected:hover': {
+                  "&.Mui-selected:hover": {
                     backgroundColor: `${themeColors.primary}20`,
                   },
                 }}
@@ -201,7 +209,7 @@ const DrawerContent = ({ onItemClick }) => {
                 <ListItemText
                   primary={item.label}
                   primaryTypographyProps={{
-                    fontSize: '0.875rem',
+                    fontSize: "0.875rem",
                     fontWeight: item.active ? 600 : 500,
                   }}
                 />
@@ -219,10 +227,10 @@ const DrawerContent = ({ onItemClick }) => {
               width: 32,
               height: 32,
               bgcolor: themeColors.primary,
-              fontSize: '0.875rem',
+              fontSize: "0.875rem",
             }}
           >
-            {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+            {user?.name?.charAt(0)?.toUpperCase() || "U"}
           </Avatar>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="body2" noWrap fontWeight={600}>
@@ -234,9 +242,9 @@ const DrawerContent = ({ onItemClick }) => {
                 size="small"
                 variant="outlined"
                 sx={{
-                  fontSize: '0.75rem',
+                  fontSize: "0.75rem",
                   height: 20,
-                  '& .MuiChip-label': { px: 1 },
+                  "& .MuiChip-label": { px: 1 },
                 }}
               />
             </Box>
