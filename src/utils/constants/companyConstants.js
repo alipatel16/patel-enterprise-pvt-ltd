@@ -3,14 +3,14 @@ export const COMPANIES = {
   ELECTRONICS_1: {
     id: "electronics_1",
     code: "EL1",
-    name: "TechWorld Electronics",
-    address: "123 Tech Street, Electronics District",
+    name: "Patel Electronics And Furniture",
+    address: "1st Floor Patel House near Petrol Pump Mandal Road Viramgam",
     city: "Ahmedabad",
     state: "Gujarat",
-    pincode: "380001",
-    phone: "+91 98765 43210",
+    pincode: "382150",
+    phone: "+91-7862819198",
     email: "info@techworld.com",
-    gstNumber: "24AAAAA0000A1Z5",
+    gstNumber: "24AAVFP7956R1ZW",
     website: "www.techworld.com",
     logo: null, // Can be added later
     category: "electronics"
@@ -18,14 +18,14 @@ export const COMPANIES = {
   ELECTRONICS_2: {
     id: "electronics_2", 
     code: "EL2",
-    name: "Digital Solutions Pvt Ltd",
-    address: "456 Innovation Hub, IT Park",
-    city: "Gandhinagar",
+    name: "Patel Engineering Works",
+    address: "Opposite Mataji Temple Bhutiyajin Compound Mandal Road Viramgam",
+    city: "Ahmedabad",
     state: "Gujarat", 
-    pincode: "382001",
-    phone: "+91 98765 43211",
+    pincode: "382150",
+    phone: "+91-8154884077",
     email: "contact@digitalsolutions.com",
-    gstNumber: "24BBBBB0000B1Z5",
+    gstNumber: "24ABCPP2196D1ZV",
     website: "www.digitalsolutions.com",
     logo: null,
     category: "electronics"
@@ -33,14 +33,14 @@ export const COMPANIES = {
   FURNITURE_1: {
     id: "furniture_1",
     code: "FN1", 
-    name: "Royal Furniture House",
-    address: "789 Furniture Lane, Design District",
-    city: "Surat",
+    name: "M-Raj Steel Sydicate",
+    address: "Opposite Dinesh Farsal Mandal Road Viramgam",
+    city: "Ahmedabad",
     state: "Gujarat",
-    pincode: "395001", 
-    phone: "+91 98765 43212",
+    pincode: "382150", 
+    phone: "+91-8200152937",
     email: "sales@royalfurniture.com",
-    gstNumber: "24CCCCC0000C1Z5",
+    gstNumber: "24ACCPP4650M1ZF",
     website: "www.royalfurniture.com",
     logo: null,
     category: "furniture"
@@ -48,14 +48,14 @@ export const COMPANIES = {
   FURNITURE_2: {
     id: "furniture_2",
     code: "FN2",
-    name: "Modern Living Solutions",
-    address: "321 Home Decor Street, Lifestyle Mall",
-    city: "Rajkot", 
+    name: "Patel Furniture",
+    address: "Above SBI Bank Opp. APMC Market Seva Sadan Road",
+    city: "Viramgam", 
     state: "Gujarat",
-    pincode: "360001",
-    phone: "+91 98765 43213",
+    pincode: "382150",
+    phone: "+91-7600946872",
     email: "info@modernliving.com", 
-    gstNumber: "24DDDDD0000D1Z5",
+    gstNumber: "24CAIPP6969F1Z8",
     website: "www.modernliving.com",
     logo: null,
     category: "furniture"
@@ -97,7 +97,7 @@ export const DEFAULT_TERMS_CONDITIONS = {
     "Payment terms: 50% advance, balance on delivery.",
     "Custom made items cannot be returned or exchanged.",
     "Delivery time: 15-30 working days from confirmation.",
-    "Subject to Surat jurisdiction only."
+    "Subject to Ahmedabad jurisdiction only."
   ]
 };
 

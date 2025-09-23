@@ -548,16 +548,11 @@ const QuotationForm = ({
                         {formData.company.address}, {formData.company.city}, {formData.company.state} - {formData.company.pincode}
                       </Typography>
                       <Typography variant="body2">
-                        Phone: {formData.company.phone} | Email: {formData.company.email}
+                        Phone: {formData.company.phone}
                       </Typography>
                       <Typography variant="body2">
                         GST: {formData.company.gstNumber}
                       </Typography>
-                      {formData.company.website && (
-                        <Typography variant="body2">
-                          Website: {formData.company.website}
-                        </Typography>
-                      )}
                     </Box>
                   </Grid>
                 )}
