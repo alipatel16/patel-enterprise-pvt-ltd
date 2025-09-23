@@ -2,6 +2,10 @@
   "name": "showroom-management",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": "20.x",
+    "npm": "10.x"
+  },
   "dependencies": {
     "@emotion/react": "^11.10.5",
     "@emotion/styled": "^11.10.5",
@@ -9,6 +13,7 @@
     "@mui/material": "^5.15.0",
     "@mui/x-date-pickers": "^6.19.0",
     "date-fns": "^2.29.3",
+    "dayjs": "^1.11.18",
     "firebase": "^9.17.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
@@ -18,13 +23,15 @@
     "react-hook-form": "^7.43.0",
     "react-router-dom": "^6.8.0",
     "react-scripts": "5.0.1",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "serve": "^14.2.0"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "serve": "serve -s build -l $PORT"
   },
   "eslintConfig": {
     "extends": [

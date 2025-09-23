@@ -385,7 +385,8 @@ class CustomerService {
         address: customer.address,
         customerType: customer.customerType,
         category: customer.category,
-        state: customer.state
+        state: customer.state,
+        gstNumber: customer.gstNumber || "",
       }));
     } catch (error) {
       console.error('Error fetching customer suggestions:', error);

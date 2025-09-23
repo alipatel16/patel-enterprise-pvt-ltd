@@ -126,7 +126,6 @@ dist
 
 # Gatsby files
 .cache/
-public
 
 # Storybook build outputs
 .out
@@ -261,3 +260,6 @@ bundle-analyzer-report.html
 
 # Husky (if added later)
 .husky/
+
+# Package manager lock files
+package-lock.json

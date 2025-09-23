@@ -19,7 +19,7 @@ class NotificationService extends BaseService {
   async getNotifications(userType, userId, options = {}) {
     try {
       const queryOptions = {
-        limit: 50,
+        limit: null,
         orderBy: 'createdAt',
         orderDirection: 'desc',
         where: [

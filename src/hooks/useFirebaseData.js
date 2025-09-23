@@ -12,7 +12,7 @@ export const useFirebaseData = (collection, options = {}) => {
   const { userType } = useUserType();
   
   const {
-    limit = 50,
+    limit = null,
     orderBy = 'createdAt',
     orderDirection = 'desc',
     where = [],

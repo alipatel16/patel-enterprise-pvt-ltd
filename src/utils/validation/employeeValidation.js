@@ -30,10 +30,10 @@ export const validateEmployeeData = (employeeData, isEdit = false) => {
   const errors = {};
   let isValid = true;
 
-  // Required fields for creation
+  // Required fields for creation - FIXED: Use joinedDate instead of dateOfJoining
   const requiredFields = isEdit 
     ? [] // For edit, only validate provided fields
-    : ['name', 'employeeId', 'phone', 'role', 'department', 'dateOfJoining'];
+    : ['name', 'phone', 'role', 'joinedDate'];
 
   // Name validation
   if (!isEdit || employeeData.name !== undefined) {
@@ -45,20 +45,6 @@ export const validateEmployeeData = (employeeData, isEdit = false) => {
       isValid = false;
     } else if (employeeData.name.trim().length > 100) {
       errors.name = VALIDATION_MESSAGES.MAX_LENGTH(100);
-      isValid = false;
-    }
-  }
-
-  // Employee ID validation
-  if (!isEdit || employeeData.employeeId !== undefined) {
-    if (!employeeData.employeeId || employeeData.employeeId.trim() === '') {
-      errors.employeeId = VALIDATION_MESSAGES.REQUIRED;
-      isValid = false;
-    } else if (employeeData.employeeId.trim().length < 3) {
-      errors.employeeId = VALIDATION_MESSAGES.MIN_LENGTH(3);
-      isValid = false;
-    } else if (employeeData.employeeId.trim().length > 20) {
-      errors.employeeId = VALIDATION_MESSAGES.MAX_LENGTH(20);
       isValid = false;
     }
   }
@@ -95,32 +81,24 @@ export const validateEmployeeData = (employeeData, isEdit = false) => {
     }
   }
 
-  // Department validation
-  if (!isEdit || employeeData.department !== undefined) {
-    if (!employeeData.department || employeeData.department.trim() === '') {
-      errors.department = VALIDATION_MESSAGES.REQUIRED;
-      isValid = false;
-    }
-  }
-
-  // Date of joining validation
-  if (!isEdit || employeeData.dateOfJoining !== undefined) {
-    if (!employeeData.dateOfJoining) {
-      errors.dateOfJoining = VALIDATION_MESSAGES.REQUIRED;
+  // FIXED: Date of joining validation - use joinedDate instead of dateOfJoining
+  if (!isEdit || employeeData.joinedDate !== undefined) {
+    if (!employeeData.joinedDate) {
+      errors.joinedDate = VALIDATION_MESSAGES.REQUIRED;
       isValid = false;
     } else {
-      const joiningDate = new Date(employeeData.dateOfJoining);
+      const joiningDate = new Date(employeeData.joinedDate);
       const today = new Date();
       const minDate = new Date('1950-01-01');
       
       if (isNaN(joiningDate.getTime())) {
-        errors.dateOfJoining = 'Invalid date format';
+        errors.joinedDate = 'Invalid date format';
         isValid = false;
       } else if (joiningDate > today) {
-        errors.dateOfJoining = 'Date of joining cannot be in the future';
+        errors.joinedDate = 'Date of joining cannot be in the future';
         isValid = false;
       } else if (joiningDate < minDate) {
-        errors.dateOfJoining = 'Invalid date of joining';
+        errors.joinedDate = 'Invalid date of joining';
         isValid = false;
       }
     }
@@ -146,12 +124,23 @@ export const validateEmployeeData = (employeeData, isEdit = false) => {
     }
   }
 
-  // Emergency contact validation (optional)
+  // FIXED: Emergency contact NAME validation (optional)
   if (employeeData.emergencyContact && employeeData.emergencyContact.trim() !== '') {
+    if (employeeData.emergencyContact.trim().length < 2) {
+      errors.emergencyContact = 'Emergency contact name must be at least 2 characters';
+      isValid = false;
+    } else if (employeeData.emergencyContact.trim().length > 100) {
+      errors.emergencyContact = 'Emergency contact name is too long';
+      isValid = false;
+    }
+  }
+
+  // FIXED: Emergency contact PHONE validation (optional)
+  if (employeeData.emergencyPhone && employeeData.emergencyPhone.trim() !== '') {
     const phoneRegex = /^[\d\s\-\+\(\)]{10,15}$/;
-    const cleanPhone = employeeData.emergencyContact.replace(/\s/g, '');
+    const cleanPhone = employeeData.emergencyPhone.replace(/\s/g, '');
     if (!phoneRegex.test(cleanPhone)) {
-      errors.emergencyContact = 'Invalid emergency contact number';
+      errors.emergencyPhone = 'Invalid emergency contact phone number';
       isValid = false;
     }
   }
@@ -200,7 +189,7 @@ export const cleanEmployeeData = (employeeData) => {
   const cleaned = { ...employeeData };
 
   // Trim string fields
-  const stringFields = ['name', 'employeeId', 'email', 'phone', 'address', 'role', 'department', 'emergencyContact'];
+  const stringFields = ['name', 'email', 'phone', 'address', 'role', 'department', 'emergencyContact', 'emergencyPhone'];
   stringFields.forEach(field => {
     if (cleaned[field] && typeof cleaned[field] === 'string') {
       cleaned[field] = cleaned[field].trim();
@@ -212,9 +201,9 @@ export const cleanEmployeeData = (employeeData) => {
     cleaned.phone = cleaned.phone.replace(/\s+/g, ' ');
   }
 
-  // Normalize emergency contact
-  if (cleaned.emergencyContact) {
-    cleaned.emergencyContact = cleaned.emergencyContact.replace(/\s+/g, ' ');
+  // Normalize emergency phone
+  if (cleaned.emergencyPhone) {
+    cleaned.emergencyPhone = cleaned.emergencyPhone.replace(/\s+/g, ' ');
   }
 
   // Normalize email to lowercase
@@ -228,7 +217,7 @@ export const cleanEmployeeData = (employeeData) => {
   }
 
   // Remove empty optional fields
-  const optionalFields = ['email', 'address', 'emergencyContact', 'dateOfBirth'];
+  const optionalFields = ['email', 'address', 'emergencyContact', 'emergencyPhone', 'dateOfBirth'];
   optionalFields.forEach(field => {
     if (cleaned[field] === '') {
       delete cleaned[field];
@@ -236,22 +225,6 @@ export const cleanEmployeeData = (employeeData) => {
   });
 
   return cleaned;
-};
-
-/**
- * Check if employee ID is already in use
- * @param {string} employeeId - Employee ID to check
- * @param {Array} existingEmployees - List of existing employees
- * @param {string} excludeId - Employee ID to exclude from check (for edits)
- * @returns {boolean} - Whether employee ID is already in use
- */
-export const isEmployeeIdInUse = (employeeId, existingEmployees = [], excludeId = null) => {
-  const cleanEmployeeId = employeeId.trim().toLowerCase();
-  return existingEmployees.some(employee => 
-    employee.id !== excludeId && 
-    employee.employeeId && 
-    employee.employeeId.toLowerCase() === cleanEmployeeId
-  );
 };
 
 /**
@@ -335,8 +308,8 @@ export const formatEmployeeForDisplay = (employee) => {
     roleDisplay: getRoleDisplayName(employee.role),
     departmentDisplay: getDepartmentDisplayName(employee.department),
     formattedSalary: employee.salary ? `₹${employee.salary.toLocaleString()}` : 'Not specified',
-    yearsOfService: employee.dateOfJoining ? 
-      Math.floor((new Date() - new Date(employee.dateOfJoining)) / (365.25 * 24 * 60 * 60 * 1000)) : 0
+    yearsOfService: employee.joinedDate ? 
+      Math.floor((new Date() - new Date(employee.joinedDate)) / (365.25 * 24 * 60 * 60 * 1000)) : 0
   };
 };
 
@@ -359,7 +332,6 @@ export default {
   validateEmployeeData,
   validateField,
   cleanEmployeeData,
-  isEmployeeIdInUse,
   isPhoneNumberInUse,
   isEmailInUse,
   getRoleDisplayName,

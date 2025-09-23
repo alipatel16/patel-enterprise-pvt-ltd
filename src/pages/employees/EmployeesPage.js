@@ -23,7 +23,6 @@ import Layout from '../../components/common/Layout/Layout';
 import EmployeeList from '../../components/employees/EmployeeList';
 import { EmployeeProvider, useEmployee } from '../../contexts/EmployeeContext/EmployeeContext';
 import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
-import { formatEmployeeForDisplay } from '../../utils/validation/employeeValidation';
 
 // Stats Component
 const EmployeeStats = () => {

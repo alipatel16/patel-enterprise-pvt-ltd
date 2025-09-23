@@ -21,9 +21,6 @@ import {
 } from '@mui/material';
 import {
   Payment as PaymentIcon,
-  Schedule as ScheduleIcon,
-  CheckCircle as CheckIcon,
-  Warning as WarningIcon,
   Calculate as CalculateIcon
 } from '@mui/icons-material';
 

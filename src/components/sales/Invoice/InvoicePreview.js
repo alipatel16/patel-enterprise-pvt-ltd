@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef } from "react";
 import {
   Box,
   Card,
@@ -14,461 +14,1146 @@ import {
   Divider,
   Chip,
   Avatar,
-  useTheme,
-  alpha
-} from '@mui/material';
+  alpha,
+  Stack,
+  Paper,
+  Button,
+} from "@mui/material";
 import {
   Business as BusinessIcon,
   Receipt as ReceiptIcon,
-  Person as PersonIcon
-} from '@mui/icons-material';
+  Person as PersonIcon,
+  AccountCircle as SalesPersonIcon,
+  Phone as PhoneIcon,
+  Email as EmailIcon,
+  LocationOn as LocationIcon,
+  CalendarToday as CalendarIcon,
+  Payment as PaymentIcon,
+  AccountBalance as BankIcon,
+  Money as MoneyIcon,
+  CreditCard as CardIcon,
+  Assignment as GSTIcon,
+  PaymentOutlined as RecordPaymentIcon,
+} from "@mui/icons-material";
 
-import { useUserType } from '../../../contexts/UserTypeContext/UserTypeContext';
-import { formatCurrency, formatDate } from '../../../utils/helpers/formatHelpers';
-import { 
-  GST_TYPES,
+import { useUserType } from "../../../contexts/UserTypeContext/UserTypeContext";
+import {
+  formatCurrency,
+  formatDate,
+} from "../../../utils/helpers/formatHelpers";
+import {
   PAYMENT_STATUS,
-  DELIVERY_STATUS 
-} from '../../../utils/constants/appConstants';
+  PAYMENT_STATUS_DISPLAY,
+  PAYMENT_METHOD_DISPLAY,
+  DELIVERY_STATUS,
+} from "../../../utils/constants/appConstants";
+
+// Translation object - Using English only
+const translations = {
+  invoice: "INVOICE",
+  billTo: "Bill To:",
+  salesPerson: "Sales Person:",
+  invoiceNumber: "Invoice #",
+  date: "Date",
+  dueDate: "Due Date",
+  invoiceType: "Invoice Type",
+  gstInvoice: "GST Invoice",
+  nonGstInvoice: "Non-GST Invoice",
+  items: "Invoice Items",
+  description: "Description",
+  hsnCode: "HSN Code",
+  qty: "Qty",
+  rate: "Rate",
+  gst: "GST %",
+  amount: "Amount",
+  subtotal: "Subtotal",
+  totalGST: "Total GST",
+  grandTotal: "Grand Total",
+  paymentDetails: "Payment Details",
+  paymentBreakdown: "Payment Breakdown",
+  amountPaid: "Amount Paid",
+  remainingBalance: "Remaining Balance",
+  totalInvoice: "Total Invoice",
+  paymentMethod: "Payment Method",
+  paymentReference: "Payment Reference",
+  financeCompany: "Finance Company",
+  bankName: "Bank Name",
+  downPayment: "Down Payment",
+  emiAmount: "EMI Amount",
+  monthlyEMI: "Monthly EMI",
+  startDate: "Start Date",
+  installments: "Installments",
+  paymentHistory: "Payment History",
+  recordedBy: "Recorded By",
+  remarks: "Remarks",
+  deliveryInfo: "Delivery Information",
+  scheduledDelivery: "Scheduled Delivery",
+  thankYou: "Thank you for your business!",
+  phone: "Phone",
+  email: "Email",
+  address: "Address",
+  state: "State",
+  companyGST: "Company GST",
+  customerGST: "Customer GST",
+  bulkPricingApplied: "Bulk Pricing Applied",
+  paymentStatus: "Payment",
+  deliveryStatus: "Delivery",
+  cgstSgst: "CGST+SGST",
+  igst: "IGST",
+  intraState: "Intra-State",
+  interState: "Inter-State",
+  transaction: "Transaction",
+};
 
 /**
  * Invoice preview component for displaying invoice in printable format
- * @param {Object} props
- * @param {Object} props.invoice - Invoice data
- * @param {boolean} props.showActions - Whether to show action buttons
- * @param {string} props.variant - Display variant (preview, print, email)
  */
-const InvoicePreview = forwardRef(({ 
-  invoice = {}, 
-  showActions = false,
-  variant = 'preview'
-}, ref) => {
-  const theme = useTheme();
-  const { getDisplayName, getThemeColors } = useUserType();
-  
-  const themeColors = getThemeColors();
+const InvoicePreview = forwardRef(
+  (
+    { invoice = {}, showActions = false, variant = "preview", onRecordPayment },
+    ref
+  ) => {
+    const { getDisplayName, getThemeColors } = useUserType();
+    const themeColors = getThemeColors();
+    const t = translations;
 
-  // Default invoice data structure
-  const defaultInvoice = {
-    invoiceNumber: '',
-    date: new Date(),
-    dueDate: null,
-    customer: {},
-    items: [],
-    subTotal: 0,
-    gstAmount: 0,
-    totalAmount: 0,
-    paymentStatus: PAYMENT_STATUS.PENDING,
-    deliveryStatus: DELIVERY_STATUS.PENDING,
-    gstType: GST_TYPES.NO_GST,
-    notes: '',
-    terms: ''
-  };
-
-  const invoiceData = { ...defaultInvoice, ...invoice };
-
-  // Company details (would typically come from settings)
-  const companyDetails = {
-    name: 'Patel Enterprise Pvt Ltd',
-    address: '123 Business Street',
-    city: 'Ahmedabad',
-    state: 'Gujarat',
-    pincode: '380001',
-    phone: '+91 79 1234 5678',
-    email: 'info@patelenterprise.com',
-    gst: '24ABCDE1234F1Z5',
-    website: 'www.patelenterprise.com'
-  };
-
-  // Get status color
-  const getStatusColor = (status, type = 'payment') => {
-    const colors = {
-      payment: {
-        paid: theme.palette.success.main,
-        pending: theme.palette.warning.main,
-        emi: theme.palette.info.main
+    // Default invoice data structure
+    const defaultInvoice = {
+      invoiceNumber: "",
+      saleDate: new Date(),
+      dueDate: null,
+      customerName: "",
+      customerPhone: "",
+      customerAddress: "",
+      customerState: "",
+      customerGSTNumber: "",
+      salesPersonName: "",
+      items: [],
+      subtotal: 0,
+      totalGST: 0,
+      grandTotal: 0,
+      paymentStatus: PAYMENT_STATUS.PENDING,
+      deliveryStatus: DELIVERY_STATUS.PENDING,
+      includeGST: false,
+      remarks: "",
+      paymentDetails: {
+        downPayment: 0,
+        remainingBalance: 0,
+        paymentMethod: "cash",
+        bankName: "",
+        financeCompany: "",
+        paymentReference: "",
+        paymentHistory: [],
       },
-      delivery: {
-        delivered: theme.palette.success.main,
-        pending: theme.palette.warning.main,
-        scheduled: theme.palette.info.main
-      }
+      notes: "",
+      terms: "",
     };
-    
-    return colors[type]?.[status] || theme.palette.text.secondary;
-  };
 
-  // Calculate totals
-  const calculations = {
-    itemTotal: invoiceData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0),
-    gstAmount: invoiceData.gstAmount || 0,
-    grandTotal: invoiceData.totalAmount || 0
-  };
+    const invoiceData = { ...defaultInvoice, ...invoice };
 
-  return (
-    <Box
-      ref={ref}
-      sx={{
-        backgroundColor: variant === 'print' ? 'white' : 'background.paper',
-        color: variant === 'print' ? 'black' : 'text.primary',
-        fontSize: variant === 'print' ? '12px' : 'inherit',
-        '@media print': {
-          backgroundColor: 'white !important',
-          color: 'black !important',
-          boxShadow: 'none !important',
-          '& .no-print': {
-            display: 'none !important'
-          }
-        }
-      }}
-    >
-      <Card 
-        elevation={variant === 'print' ? 0 : 2}
-        sx={{ 
-          maxWidth: '21cm',
-          margin: 'auto',
-          minHeight: variant === 'print' ? '29.7cm' : 'auto'
+    // Helper function to get the correct display rate for an item
+    const getItemDisplayRate = (item) => {
+      if (item.baseAmount !== undefined) {
+        return item.isPriceInclusive ? item.baseAmount : item.rate;
+      }
+      return item.rate || 0;
+    };
+
+    // Helper function to get the correct total amount for an item
+    const getItemTotalAmount = (item) => {
+      if (item.totalAmount !== undefined) {
+        return item.totalAmount;
+      }
+      return (item.quantity || 0) * (item.rate || 0);
+    };
+
+    // Check if this invoice uses bulk pricing
+    const isBulkPricingInvoice =
+      invoiceData.bulkPricingApplied ||
+      (invoiceData.bulkPricingDetails &&
+        invoiceData.items &&
+        invoiceData.items.some((item) => item.bulkPricing));
+
+    // Company details
+    const companyDetails = {
+      name: "Patel Enterprise Pvt Ltd",
+      address: "123 Business Street",
+      city: "Ahmedabad",
+      state: "Gujarat",
+      pincode: "380001",
+      phone: "+91 79 1234 5678",
+      email: "info@patelenterprise.com",
+      gst: "24ABCDE1234F1Z5",
+      website: "www.patelenterprise.com",
+    };
+
+    // Check if payment is partial
+    const isPartialPayment =
+      invoiceData.paymentStatus === PAYMENT_STATUS.PENDING ||
+      invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE ||
+      invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER;
+
+    // Calculate actual amount paid and remaining balance
+    const getActualAmountPaid = () => {
+      if (invoiceData.paymentStatus === PAYMENT_STATUS.PENDING) {
+        return invoiceData.paymentDetails?.downPayment || 0;
+      }
+      if (
+        invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE ||
+        invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
+      ) {
+        return invoiceData.paymentDetails?.downPayment || 0;
+      }
+      if (
+        invoiceData.paymentStatus === PAYMENT_STATUS.PAID ||
+        invoiceData.fullyPaid
+      ) {
+        return invoiceData.grandTotal || invoiceData.totalAmount || 0;
+      }
+      if (
+        invoiceData.paymentStatus === PAYMENT_STATUS.EMI &&
+        invoiceData.emiDetails?.schedule
+      ) {
+        return invoiceData.emiDetails.schedule
+          .filter((emi) => emi.paid)
+          .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
+      }
+      return 0;
+    };
+
+    const getRemainingBalance = () => {
+      const totalAmount =
+        invoiceData.grandTotal || invoiceData.totalAmount || 0;
+      const paidAmount = getActualAmountPaid();
+      return Math.max(0, totalAmount - paidAmount);
+    };
+
+    const actualPaid = getActualAmountPaid();
+    const remainingBalance = getRemainingBalance();
+    const canRecordPayment =
+      remainingBalance > 0 && isPartialPayment && !invoiceData.fullyPaid;
+
+    // Get payment method icon
+    const getPaymentMethodIcon = (method) => {
+      const iconMap = {
+        cash: <MoneyIcon fontSize="small" />,
+        card: <CardIcon fontSize="small" />,
+        finance: <BankIcon fontSize="small" />,
+        bank_transfer: <BankIcon fontSize="small" />,
+        upi: <PaymentIcon fontSize="small" />,
+      };
+      return iconMap[method] || <PaymentIcon fontSize="small" />;
+    };
+
+    return (
+      <Box
+        ref={ref}
+        sx={{
+          backgroundColor: variant === "print" ? "white" : "background.paper",
+          "@media print": {
+            backgroundColor: "white !important",
+            "& .no-print": {
+              display: "none !important",
+            },
+          },
         }}
       >
-        <CardContent sx={{ p: 4 }}>
-          {/* Header */}
-          <Box sx={{ mb: 4 }}>
-            <Grid container spacing={3} alignItems="center">
-              {/* Company Logo/Info */}
-              <Grid item xs={12} md={6}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                  <Avatar
-                    sx={{
-                      width: 60,
-                      height: 60,
-                      backgroundColor: themeColors.primary,
-                      fontSize: '1.5rem'
-                    }}
-                  >
-                    <BusinessIcon fontSize="large" />
-                  </Avatar>
-                  <Box>
-                    <Typography variant="h5" fontWeight={700} color={themeColors.primary}>
-                      {companyDetails.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {getDisplayName()} Business
-                    </Typography>
-                  </Box>
-                </Box>
-                
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  {companyDetails.address}, {companyDetails.city}
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  {companyDetails.state} - {companyDetails.pincode}
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  Phone: {companyDetails.phone}
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  Email: {companyDetails.email}
-                </Typography>
-                {companyDetails.gst && (
-                  <Typography variant="body2" fontWeight={500}>
-                    GST: {companyDetails.gst}
-                  </Typography>
-                )}
-              </Grid>
-
-              {/* Invoice Details */}
-              <Grid item xs={12} md={6}>
-                <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-                  <Typography variant="h4" fontWeight={700} color={themeColors.primary} gutterBottom>
-                    INVOICE
-                  </Typography>
-                  
-                  <Box sx={{ display: 'inline-block', textAlign: 'left' }}>
-                    <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>Invoice #:</strong> {invoiceData.invoiceNumber}
-                    </Typography>
-                    <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>Date:</strong> {formatDate(invoiceData.date)}
-                    </Typography>
-                    {invoiceData.dueDate && (
-                      <Typography variant="body1" sx={{ mb: 1 }}>
-                        <strong>Due Date:</strong> {formatDate(invoiceData.dueDate)}
+        <Card
+          elevation={variant === "print" ? 0 : 1}
+          sx={{
+            width: '210mm',
+            minHeight: '297mm',
+            margin: "auto",
+            borderRadius: variant === "print" ? 0 : 2,
+            "@media print": {
+              width: '100%',
+              boxShadow: 'none',
+              pageBreakAfter: 'always',
+            }
+          }}
+        >
+          <CardContent sx={{ p: '15mm' }}>
+            {/* Header Section */}
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                mb: 3,
+                background: `linear-gradient(135deg, ${themeColors.primary}15 0%, ${themeColors.secondary}15 100%)`,
+                border: `1px solid ${alpha(themeColors.primary, 0.1)}`,
+                pageBreakInside: 'avoid',
+              }}
+            >
+              <Grid container spacing={2} alignItems="center">
+                {/* Company Info */}
+                <Grid item xs={7}>
+                  <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2, mb: 1 }}>
+                    <Avatar
+                      sx={{
+                        width: 50,
+                        height: 50,
+                        backgroundColor: themeColors.primary,
+                      }}
+                    >
+                      <BusinessIcon />
+                    </Avatar>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography
+                        variant="h5"
+                        fontWeight={700}
+                        color={themeColors.primary}
+                        sx={{ lineHeight: 1.2, mb: 0.5, fontSize: '28px' }}
+                      >
+                        {companyDetails.name}
                       </Typography>
-                    )}
-                    
-                    <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                      <Chip
-                        label={invoiceData.paymentStatus?.toUpperCase()}
-                        size="small"
-                        sx={{
-                          backgroundColor: getStatusColor(invoiceData.paymentStatus, 'payment') + '20',
-                          color: getStatusColor(invoiceData.paymentStatus, 'payment'),
-                          fontWeight: 600
-                        }}
-                      />
-                      <Chip
-                        label={invoiceData.deliveryStatus?.toUpperCase()}
-                        size="small"
-                        sx={{
-                          backgroundColor: getStatusColor(invoiceData.deliveryStatus, 'delivery') + '20',
-                          color: getStatusColor(invoiceData.deliveryStatus, 'delivery'),
-                          fontWeight: 600
-                        }}
-                      />
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '11px' }}>
+                        {getDisplayName()} Business Solutions
+                      </Typography>
                     </Box>
                   </Box>
-                </Box>
+
+                  <Stack spacing={0.3} sx={{ fontSize: '11px', lineHeight: 1.6 }}>
+                    <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                      <LocationIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
+                      {companyDetails.address}, {companyDetails.city}, {companyDetails.state} - {companyDetails.pincode}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                      <PhoneIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
+                      {t.phone}: {companyDetails.phone}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                      <EmailIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
+                      {t.email}: {companyDetails.email}
+                    </Typography>
+                    {companyDetails.gst && (
+                      <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                        <GSTIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
+                        {t.companyGST}: {companyDetails.gst}
+                      </Typography>
+                    )}
+                  </Stack>
+                </Grid>
+
+                {/* Invoice Details */}
+                <Grid item xs={5}>
+                  <Box sx={{ textAlign: "right" }}>
+                    <Typography
+                      variant="h4"
+                      fontWeight={700}
+                      color={themeColors.primary}
+                      gutterBottom
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-end",
+                        gap: 1,
+                        fontSize: '32px'
+                      }}
+                    >
+                      <ReceiptIcon />
+                      {t.invoice}
+                    </Typography>
+
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        display: "inline-block",
+                        p: 1.5,
+                        backgroundColor: "background.paper",
+                        border: `2px solid ${themeColors.primary}`,
+                        borderRadius: 1,
+                        textAlign: "left",
+                        minWidth: 200,
+                      }}
+                    >
+                      <Stack spacing={0.5}>
+                        <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                          <strong>{t.invoiceNumber}:</strong> {invoiceData.invoiceNumber}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                          <CalendarIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
+                          <strong>{t.date}:</strong> {formatDate(invoiceData.saleDate)}
+                        </Typography>
+                        {invoiceData.dueDate && (
+                          <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                            <strong>{t.dueDate}:</strong> {formatDate(invoiceData.dueDate)}
+                          </Typography>
+                        )}
+                        <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                          <strong>{t.invoiceType}:</strong> {invoiceData.includeGST ? t.gstInvoice : t.nonGstInvoice}
+                        </Typography>
+                      </Stack>
+
+                      <Box sx={{ display: "flex", gap: 1, mt: 1, flexWrap: "wrap" }}>
+                        <Chip
+                          label={`${t.paymentStatus}: ${PAYMENT_STATUS_DISPLAY[invoiceData.paymentStatus] || invoiceData.paymentStatus}`}
+                          size="small"
+                          color={invoiceData.paymentStatus === PAYMENT_STATUS.PAID ? "success" : "warning"}
+                          sx={{ fontSize: '9px', height: 20 }}
+                        />
+                        <Chip
+                          label={`${t.deliveryStatus}: ${invoiceData.deliveryStatus}`}
+                          size="small"
+                          variant="outlined"
+                          sx={{ fontSize: '9px', height: 20 }}
+                        />
+                      </Box>
+                    </Paper>
+                  </Box>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            {/* Customer and Sales Person Info */}
+            <Grid container spacing={2} sx={{ mb: 3, pageBreakInside: 'avoid' }}>
+              {/* Bill To */}
+              <Grid item xs={6}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    height: "100%",
+                    border: `1px solid #e0e0e0`,
+                    borderRadius: 1,
+                  }}
+                >
+                  <Typography
+                    variant="subtitle1"
+                    fontWeight={600}
+                    gutterBottom
+                    sx={{ color: themeColors.primary, fontSize: '13px' }}
+                  >
+                    {t.billTo}
+                  </Typography>
+
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                    <Avatar
+                      sx={{
+                        backgroundColor: alpha(themeColors.secondary, 0.1),
+                        color: themeColors.secondary,
+                        width: 35,
+                        height: 35,
+                      }}
+                    >
+                      <PersonIcon fontSize="small" />
+                    </Avatar>
+                    <Typography variant="body1" fontWeight={600} sx={{ fontSize: '14px' }}>
+                      {invoiceData.customerName || "Customer Name"}
+                    </Typography>
+                  </Box>
+
+                  <Stack spacing={0.3} sx={{ fontSize: '11px' }}>
+                    {invoiceData.customerPhone && (
+                      <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                        <PhoneIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
+                        {t.phone}: {invoiceData.customerPhone}
+                      </Typography>
+                    )}
+                    {invoiceData.customerAddress && (
+                      <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                        <LocationIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
+                        {t.address}: {invoiceData.customerAddress}
+                      </Typography>
+                    )}
+                    {invoiceData.customerState && (
+                      <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                        {t.state}: {invoiceData.customerState}
+                      </Typography>
+                    )}
+                    {invoiceData.customerGSTNumber && (
+                      <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                        <GSTIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
+                        {t.customerGST}: {invoiceData.customerGSTNumber}
+                      </Typography>
+                    )}
+                  </Stack>
+                </Paper>
+              </Grid>
+
+              {/* Sales Person */}
+              <Grid item xs={6}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    height: "100%",
+                    border: `1px solid #e0e0e0`,
+                    borderRadius: 1,
+                  }}
+                >
+                  <Typography
+                    variant="subtitle1"
+                    fontWeight={600}
+                    gutterBottom
+                    sx={{ color: themeColors.primary, fontSize: '13px' }}
+                  >
+                    {t.salesPerson}
+                  </Typography>
+
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                    <Avatar
+                      sx={{
+                        backgroundColor: alpha(themeColors.primary, 0.1),
+                        color: themeColors.primary,
+                        width: 35,
+                        height: 35,
+                      }}
+                    >
+                      <SalesPersonIcon fontSize="small" />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body1" fontWeight={600} sx={{ fontSize: '14px' }}>
+                        {invoiceData.salesPersonName || "Sales Person"}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '10px' }}>
+                        Sales Representative
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Paper>
               </Grid>
             </Grid>
-          </Box>
 
-          {/* Bill To */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" fontWeight={600} gutterBottom>
-              Bill To:
-            </Typography>
-            
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-              <Avatar sx={{ backgroundColor: themeColors.secondary + '20', color: themeColors.secondary }}>
-                <PersonIcon />
-              </Avatar>
-              <Box>
-                <Typography variant="h6" fontWeight={600}>
-                  {invoiceData.customer?.name || 'Customer Name'}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {invoiceData.customer?.type?.charAt(0).toUpperCase() + invoiceData.customer?.type?.slice(1)} • {invoiceData.customer?.category?.charAt(0).toUpperCase() + invoiceData.customer?.category?.slice(1)}
+            {/* Items Table */}
+            <Paper
+              elevation={0}
+              sx={{ mb: 3, border: `1px solid #e0e0e0`, pageBreakInside: 'avoid' }}
+            >
+              <Box sx={{ p: 1.5, backgroundColor: alpha(themeColors.primary, 0.05) }}>
+                <Typography
+                  variant="subtitle1"
+                  fontWeight={600}
+                  sx={{ color: themeColors.primary, fontSize: '13px' }}
+                >
+                  {t.items}
+                  {isBulkPricingInvoice && (
+                    <Chip
+                      label={t.bulkPricingApplied}
+                      size="small"
+                      color="success"
+                      sx={{ ml: 1, fontSize: '9px', height: 18 }}
+                    />
+                  )}
                 </Typography>
               </Box>
-            </Box>
-            
-            {invoiceData.customer?.address && (
-              <Typography variant="body2" sx={{ mb: 1 }}>
-                {invoiceData.customer.address}
-              </Typography>
-            )}
-            
-            <Grid container spacing={2}>
-              {invoiceData.customer?.phone && (
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Phone:</strong> {invoiceData.customer.phone}
-                  </Typography>
-                </Grid>
-              )}
-              
-              {invoiceData.customer?.email && (
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Email:</strong> {invoiceData.customer.email}
-                  </Typography>
-                </Grid>
-              )}
-              
-              {invoiceData.customer?.gstNumber && (
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>GST:</strong> {invoiceData.customer.gstNumber}
-                  </Typography>
-                </Grid>
-              )}
-            </Grid>
-          </Box>
 
-          {/* Items Table */}
-          <TableContainer component={Box} sx={{ mb: 4 }}>
-            <Table>
-              <TableHead>
-                <TableRow sx={{ backgroundColor: alpha(themeColors.primary, 0.1) }}>
-                  <TableCell><strong>#</strong></TableCell>
-                  <TableCell><strong>Description</strong></TableCell>
-                  <TableCell align="right"><strong>Qty</strong></TableCell>
-                  <TableCell align="right"><strong>Rate</strong></TableCell>
-                  <TableCell align="right"><strong>Amount</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {invoiceData.items.map((item, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{index + 1}</TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={500}>
-                        {item.name || item.description}
-                      </Typography>
-                      {item.description && item.name && (
-                        <Typography variant="caption" color="text.secondary">
-                          {item.description}
-                        </Typography>
+              <TableContainer>
+                <Table size="small" sx={{ '& .MuiTableCell-root': { fontSize: '11px' } }}>
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: alpha(themeColors.primary, 0.1) }}>
+                      <TableCell sx={{ fontWeight: 700, width: '5%' }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 700, width: '35%' }}>{t.description}</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 700, width: '12%' }}>{t.hsnCode}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, width: '8%' }}>{t.qty}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, width: '15%' }}>{t.rate}</TableCell>
+                      {invoiceData.includeGST && (
+                        <TableCell align="right" sx={{ fontWeight: 700, width: '10%' }}>{t.gst}</TableCell>
                       )}
-                    </TableCell>
-                    <TableCell align="right">{item.quantity}</TableCell>
-                    <TableCell align="right">{formatCurrency(item.price)}</TableCell>
-                    <TableCell align="right" fontWeight={500}>
-                      {formatCurrency(item.quantity * item.price)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                
-                {invoiceData.items.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        No items added
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                      <TableCell align="right" sx={{ fontWeight: 700, width: '15%' }}>{t.amount}</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {invoiceData.items.map((item, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600} sx={{ fontSize: '11px' }}>
+                            {item.name}
+                          </Typography>
+                          {item.description && (
+                            <Typography
+                              variant="caption"
+                              sx={{ fontSize: '9px', color: '#666', fontStyle: 'italic' }}
+                            >
+                              {item.description}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell align="center">
+                          <Typography variant="body2" fontFamily="monospace" fontWeight={500} sx={{ fontSize: '11px' }}>
+                            {item.hsnCode || "-"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">{item.quantity}</TableCell>
+                        <TableCell align="right">
+                          {isBulkPricingInvoice ? (
+                            <Chip size="small" label="Bulk" color="success" variant="outlined" sx={{ fontSize: '9px', height: 18 }} />
+                          ) : (
+                            formatCurrency(getItemDisplayRate(item))
+                          )}
+                        </TableCell>
+                        {invoiceData.includeGST && (
+                          <TableCell align="right">
+                            {isBulkPricingInvoice
+                              ? `${invoiceData.bulkPricingDetails?.gstSlab || 18}%`
+                              : `${item.gstSlab || 18}%`}
+                          </TableCell>
+                        )}
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>
+                          {isBulkPricingInvoice ? (
+                            <Chip size="small" label="See Below" color="info" variant="outlined" sx={{ fontSize: '9px', height: 18 }} />
+                          ) : (
+                            formatCurrency(getItemTotalAmount(item))
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
 
-          {/* Totals */}
-          <Grid container justifyContent="flex-end">
-            <Grid item xs={12} sm={6} md={4}>
-              <Box sx={{ border: `1px solid ${theme.palette.divider}`, p: 2, borderRadius: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Subtotal:</Typography>
-                  <Typography variant="body2" fontWeight={500}>
-                    {formatCurrency(calculations.itemTotal)}
-                  </Typography>
-                </Box>
-                
-                {calculations.gstAmount > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">
-                      GST ({invoiceData.gstType === GST_TYPES.CGST_SGST ? 'CGST+SGST' : 'IGST'}):
+                    {invoiceData.items.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={invoiceData.includeGST ? 7 : 6}
+                          align="center"
+                          sx={{ py: 2 }}
+                        >
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '11px' }}>
+                            No items added
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
+
+            {/* Totals Section */}
+            <Grid container spacing={2} sx={{ mb: 3, pageBreakInside: 'avoid' }}>
+              <Grid item xs={7}>
+                {invoiceData.remarks && (
+                  <Box sx={{ 
+                    border: '1px solid #e0e0e0', 
+                    borderRadius: 1, 
+                    p: 2,
+                    background: '#fafafa'
+                  }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '11px', mb: 0.5 }}>
+                      {t.remarks}:
                     </Typography>
-                    <Typography variant="body2" fontWeight={500}>
-                      {formatCurrency(calculations.gstAmount)}
+                    <Typography variant="body2" sx={{ fontSize: '11px', whiteSpace: 'pre-wrap' }}>
+                      {invoiceData.remarks}
                     </Typography>
                   </Box>
                 )}
-                
-                <Divider sx={{ my: 1 }} />
-                
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="h6" fontWeight={700}>Total:</Typography>
-                  <Typography variant="h6" fontWeight={700} color={themeColors.primary}>
-                    {formatCurrency(calculations.grandTotal)}
-                  </Typography>
-                </Box>
-              </Box>
-            </Grid>
-          </Grid>
-
-          {/* EMI Details */}
-          {invoiceData.paymentStatus === PAYMENT_STATUS.EMI && invoiceData.emiDetails && (
-            <Box sx={{ mt: 4, p: 2, backgroundColor: alpha(theme.palette.info.main, 0.1), borderRadius: 1 }}>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                EMI Details:
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Monthly EMI:</strong> {formatCurrency(invoiceData.emiDetails.monthlyAmount)}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Start Date:</strong> {formatDate(invoiceData.emiDetails.startDate)}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Duration:</strong> {invoiceData.emiDetails.months} months
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Total EMI Amount:</strong> {formatCurrency(invoiceData.emiDetails.totalAmount)}
-                  </Typography>
-                </Grid>
               </Grid>
-            </Box>
-          )}
 
-          {/* Delivery Details */}
-          {invoiceData.deliveryDetails && (
-            <Box sx={{ mt: 3, p: 2, backgroundColor: alpha(theme.palette.success.main, 0.1), borderRadius: 1 }}>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Delivery Details:
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
-                    <strong>Delivery Date:</strong> {formatDate(invoiceData.deliveryDetails.scheduledDate)}
+              <Grid item xs={5}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    border: `2px solid ${themeColors.primary}`,
+                    borderRadius: 1,
+                    backgroundColor: '#f8f9fa',
+                  }}
+                >
+                  <Stack spacing={1}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" sx={{ fontSize: '11px' }}>{t.subtotal}:</Typography>
+                      <Typography variant="body2" sx={{ fontSize: '11px', fontWeight: 600 }}>
+                        {formatCurrency(invoiceData.subtotal || 0)}
+                      </Typography>
+                    </Box>
+
+                    {invoiceData.includeGST && invoiceData.totalGST > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                          {t.totalGST} ({invoiceData.customerState?.toLowerCase() === "gujarat" ? t.cgstSgst : t.igst}):
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontSize: '11px', fontWeight: 600 }}>
+                          {formatCurrency(invoiceData.totalGST || 0)}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    <Divider />
+
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="h6" sx={{ fontSize: '14px', fontWeight: 700 }}>
+                        {t.grandTotal}:
+                      </Typography>
+                      <Typography
+                        variant="h6"
+                        sx={{ fontSize: '16px', fontWeight: 700, color: themeColors.primary }}
+                      >
+                        {formatCurrency(invoiceData.grandTotal || 0)}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Paper>
+              </Grid>
+            </Grid>
+
+            {/* Payment Details Section */}
+            {(isPartialPayment || invoiceData.paymentStatus === PAYMENT_STATUS.EMI) && (
+              <Paper
+                elevation={0}
+                sx={{
+                  mb: 3,
+                  p: 2,
+                  backgroundColor: alpha('#1976d2', 0.05),
+                  border: `1px solid ${alpha('#1976d2', 0.2)}`,
+                  borderRadius: 1,
+                  pageBreakInside: 'avoid',
+                }}
+              >
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography
+                    variant="subtitle1"
+                    fontWeight={600}
+                    sx={{
+                      color: '#1976d2',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      fontSize: '13px'
+                    }}
+                  >
+                    {getPaymentMethodIcon(invoiceData.paymentDetails?.paymentMethod)}
+                    {t.paymentDetails} - {PAYMENT_STATUS_DISPLAY[invoiceData.paymentStatus]}
                   </Typography>
-                </Grid>
-                {invoiceData.deliveryDetails.address && (
-                  <Grid item xs={12}>
-                    <Typography variant="body2">
-                      <strong>Delivery Address:</strong> {invoiceData.deliveryDetails.address}
-                    </Typography>
+
+                  {canRecordPayment && onRecordPayment && showActions && (
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      size="small"
+                      startIcon={<RecordPaymentIcon />}
+                      onClick={() => onRecordPayment(invoiceData)}
+                      className="no-print"
+                      sx={{ fontSize: '11px' }}
+                    >
+                      Record Payment
+                    </Button>
+                  )}
+                </Box>
+
+                {/* PENDING Payment Details */}
+                {invoiceData.paymentStatus === PAYMENT_STATUS.PENDING && (
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        {t.paymentMethod}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {PAYMENT_METHOD_DISPLAY[invoiceData.paymentDetails?.paymentMethod] || invoiceData.paymentDetails?.paymentMethod || "Not specified"}
+                      </Typography>
+                    </Grid>
+                    {invoiceData.paymentDetails?.paymentReference && (
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                          {t.paymentReference}:
+                        </Typography>
+                        <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                          {invoiceData.paymentDetails.paymentReference}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {invoiceData.paymentDetails?.downPayment > 0 && (
+                      <>
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                            {t.amountPaid}:
+                          </Typography>
+                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                            {formatCurrency(invoiceData.paymentDetails?.downPayment || 0)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                            {t.remainingBalance}:
+                          </Typography>
+                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                            {formatCurrency(invoiceData.paymentDetails?.remainingBalance || 0)}
+                          </Typography>
+                        </Grid>
+                      </>
+                    )}
                   </Grid>
                 )}
-              </Grid>
-            </Box>
-          )}
 
-          {/* Notes and Terms */}
-          {(invoiceData.notes || invoiceData.terms) && (
-            <Box sx={{ mt: 4 }}>
-              {invoiceData.notes && (
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="h6" fontWeight={600} gutterBottom>
-                    Notes:
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
-                    {invoiceData.notes}
-                  </Typography>
-                </Box>
-              )}
-              
-              {invoiceData.terms && (
-                <Box>
-                  <Typography variant="h6" fontWeight={600} gutterBottom>
-                    Terms & Conditions:
-                  </Typography>
-                  <Typography variant="body2">
-                    {invoiceData.terms}
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          )}
-
-          {/* Footer */}
-          <Box sx={{ mt: 6, pt: 3, borderTop: `1px solid ${theme.palette.divider}` }}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Typography variant="body2" color="text.secondary">
-                  Thank you for your business!
-                </Typography>
-                {companyDetails.website && (
-                  <Typography variant="body2" color="text.secondary">
-                    Visit us at: {companyDetails.website}
-                  </Typography>
+                {/* Finance Payment Details */}
+                {invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE && (
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        <BankIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
+                        {t.financeCompany}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {invoiceData.paymentDetails?.financeCompany || "Not specified"}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        {t.paymentReference}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {invoiceData.paymentDetails?.paymentReference || "Not provided"}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        {t.downPayment}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {formatCurrency(invoiceData.paymentDetails?.downPayment || 0)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        {t.remainingBalance}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {formatCurrency(invoiceData.paymentDetails?.remainingBalance || 0)}
+                      </Typography>
+                    </Grid>
+                  </Grid>
                 )}
-              </Grid>
-              
-              <Grid item xs={12} md={6}>
-                <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-                  <Typography variant="body2" color="text.secondary">
+
+                {/* Bank Transfer Payment Details */}
+                {invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER && (
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        <BankIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
+                        {t.bankName}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {invoiceData.paymentDetails?.bankName || "Not specified"}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        {t.paymentReference}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {invoiceData.paymentDetails?.paymentReference || "Not provided"}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        {t.downPayment}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {formatCurrency(invoiceData.paymentDetails?.downPayment || 0)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        {t.remainingBalance}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {formatCurrency(invoiceData.paymentDetails?.remainingBalance || 0)}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                )}
+
+                {/* EMI Payment Details */}
+                {invoiceData.paymentStatus === PAYMENT_STATUS.EMI && invoiceData.emiDetails && (
+                  <Grid container spacing={2}>
+                    {invoiceData.emiDetails.downPayment > 0 && (
+                      <>
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                            {t.downPayment}:
+                          </Typography>
+                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                            {formatCurrency(invoiceData.emiDetails.downPayment || 0)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                            {t.emiAmount}:
+                          </Typography>
+                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                            {formatCurrency(invoiceData.emiDetails.emiAmount || invoiceData.grandTotal)}
+                          </Typography>
+                        </Grid>
+                      </>
+                    )}
+
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        {t.monthlyEMI}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {formatCurrency(invoiceData.emiDetails.monthlyAmount)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        {t.startDate}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {formatDate(invoiceData.emiDetails.startDate)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        {t.installments}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {invoiceData.emiDetails.numberOfInstallments} months
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                        {t.totalInvoice}:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                        {formatCurrency(invoiceData.grandTotal || 0)}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                )}
+
+                {/* Payment Breakdown for Partial Payments */}
+                {isPartialPayment && (
+                  <Box
+                    sx={{
+                      mt: 2,
+                      p: 1.5,
+                      backgroundColor: alpha('#1976d2', 0.03),
+                      borderRadius: 1,
+                      border: `1px solid ${alpha('#1976d2', 0.1)}`,
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: '11px', fontWeight: 600, mb: 1 }}>
+                      {t.paymentBreakdown}:
+                    </Typography>
+
+                    <Stack spacing={0.5}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                          {t.amountPaid}:
+                        </Typography>
+                        <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px', color: 'success.main' }}>
+                          {formatCurrency(actualPaid)}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                          {t.remainingBalance}:
+                        </Typography>
+                        <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px', color: 'warning.main' }}>
+                          {formatCurrency(remainingBalance)}
+                        </Typography>
+                      </Box>
+                      <Divider sx={{ my: 0.5 }} />
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" fontWeight={600} sx={{ fontSize: '11px' }}>
+                          {t.totalInvoice}:
+                        </Typography>
+                        <Typography variant="body2" fontWeight={600} sx={{ fontSize: '11px', color: 'primary.main' }}>
+                          {formatCurrency(invoiceData.grandTotal || 0)}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Box>
+                )}
+              </Paper>
+            )}
+
+            {/* Payment History */}
+            {invoiceData.paymentDetails?.paymentHistory &&
+              invoiceData.paymentDetails.paymentHistory.length > 0 && (
+                <Box sx={{ mb: 3, pageBreakInside: 'avoid' }}>
+                  <Typography variant="body2" sx={{ fontSize: '11px', fontWeight: 600, mb: 1 }}>
+                    {t.paymentHistory}:
+                  </Typography>
+
+                  {invoiceData.paymentDetails.paymentHistory.map((payment, index) => (
+                    <Paper
+                      key={index}
+                      elevation={0}
+                      sx={{
+                        p: 1.5,
+                        mb: 1,
+                        backgroundColor: alpha('#4caf50', 0.05),
+                        border: `1px solid ${alpha('#4caf50', 0.2)}`,
+                      }}
+                    >
+                      <Grid container spacing={1}>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" sx={{ fontSize: '10px', color: 'text.secondary' }}>
+                            Amount
+                          </Typography>
+                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                            {formatCurrency(payment.amount)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" sx={{ fontSize: '10px', color: 'text.secondary' }}>
+                            Date
+                          </Typography>
+                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                            {formatDate(payment.date)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" sx={{ fontSize: '10px', color: 'text.secondary' }}>
+                            Method
+                          </Typography>
+                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px' }}>
+                            {PAYMENT_METHOD_DISPLAY[payment.method] || payment.method}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Typography variant="caption" sx={{ fontSize: '10px', color: 'text.secondary' }}>
+                            {t.recordedBy}
+                          </Typography>
+                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '11px', color: 'primary.main' }}>
+                            {payment.recordedByName || "Unknown"}
+                          </Typography>
+                        </Grid>
+                        {payment.reference && (
+                          <Grid item xs={12}>
+                            <Typography variant="caption" sx={{ fontSize: '10px', color: 'text.secondary' }}>
+                              Reference: {payment.reference}
+                            </Typography>
+                          </Grid>
+                        )}
+                        {payment.notes && (
+                          <Grid item xs={12}>
+                            <Typography variant="caption" sx={{ fontSize: '10px', color: 'text.secondary' }}>
+                              Notes: {payment.notes}
+                            </Typography>
+                          </Grid>
+                        )}
+                      </Grid>
+                    </Paper>
+                  ))}
+                </Box>
+              )}
+
+            {/* Delivery Details */}
+            {invoiceData.deliveryStatus === DELIVERY_STATUS.SCHEDULED &&
+              invoiceData.scheduledDeliveryDate && (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    mb: 3,
+                    p: 2,
+                    backgroundColor: alpha('#4caf50', 0.05),
+                    border: `1px solid ${alpha('#4caf50', 0.2)}`,
+                    borderRadius: 1,
+                    pageBreakInside: 'avoid',
+                  }}
+                >
+                  <Typography
+                    variant="subtitle1"
+                    fontWeight={600}
+                    gutterBottom
+                    sx={{ color: '#4caf50', fontSize: '13px' }}
+                  >
+                    {t.deliveryInfo}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontSize: '11px' }}>
+                    <CalendarIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
+                    {t.scheduledDelivery}: {formatDate(invoiceData.scheduledDeliveryDate)}
+                  </Typography>
+                </Paper>
+              )}
+
+            {/* Footer */}
+            <Box
+              sx={{
+                mt: 4,
+                pt: 2,
+                borderTop: `2px solid #e0e0e0`,
+                textAlign: "center",
+                pageBreakInside: 'avoid',
+              }}
+            >
+              <Typography
+                variant="subtitle1"
+                fontWeight={600}
+                gutterBottom
+                sx={{ color: themeColors.primary, fontSize: '13px' }}
+              >
+                {t.thankYou}
+              </Typography>
+
+              <Grid container spacing={2} sx={{ mt: 1 }}>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                    For any queries, contact us at {companyDetails.phone}
+                  </Typography>
+                  {companyDetails.website && (
+                    <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
+                      Visit: {companyDetails.website}
+                    </Typography>
+                  )}
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ fontSize: '11px', color: 'text.secondary' }}>
                     Generated on {formatDate(new Date())}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Powered by Business Manager
+                  <Typography variant="caption" sx={{ fontSize: '10px', color: 'text.secondary' }}>
+                    Powered by Business Manager System
                   </Typography>
-                </Box>
+                </Grid>
               </Grid>
-            </Grid>
-          </Box>
-        </CardContent>
-      </Card>
-    </Box>
-  );
-});
 
-InvoicePreview.displayName = 'InvoicePreview';
+              <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px solid #e0e0e0` }}>
+                <Typography
+                  variant="caption"
+                  sx={{ fontSize: '10px', color: 'text.secondary', fontStyle: 'italic' }}
+                >
+                  This is a {invoiceData.includeGST ? "GST" : "Non-GST"} invoice
+                  {invoiceData.customerGSTNumber && " for GST registered customer"}
+                  {invoiceData.includeGST &&
+                    invoiceData.customerState &&
+                    ` • ${
+                      invoiceData.customerState?.toLowerCase() === "gujarat"
+                        ? t.intraState
+                        : t.interState
+                    } ${t.transaction}`}
+                </Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Print Styles */}
+        <style>{`
+          @media print {
+            @page {
+              size: A4;
+              margin: 10mm;
+            }
+            
+            body {
+              print-color-adjust: exact;
+              -webkit-print-color-adjust: exact;
+            }
+            
+            .no-print {
+              display: none !important;
+            }
+            
+            * {
+              page-break-inside: avoid;
+            }
+            
+            table {
+              page-break-inside: auto;
+            }
+            
+            tr {
+              page-break-inside: avoid;
+              page-break-after: auto;
+            }
+          }
+        `}</style>
+      </Box>
+    );
+  }
+);
+
+InvoicePreview.displayName = "InvoicePreview";
 
 export default InvoicePreview;

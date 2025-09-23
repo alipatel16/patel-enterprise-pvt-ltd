@@ -10,11 +10,8 @@ import {
   equalTo,
   limitToFirst,
   limitToLast,
-  startAt,
-  endAt,
   onValue,
   push,
-  serverTimestamp
 } from "firebase/database";
 import firebaseApp from "./config";
 
@@ -102,7 +99,7 @@ class DatabaseService {
         where: whereClause = [],
         orderBy: orderByField = "createdAt",
         orderDirection = "desc",
-        limit: limitCount = 50,
+        limit: limitCount = null,
       } = options;
 
       let q = ref(this.db, collectionPath);

@@ -11,7 +11,7 @@ import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 const AddCustomerPageContent = () => {
   const navigate = useNavigate();
   const { createCustomer, loading, error } = useCustomer();
-  const { getDisplayName, userType } = useUserType();
+  const { userType } = useUserType();
   
   const [submitError, setSubmitError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);

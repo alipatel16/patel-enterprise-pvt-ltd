@@ -2,18 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
-  Paper,
   Typography,
   Box,
   Button,
   Alert,
-  Breadcrumbs,
-  Link,
   Grid,
   Card,
   CardContent,
   Chip,
-  Divider,
   Avatar,
   IconButton,
   useTheme,
@@ -35,16 +31,16 @@ import {
 import Layout from '../../components/common/Layout/Layout';
 import LoadingSpinner from '../../components/common/UI/LoadingSpinner';
 import ConfirmDialog from '../../components/common/UI/ConfirmDialog';
-import { useEmployees } from '../../hooks/useEmployees';
-import { useAuth } from '../../hooks/useAuth';
-import { useUserType } from '../../hooks/useUserType';
+import { EmployeeProvider, useEmployee } from '../../contexts/EmployeeContext/EmployeeContext';
+import { useAuth } from '../../contexts/AuthContext/AuthContext';
+import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 import { formatDate } from '../../utils/helpers/formatHelpers';
 import { USER_ROLES } from '../../utils/constants/appConstants';
 
 /**
- * View Employee page component
+ * View Employee page content component
  */
-const ViewEmployeePage = () => {
+const ViewEmployeePageContent = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -57,7 +53,7 @@ const ViewEmployeePage = () => {
     deleteEmployee,
     getEmployeeById,
     clearError
-  } = useEmployees();
+  } = useEmployee();
   
   const { user } = useAuth();
   const { getDisplayName, getThemeColors } = useUserType();
@@ -88,13 +84,15 @@ const ViewEmployeePage = () => {
   const handleDelete = async () => {
     try {
       setDeleteLoading(true);
-      await deleteEmployee(id);
-      navigate('/employees', { 
-        state: { 
-          message: 'Employee deleted successfully',
-          severity: 'success'
-        }
-      });
+      const success = await deleteEmployee(id);
+      if (success) {
+        navigate('/employees', { 
+          state: { 
+            message: 'Employee deleted successfully',
+            severity: 'success'
+          }
+        });
+      }
     } catch (err) {
       console.error('Error deleting employee:', err);
     } finally {
@@ -102,6 +100,17 @@ const ViewEmployeePage = () => {
       setShowDeleteDialog(false);
     }
   };
+
+  const breadcrumbs = [
+    {
+      label: 'Employees',
+      path: '/employees'
+    },
+    {
+      label: currentEmployee?.name || 'Employee Details',
+      path: `/employees/view/${id}`
+    }
+  ];
 
   // Handle back navigation
   const handleBack = () => {
@@ -161,7 +170,7 @@ const ViewEmployeePage = () => {
   }
 
   return (
-    <Layout>
+    <Layout title="Employee Details" breadcrumbs={breadcrumbs}>
       <Container 
         maxWidth="lg" 
         sx={{ 
@@ -171,40 +180,6 @@ const ViewEmployeePage = () => {
       >
         {/* Header */}
         <Box sx={{ mb: 3 }}>
-          {/* Breadcrumbs */}
-          <Breadcrumbs sx={{ mb: 2, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-            <Link
-              color="inherit"
-              href="/dashboard"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate('/dashboard');
-              }}
-              sx={{ 
-                textDecoration: 'none',
-                '&:hover': { textDecoration: 'underline' }
-              }}
-            >
-              Dashboard
-            </Link>
-            <Link
-              color="inherit"
-              href="/employees"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate('/employees');
-              }}
-              sx={{ 
-                textDecoration: 'none',
-                '&:hover': { textDecoration: 'underline' }
-              }}
-            >
-              Employees
-            </Link>
-            <Typography color="text.primary">
-              {currentEmployee.name}
-            </Typography>
-          </Breadcrumbs>
 
           {/* Page Title and Actions */}
           <Box 
@@ -369,7 +344,7 @@ const ViewEmployeePage = () => {
                         Joined Date
                       </Typography>
                       <Typography variant="body1">
-                        {formatDate(currentEmployee.joinedDate)}
+                        {formatDate(currentEmployee.joinedDate || currentEmployee.dateOfJoining)}
                       </Typography>
                     </Box>
                   </Box>
@@ -545,6 +520,17 @@ const ViewEmployeePage = () => {
         />
       </Container>
     </Layout>
+  );
+};
+
+/**
+ * Main View Employee page component with Provider
+ */
+const ViewEmployeePage = () => {
+  return (
+    <EmployeeProvider>
+      <ViewEmployeePageContent />
+    </EmployeeProvider>
   );
 };
 

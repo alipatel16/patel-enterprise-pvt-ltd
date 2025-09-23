@@ -16,7 +16,6 @@ import {
   People as PeopleIcon,
   Person as PersonIcon,
   Business as BusinessIcon,
-  School as SchoolIcon,
   TrendingUp as TrendingUpIcon
 } from '@mui/icons-material';
 

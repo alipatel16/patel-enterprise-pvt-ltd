@@ -9,9 +9,6 @@ import {
 } from '@mui/material';
 import {
   Notifications as NotificationsIcon,
-  NotificationImportant as ImportantIcon,
-  Circle as DotIcon,
-  FiberManualRecord as SmallDotIcon
 } from '@mui/icons-material';
 
 /**

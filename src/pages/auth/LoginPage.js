@@ -8,12 +8,8 @@ import {
   Button,
   Typography,
   Alert,
-  Link,
   InputAdornment,
   IconButton,
-  useTheme,
-  useMediaQuery,
-  Divider,
   Stack
 } from '@mui/material';
 import {
@@ -24,13 +20,10 @@ import {
   Store as StoreIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext/AuthContext';
-import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 import LoadingSpinner, { ButtonLoader } from '../../components/common/UI/LoadingSpinner';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { signIn, loading, error, clearError } = useAuth();
 
   // Form state
@@ -256,7 +249,7 @@ const LoginPage = () => {
           </Box>
 
           {/* Footer */}
-          <Box mt={4}>
+          {/* <Box mt={4}>
             <Divider sx={{ mb: 3 }} />
             
             <Typography 
@@ -279,7 +272,7 @@ const LoginPage = () => {
                 Contact Administrator
               </Link>
             </Typography>
-          </Box>
+          </Box> */}
         </Paper>
 
         {/* App Info */}

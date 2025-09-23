@@ -42,7 +42,6 @@ import {
 
 import Layout from '../../components/common/Layout/Layout';
 import { CustomerProvider, useCustomer } from '../../contexts/CustomerContext/CustomerContext';
-import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 import { useAuth } from '../../contexts/AuthContext/AuthContext';
 import { formatCustomerForDisplay } from '../../utils/validation/customerValidation';
 import { CUSTOMER_TYPES, CUSTOMER_CATEGORIES } from '../../utils/constants/appConstants';
@@ -57,10 +56,7 @@ const ViewCustomerPageContent = () => {
     currentCustomer, 
     getCustomerById, 
     deleteCustomer, 
-    loading, 
-    error 
   } = useCustomer();
-  const { getDisplayName } = useUserType();
   const { canDelete } = useAuth();
   
   const [customerLoading, setCustomerLoading] = useState(true);

@@ -35,8 +35,6 @@ import { USER_ROLES, USER_TYPES } from '../../utils/constants/appConstants'; // 
 
 // Mock user type selector for demo
 const UserTypeSelector = ({ selectedType, onTypeChange, sx, ...props }) => {
-  const theme = useTheme();
-
   const userTypes = [
     {
       type: USER_TYPES.ELECTRONICS, // Use your constants
