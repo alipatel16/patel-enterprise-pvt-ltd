@@ -1,4 +1,4 @@
-// src/App.js
+// src/App.js - Updated with Quotation Routes
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -52,13 +52,19 @@ import EditInvoicePage from "./pages/sales/EditInvoicePage";
 import ViewInvoicePage from "./pages/sales/ViewInvoicePage";
 import SalesHistoryPage from "./pages/sales/SalesHistoryPage";
 
+// NEW: Pages - Quotations
+import QuotationsPage from "./pages/quotations/QuotationsPage";
+import CreateQuotationPage from "./pages/quotations/CreateQuotationPage";
+import EditQuotationPage from "./pages/quotations/EditQuotationPage";
+import ViewQuotationPage from "./pages/quotations/ViewQuotationPage";
+
 // Pages - Reports
 import EmployeeReportsPage from "./pages/reports/EmployeeReportsPage";
 
 // Pages - Analytics
 import EmployeeSalesAnalyticsPage from "./pages/admin/EmployeeSalesAnalyticsPage";
 
-// Pages - Checklists (NEW)
+// Pages - Checklists
 import CreateChecklistPage from "./pages/checklists/CreateChecklistPage";
 import EditChecklistPage from "./pages/checklists/EditChecklistPage";
 import ChecklistsManagementPage from "./pages/checklists/ChecklistsManagementPage";
@@ -262,6 +268,40 @@ const AppContent = () => {
             }
           />
 
+          {/* NEW: Quotation routes */}
+          <Route
+            path="/quotations"
+            element={
+              <ProtectedRoute>
+                <QuotationsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/quotations/create"
+            element={
+              <ProtectedRoute>
+                <CreateQuotationPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/quotations/edit/:id"
+            element={
+              <ProtectedRoute>
+                <EditQuotationPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/quotations/view/:id"
+            element={
+              <ProtectedRoute>
+                <ViewQuotationPage />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Reports routes - Admin only */}
           <Route
             path="/reports/employees"
@@ -282,7 +322,7 @@ const AppContent = () => {
             }
           />
 
-          {/* NEW: Checklist routes */}
+          {/* Checklist routes */}
           {/* Admin checklist management */}
           <Route
             path="/checklists"
@@ -308,7 +348,8 @@ const AppContent = () => {
               </ProtectedRoute>
             }
           />
-          {/* NEW: Complaint routes */}
+          
+          {/* Complaint routes */}
           <Route
             path="/complaints"
             element={

@@ -35,6 +35,13 @@ export const PAYMENT_STATUS = {
   CREDIT_CARD: 'credit_card'
 };
 
+export const QUOTATION_STATUS = {
+  ACTIVE: 'active',
+  CONVERTED: 'converted',
+  EXPIRED: 'expired',
+  CANCELLED: 'cancelled'
+};
+
 // Payment Status Display Names
 export const PAYMENT_STATUS_DISPLAY = {
   [PAYMENT_STATUS.PAID]: 'Paid in Full',
@@ -151,6 +158,7 @@ export const COLLECTIONS = {
   EMPLOYEES: 'employees',
   SALES: 'sales',
   INVOICES: 'invoices',
+  QUOTATIONS: 'quotations', 
   USERS: 'users',
   ATTENDANCE: 'attendance',
   PENALTIES: 'penalties',
@@ -324,7 +332,9 @@ export const PERMISSIONS = {
   RESOLVE_COMPLAINT: 'resolve_complaint',
   VIEW_ALL_COMPLAINTS: 'view_all_complaints',
   VIEW_ASSIGNED_COMPLAINTS: 'view_assigned_complaints',
-  EXPORT_COMPLAINTS: 'export_complaints'
+  EXPORT_COMPLAINTS: 'export_complaints',
+  VIEW_QUOTATIONS: 'view_quotations', // NEW: View quotations permission
+  MANAGE_QUOTATIONS: 'manage_quotations', // NEW: Manage quotations permission
 };
 
 // Form Validation Messages
@@ -588,7 +598,9 @@ export const ROLE_CONFIG = {
       PERMISSIONS.ASSIGN_COMPLAINT,
       PERMISSIONS.RESOLVE_COMPLAINT,
       PERMISSIONS.VIEW_ALL_COMPLAINTS,
-      PERMISSIONS.EXPORT_COMPLAINTS
+      PERMISSIONS.EXPORT_COMPLAINTS,
+      PERMISSIONS.VIEW_QUOTATIONS,
+      PERMISSIONS.MANAGE_QUOTATIONS
     ]
   },
   [USER_ROLES.EMPLOYEE]: {
@@ -614,7 +626,9 @@ export const ROLE_CONFIG = {
       PERMISSIONS.ASSIGN_COMPLAINT,
       PERMISSIONS.RESOLVE_COMPLAINT,
       PERMISSIONS.VIEW_ALL_COMPLAINTS,
-      PERMISSIONS.EXPORT_COMPLAINTS
+      PERMISSIONS.EXPORT_COMPLAINTS,
+      PERMISSIONS.VIEW_QUOTATIONS,
+      PERMISSIONS.MANAGE_QUOTATIONS
     ]
   },
   [USER_ROLES.INTERN]: {
@@ -943,5 +957,6 @@ export default {
   getComplaintSeverityColor,
   getComplaintStatusColor,
   isComplaintOverdue,
-  getComplaintPriorityFromSeverity
+  getComplaintPriorityFromSeverity,
+  QUOTATION_STATUS,
 };

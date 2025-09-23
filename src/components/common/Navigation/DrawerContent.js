@@ -1,6 +1,4 @@
-// ===================================================================
-// FILE 1: src/components/common/Navigation/DrawerContent.js (NEW FILE)
-// ===================================================================
+// Updated DrawerContent.js - Add Quotation Navigation
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -29,6 +27,8 @@ import {
   AssignmentTurnedIn as TaskIcon,
   Assessment as AssessmentIcon,
   SupportAgent as ComplaintsIcon,
+  RequestQuote as QuotationIcon, // NEW: Quotation icon
+  Add as AddQuotationIcon, // NEW: For create quotation
 } from "@mui/icons-material";
 
 import { useAuth } from "../../../contexts/AuthContext/AuthContext";
@@ -92,6 +92,27 @@ const DrawerContent = ({ onItemClick }) => {
       active: location.pathname.startsWith("/my-checklists"),
       employeeOnly: true,
     },
+    // NEW: Quotation section separator
+    {
+      type: "divider",
+      label: "Quotations & Sales"
+    },
+    // NEW: Quotation navigation items
+    {
+      label: "Quotations",
+      icon: QuotationIcon,
+      path: "/quotations",
+      active: 
+        location.pathname === "/quotations" ||
+        location.pathname.startsWith("/quotations/view") ||
+        location.pathname.startsWith("/quotations/edit"),
+    },
+    {
+      label: "Create Quotation",
+      icon: AddQuotationIcon,
+      path: "/quotations/create",
+      active: location.pathname === "/quotations/create",
+    },
     {
       label: "Create Invoice",
       icon: ReceiptIcon,
@@ -107,6 +128,12 @@ const DrawerContent = ({ onItemClick }) => {
         location.pathname.startsWith("/sales/view") ||
         location.pathname.startsWith("/sales/edit") ||
         location.pathname === "/sales",
+    },
+    // NEW: Reports section separator
+    {
+      type: "divider",
+      label: "Reports & Analytics",
+      adminOnly: true
     },
     {
       label: "Employee Reports",
@@ -165,7 +192,32 @@ const DrawerContent = ({ onItemClick }) => {
       <Divider />
 
       <List sx={{ mt: 1, flex: 1 }}>
-        {navigationItems.map((item) => {
+        {navigationItems.map((item, index) => {
+          // Handle dividers/section separators
+          if (item.type === "divider") {
+            // Check if this section should be visible based on admin permissions
+            if (item.adminOnly && !canManageEmployees()) {
+              return null;
+            }
+
+            return (
+              <Box key={`divider-${index}`}>
+                <Divider sx={{ my: 2 }} />
+                <Box sx={{ px: 2, py: 1 }}>
+                  <Typography 
+                    variant="caption" 
+                    color="text.secondary" 
+                    fontWeight={600}
+                    sx={{ textTransform: 'uppercase', letterSpacing: 1 }}
+                  >
+                    {item.label}
+                  </Typography>
+                </Box>
+              </Box>
+            );
+          }
+
+          // Handle regular navigation items
           if (item.adminOnly && !canManageEmployees()) {
             return null;
           }
