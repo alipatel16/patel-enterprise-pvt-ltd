@@ -6,9 +6,7 @@ import {
   getPaymentCategory,
   PAYMENT_METHODS,
 } from "../../utils/constants/appConstants";
-import {
-  calculateItemWithGST,
-} from "../../utils/helpers/gstCalculator";
+import { calculateItemWithGST } from "../../utils/helpers/gstCalculator";
 import productService from "./productService";
 
 /**
@@ -230,6 +228,7 @@ class SalesService extends BaseService {
       const cleanInvoiceData = {
         invoiceNumber,
         saleDate: invoiceData.saleDate,
+        company: invoiceData.company, // ADD: Include company information
         customerId: invoiceData.customerId,
         customerName: invoiceData.customerName,
         customerPhone: invoiceData.customerPhone,
@@ -433,6 +432,11 @@ class SalesService extends BaseService {
           "Removing invoiceNumber from updates to prevent modification during edit"
         );
         delete cleanUpdates.invoiceNumber;
+      }
+
+      // ADD: Include company information if provided
+      if (updates.company) {
+        cleanUpdates.company = updates.company;
       }
 
       // CRITICAL FIX: Preserve existing EMI details before any processing
@@ -1177,7 +1181,7 @@ class SalesService extends BaseService {
       schedule[installmentIndex] = {
         ...schedule[installmentIndex],
         paid: true,
-        paidAmount: paymentAmountNum,
+        paidAmount: paymentAmountNum, // FIXED: Remove incorrect downpayment reference
         paymentDate: new Date().toISOString(),
         paymentRecord: {
           amount: paymentAmountNum,
@@ -1190,11 +1194,13 @@ class SalesService extends BaseService {
         },
       };
 
-      // STEP 2: Calculate totals
+      // STEP 2: Calculate totals - FIXED to include down payment
       const originalTotal = invoice.grandTotal || invoice.totalAmount;
-      const totalPaid = schedule
+      const downPayment = invoice.emiDetails?.downPayment || 0; // Get down payment
+      const installmentsPaid = schedule
         .filter((emi) => emi.paid)
         .reduce((sum, emi) => sum + emi.paidAmount, 0);
+      const totalPaid = downPayment + installmentsPaid; // Include down payment in total
       const remainingBalance = originalTotal - totalPaid;
 
       // STEP 3: Find unpaid installments and redistribute ONLY them

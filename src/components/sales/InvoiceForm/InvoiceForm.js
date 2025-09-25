@@ -38,6 +38,7 @@ import {
   Calculate as CalculateIcon,
   AttachMoney as MoneyIcon,
   Info as InfoIcon,
+  Business as BusinessIcon, // Add this import
 } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 
@@ -50,6 +51,9 @@ import {
   DELIVERY_STATUS,
   getPaymentCategory,
 } from "../../../utils/constants/appConstants";
+import { 
+  getAllCompanies  // Add this import
+} from "../../../utils/constants/companyConstants";
 
 // Import the new ItemModal component
 import ItemModal from "./ItemModal";
@@ -73,7 +77,7 @@ const GST_TAX_SLABS = [
 
 /**
  * Enhanced InvoiceForm component with ItemModal for mobile-friendly item management
- * Clean, modular implementation
+ * Clean, modular implementation with Company Selection
  */
 const InvoiceForm = ({
   invoice = null,
@@ -97,9 +101,13 @@ const InvoiceForm = ({
   const { getCustomerSuggestions } = useCustomer();
   const { getEmployeeSuggestions } = useEmployee();
 
-  // Form state
+  // Get all companies for selection
+  const availableCompanies = getAllCompanies();
+
+  // Form state - ADD company field
   const [formData, setFormData] = useState({
     saleDate: new Date(),
+    company: null, // ADD this field
     customerId: "",
     customerName: "",
     customerPhone: "",
@@ -157,6 +165,7 @@ const InvoiceForm = ({
 
       setFormData({
         saleDate,
+        company: invoice.company || null, // ADD this field
         customerId: invoice.customerId || "",
         customerName: invoice.customerName || "",
         customerPhone: invoice.customerPhone || "",
@@ -502,6 +511,14 @@ const InvoiceForm = ({
     }
   };
 
+  // ADD: Company selection handler
+  const handleCompanySelect = (company) => {
+    setFormData((prev) => ({
+      ...prev,
+      company: company,
+    }));
+  };
+
   // Item management handlers
   const handleAddItem = () => {
     setEditingItemIndex(null);
@@ -669,9 +686,13 @@ const InvoiceForm = ({
     }));
   };
 
-  // Form validation
+  // Form validation - ADD company validation
   const validateForm = () => {
     const errors = {};
+
+    if (!formData.company) {
+      errors.company = "Company selection is required";
+    }
 
     if (!formData.customerId || !formData.customerName) {
       errors.customer = "Customer is required";
@@ -795,7 +816,7 @@ const InvoiceForm = ({
     return schedule;
   };
 
-  // Form submission
+  // Form submission - INCLUDE company in submission
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -824,6 +845,8 @@ const InvoiceForm = ({
         ? formData.bulkPricingDetails
         : null,
       customerGSTNumber: formData?.customerGSTNumber,
+      // ADD: Include company in submission
+      company: formData.company,
     };
 
     console.log("CUSTOMER,GST");
@@ -890,6 +913,87 @@ const InvoiceForm = ({
                     sx={{ mt: 2 }}
                   />
                 </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+
+          {/* ADD: Company Selection Card */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography
+                variant="h6"
+                gutterBottom
+                sx={{ display: "flex", alignItems: "center", gap: 1 }}
+              >
+                <BusinessIcon />
+                Company Information
+              </Typography>
+
+              {formErrors.company && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {formErrors.company}
+                </Alert>
+              )}
+
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <Autocomplete
+                    options={availableCompanies}
+                    getOptionLabel={(option) => option.name || ""}
+                    value={formData.company}
+                    onChange={(event, value) => handleCompanySelect(value)}
+                    disabled={loading}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Select Company"
+                        required
+                        helperText="Choose the company to show on the invoice (All companies available)"
+                      />
+                    )}
+                    renderOption={(props, option) => (
+                      <Box component="li" {...props}>
+                        <Box>
+                          <Typography variant="body1" fontWeight={600}>
+                            {option.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {option.category} | {option.address} | GST: {option.gstNumber}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+                  />
+                </Grid>
+
+                {formData.company && (
+                  <Grid item xs={12}>
+                    <Box
+                      sx={{
+                        p: 2,
+                        backgroundColor: "rgba(25, 118, 210, 0.1)",
+                        borderRadius: 1,
+                        border: "1px solid rgba(25, 118, 210, 0.2)",
+                      }}
+                    >
+                      <Typography variant="subtitle2" color="primary" gutterBottom>
+                        Selected Company Details:
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>{formData.company.name}</strong> ({formData.company.category})
+                      </Typography>
+                      <Typography variant="body2">
+                        {formData.company.address}, {formData.company.city}, {formData.company.state} - {formData.company.pincode}
+                      </Typography>
+                      <Typography variant="body2">
+                        Phone: {formData.company.phone}
+                      </Typography>
+                      <Typography variant="body2">
+                        GST: {formData.company.gstNumber}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
               </Grid>
             </CardContent>
           </Card>
