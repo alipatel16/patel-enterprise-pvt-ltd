@@ -1,4 +1,4 @@
-// src/components/admin/SalaryPenaltyTab.js - FIXED VERSION WITH ATTENDANCE DETAILS
+// src/components/admin/SalaryPenaltyTab.js - FIXED VERSION WITH ATTENDANCE DETAILS AND BREAK DETAILS
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -205,7 +205,7 @@ const SalaryPenaltyTab = () => {
     }
   };
 
-  // NEW: Function to view detailed attendance for an employee
+  // NEW: Function to view detailed attendance for an employee with break details
   const viewAttendanceDetails = async (employee) => {
     try {
       setAttendanceDetailsLoading(true);
@@ -233,7 +233,7 @@ const SalaryPenaltyTab = () => {
         const dayRecord = monthlyAttendance.find(record => record.date === dateStr);
         const dayOfWeek = new Date(dateStr).getDay(); // 0 = Sunday, 6 = Saturday
         
-        attendanceCalendar.push({
+        const dayData = {
           date: dateStr,
           day: day,
           dayName: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dayOfWeek],
@@ -245,7 +245,28 @@ const SalaryPenaltyTab = () => {
           totalWorkTime: dayRecord?.totalWorkTime || 0,
           leaveType: dayRecord?.leaveType || null,
           leaveReason: dayRecord?.leaveReason || null
-        });
+        };
+
+        // NEW: Add break analysis to each day
+        if (dayRecord && dayRecord.breaks && dayRecord.breaks.length > 0) {
+          const dayBreakCount = dayRecord.breaks.length;
+          const dayBreakTime = dayRecord.breaks.reduce((sum, br) => sum + (br.duration || 0), 0);
+          
+          dayData.breakCount = dayBreakCount;
+          dayData.breakTime = dayBreakTime;
+          dayData.breakDetails = dayRecord.breaks.map((br, index) => ({
+            id: index + 1,
+            startTime: br.startTime,
+            endTime: br.endTime,
+            duration: br.duration || 0
+          }));
+        } else {
+          dayData.breakCount = 0;
+          dayData.breakTime = 0;
+          dayData.breakDetails = [];
+        }
+
+        attendanceCalendar.push(dayData);
       }
 
       setSelectedEmployeeAttendance({
@@ -623,7 +644,7 @@ const SalaryPenaltyTab = () => {
                                 ID: {report.employee.employeeId || report.employee.id}
                               </Typography>
                             </Box>
-                            <Tooltip title="View Attendance Details">
+                            <Tooltip title="View Attendance & Break Details">
                               <IconButton
                                 size="small"
                                 onClick={() => viewAttendanceDetails(report.employee)}
@@ -907,7 +928,7 @@ const SalaryPenaltyTab = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Attendance Details Dialog */}
+      {/* Attendance Details Dialog with Break Details */}
       <Dialog
         open={attendanceDetailsOpen}
         onClose={() => setAttendanceDetailsOpen(false)}
@@ -987,9 +1008,9 @@ const SalaryPenaltyTab = () => {
                 </Grid>
               </Grid>
 
-              {/* Attendance Calendar */}
+              {/* Attendance Calendar with Break Details */}
               <Typography variant="subtitle1" gutterBottom sx={{ mt: 2, mb: 2 }}>
-                Daily Attendance Details
+                Daily Attendance & Break Details
               </Typography>
               
               <TableContainer component={Paper} variant="outlined">
@@ -1002,6 +1023,8 @@ const SalaryPenaltyTab = () => {
                       <TableCell align="center">Check In</TableCell>
                       <TableCell align="center">Check Out</TableCell>
                       <TableCell align="right">Work Hours</TableCell>
+                      <TableCell align="center">Breaks</TableCell>
+                      <TableCell align="right">Break Time</TableCell>
                       <TableCell>Notes</TableCell>
                     </TableRow>
                   </TableHead>
@@ -1092,6 +1115,45 @@ const SalaryPenaltyTab = () => {
                           <TableCell align="right">
                             <Typography variant="body2">
                               {formatWorkHours(day.totalWorkTime)}
+                            </Typography>
+                          </TableCell>
+                          {/* NEW: Break Details Column */}
+                          <TableCell align="center">
+                            {(day.breakCount || 0) > 0 ? (
+                              <Tooltip 
+                                title={
+                                  <Box>
+                                    <Typography variant="subtitle2" gutterBottom>Break Details:</Typography>
+                                    {(day.breakDetails || []).map((br) => (
+                                      <Box key={br.id} component="span" sx={{ display: 'block', fontSize: '0.75rem' }}>
+                                        Break {br.id}: {formatTime(br.startTime)} - {br.endTime ? formatTime(br.endTime) : 'Ongoing'} 
+                                        {br.duration > 0 && ` (${formatWorkHours(br.duration)})`}
+                                      </Box>
+                                    ))}
+                                  </Box>
+                                }
+                                arrow
+                              >
+                                <Chip
+                                  label={`${day.breakCount || 0} break${(day.breakCount || 0) > 1 ? 's' : ''}`}
+                                  color={(day.breakCount || 0) > 3 ? 'error' : (day.breakCount || 0) > 1 ? 'warning' : 'info'}
+                                  size="small"
+                                  sx={{ cursor: 'help' }}
+                                />
+                              </Tooltip>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">-</Typography>
+                            )}
+                          </TableCell>
+
+                          {/* NEW: Total Break Time Column */}
+                          <TableCell align="right">
+                            <Typography 
+                              variant="body2"
+                              color={(day.breakTime || 0) > 60 ? 'warning.main' : 'text.primary'}
+                              fontWeight={(day.breakTime || 0) > 60 ? 'medium' : 'normal'}
+                            >
+                              {(day.breakTime || 0) > 0 ? formatWorkHours(day.breakTime) : '-'}
                             </Typography>
                           </TableCell>
                           <TableCell>

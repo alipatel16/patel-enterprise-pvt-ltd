@@ -9,9 +9,9 @@ export const COMPANIES = {
     state: "Gujarat",
     pincode: "382150",
     phone: "+91-7862819198",
-    email: "info@techworld.com",
+    email: "info@patelelectronicsandfurniture.com",
     gstNumber: "24AAVFP7956R1ZW",
-    website: "www.techworld.com",
+    website: "https://patelelectronicsandfurniture.com/",
     logo: null, // Can be added later
     category: "electronics"
   },
@@ -24,9 +24,9 @@ export const COMPANIES = {
     state: "Gujarat", 
     pincode: "382150",
     phone: "+91-8154884077",
-    email: "contact@digitalsolutions.com",
+    email: "info@patelelectronicsandfurniture.com",
     gstNumber: "24ABCPP2196D1ZV",
-    website: "www.digitalsolutions.com",
+    website: "https://patelelectronicsandfurniture.com/",
     logo: null,
     category: "electronics"
   },
@@ -39,9 +39,9 @@ export const COMPANIES = {
     state: "Gujarat",
     pincode: "382150", 
     phone: "+91-8200152937",
-    email: "sales@royalfurniture.com",
+    email: "info@patelelectronicsandfurniture.com",
     gstNumber: "24ACCPP4650M1ZF",
-    website: "www.royalfurniture.com",
+    website: "https://patelelectronicsandfurniture.com/",
     logo: null,
     category: "furniture"
   },
@@ -54,9 +54,9 @@ export const COMPANIES = {
     state: "Gujarat",
     pincode: "382150",
     phone: "+91-7600946872",
-    email: "info@modernliving.com", 
+    email: "info@patelelectronicsandfurniture.com", 
     gstNumber: "24CAIPP6969F1Z8",
-    website: "www.modernliving.com",
+    website: "https://patelelectronicsandfurniture.com/",
     logo: null,
     category: "furniture"
   }

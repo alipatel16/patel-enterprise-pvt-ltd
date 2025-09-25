@@ -11,6 +11,21 @@ import {
 } from '@mui/icons-material';
 import { formatCurrency, formatDate } from '../../../utils/helpers/formatHelpers';
 
+// Import company logos
+import electronicFurnitureLogo from '../../../assets/electronic_furniture.jpeg';
+import engineeringWorksLogo from '../../../assets/engineering_works.jpeg';
+import furnitureLogo from '../../../assets/furniture.jpeg';
+import steelSyndicateLogo from '../../../assets/steel_syndicate.jpeg';
+
+// Import QR codes
+import furnitureQR from '../../../assets/furniture_qr.jpeg';
+import electronicQR from '../../../assets/electronic_qr.jpeg';
+
+// Import signatures
+import mohammedSign from '../../../assets/mohammed_sign.jpeg';
+import abbasSign from '../../../assets/abbas_sign.jpeg';
+import { useUserType } from '../../../contexts/UserTypeContext';
+
 // Professional print styles optimized for invoices
 const invoicePrintStyles = {
   '@media print': {
@@ -101,6 +116,13 @@ const invoicePrintStyles = {
       justifyContent: 'center',
       backgroundColor: '#f8f9fa',
       flexShrink: 0,
+      overflow: 'hidden',
+    },
+    '.print-invoice-company-logo img': {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+      borderRadius: '6px',
     },
     '.print-invoice-customer-sales-section': {
       display: 'flex !important',
@@ -208,8 +230,28 @@ const invoicePrintStyles = {
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: '#f8f9fa',
-    //   margin: '0 auto',
       borderRadius: '8px',
+      overflow: 'hidden',
+    },
+    '.print-invoice-qr-code img': {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+      borderRadius: '6px',
+    },
+    '.print-invoice-signature': {
+      width: '140px', 
+      height: '70px',
+      margin: '0 auto 8px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    '.print-invoice-signature img': {
+      width: '100%',
+      height: '100%',
+      objectFit: 'contain',
     },
 
     // Typography adjustments for print
@@ -248,6 +290,7 @@ const invoicePrintStyles = {
 };
 
 const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
+  const { userType } = useUserType();
   // UPDATED: Use company details from invoice or fallback to defaults
   const getCompanyDetails = () => {
     // If invoice has company information, use it
@@ -280,6 +323,47 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
   };
 
   const companyDetails = getCompanyDetails();
+
+  // Helper function to get company logo based on company name
+  const getCompanyLogo = (companyName) => {
+    if (!companyName) return null;
+    
+    const name = companyName.toLowerCase();
+    if (name.includes('patel electronics and furniture')) {
+      return electronicFurnitureLogo;
+    } else if (name.includes('patel engineering works')) {
+      return engineeringWorksLogo;
+    } else if (name.includes('patel furniture')) {
+      return furnitureLogo;
+    } else if (name.includes('m-raj steel sydicate') || name.includes('m raj steel syndicate')) {
+      return steelSyndicateLogo;
+    }
+    return null;
+  };
+
+  // Helper function to get QR code based on user type
+  const getQRCode = (userType) => {
+    if (userType === 'furniture') {
+      return furnitureQR;
+    } else if (userType === 'electronics') {
+      return electronicQR;
+    }
+    return null;
+  };
+
+  // Helper function to get signature based on user type
+  const getSignature = (userType) => {
+    if (userType === 'furniture') {
+      return mohammedSign;
+    } else if (userType === 'electronics') {
+      return abbasSign;
+    }
+    return null;
+  };
+
+  const companyLogo = getCompanyLogo(companyDetails.name);
+  const qrCodeImage = getQRCode(userType);
+  const signatureImage = getSignature(userType);
 
   // Auto-trigger print when component mounts and autoTriggerPrint is true
   useEffect(() => {
@@ -386,14 +470,15 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
           <Box className="print-invoice-company-section">
             <Box className="print-invoice-logo-section">
               <Box className="print-invoice-company-logo">
-                <BusinessIcon style={{ fontSize: '35px' }} />
+                {companyLogo ? (
+                  <img src={companyLogo} alt="Company Logo" />
+                ) : (
+                  <BusinessIcon style={{ fontSize: '35px' }} />
+                )}
               </Box>
               <Box>
                 <Typography variant="h2" style={{ fontWeight: 'bold', marginBottom: '5px' }}>
                   {companyDetails.name}
-                </Typography>
-                <Typography variant="body1" style={{ fontSize: '11px', color: '#666' }}>
-                  Professional Business Solutions
                 </Typography>
               </Box>
             </Box>
@@ -447,9 +532,6 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
                   <strong>Due Date:</strong> {formatDate(invoice.dueDate)}
                 </Typography>
               )}
-              <Typography variant="body1" style={{ marginBottom: '5px' }}>
-                <strong>Type:</strong> {invoice.includeGST ? 'GST Invoice' : 'Non-GST Invoice'}
-              </Typography>
             </Box>
           </Box>
         </Box>
@@ -685,52 +767,62 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
         <Box className="print-invoice-footer-section">
           <Box className="print-invoice-thank-you-section">
             <Typography variant="h5" style={{ marginBottom: '8px', color: '#1976d2' }}>
-              Thank you for your business!
+              Terms & Conditions:
             </Typography>
             
-            <Typography variant="body2" style={{ marginBottom: '4px' }}>
-              For any queries: {companyDetails.phone}
-            </Typography>
-            <Typography variant="body2" style={{ marginBottom: '4px' }}>
-              Visit us: {companyDetails.website}
-            </Typography>
-            <Typography variant="body2" style={{ marginBottom: '4px' }}>
-              Email: {companyDetails.email}
-            </Typography>
-            <Typography variant="body2" style={{ fontSize: '10px', color: '#666', marginTop: '10px' }}>
-              Generated on {formatDate(new Date())} | Powered by Business Management System
-            </Typography>
-
-            {/* Terms */}
-            <Typography variant="body2" style={{ 
-              fontSize: '10px', 
-              fontStyle: 'italic', 
-              marginTop: '15px',
-              color: '#666'
-            }}>
-              This is a {invoice.includeGST ? "GST" : "Non-GST"} invoice
-              {invoice.customerGSTNumber && " for GST registered customer"}
-              {invoice.includeGST && invoice.customerState && 
-                ` • ${invoice.customerState?.toLowerCase() === "gujarat" ? "Intra-State" : "Inter-State"} Transaction`}
-            </Typography>
+            <Box style={{ fontSize: '10px', lineHeight: '1.4' }}>
+              <Typography variant="body2" style={{ marginBottom: '3px', fontSize: '10px' }}>
+                1) Goods once sold will not be taken back under any circumstances.
+              </Typography>
+              <Typography variant="body2" style={{ marginBottom: '3px', fontSize: '10px' }}>
+                2) Cheques are subject to Realisation.
+              </Typography>
+              <Typography variant="body2" style={{ marginBottom: '3px', fontSize: '10px' }}>
+                3) Subject to Viramgam Jurisdiction.
+              </Typography>
+              <Typography variant="body2" style={{ marginBottom: '3px', fontSize: '10px' }}>
+                4) Warranty will be covered as per manufacturer's terms and conditions.
+              </Typography>
+              <Typography variant="body2" style={{ marginBottom: '3px', fontSize: '10px' }}>
+                5) Warranty from Company Not From us.
+              </Typography>
+              <Typography variant="body2" style={{ marginBottom: '3px', fontSize: '10px' }}>
+                6) Patel Electronics & Furniture not liable for delays or rejections. We will assist and guide you through the service process.
+              </Typography>
+              <Typography variant="body2" style={{ marginBottom: '3px', fontSize: '10px' }}>
+                7) Cheques are in favour of PATEL ELECTRONICS & FURNITURE
+              </Typography>
+              <Typography variant="body2" style={{ marginBottom: '3px', fontSize: '10px' }}>
+                8) GST billed on all products
+              </Typography>
+              <Typography variant="body2" style={{ marginBottom: '3px', fontSize: '10px' }}>
+                9) Payment should be made on provided QR only
+              </Typography>
+            </Box>
           </Box>
 
-          <Box className="print-invoice-qr-section" >
+          <Box className="print-invoice-qr-section">
             <Box className="print-invoice-qr-code">
-              <QRCodeIcon style={{ fontSize: '50px' }} />
+              {qrCodeImage ? (
+                <img src={qrCodeImage} alt="QR Code" />
+              ) : (
+                <QRCodeIcon style={{ fontSize: '50px' }} />
+              )}
             </Box>
             
             {/* Signature */}
             <Box style={{ marginTop: '30px', textAlign: 'center', width: '100%' }}>
-              <Box style={{ 
-                width: '140px', 
-                height: '50px', // Added height for signature space
-                borderBottom: '1px solid #000', 
-                margin: '0 auto 8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }} />
+              <Box className="print-invoice-signature">
+                {signatureImage ? (
+                  <img src={signatureImage} alt="Signature" />
+                ) : (
+                  <div style={{ 
+                    borderBottom: '1px solid #000', 
+                    width: '100%',
+                    height: '100%'
+                  }} />
+                )}
+              </Box>
               <Typography variant="body2" style={{ fontSize: '11px', textAlign: 'center', paddingTop: '10px' }}>
                 Authorized Signature
               </Typography>
