@@ -11,20 +11,25 @@ import {
 } from '@mui/icons-material';
 import { formatCurrency, formatDate } from '../../../utils/helpers/formatHelpers';
 
-// Import company logos
-import electronicFurnitureLogo from '../../../assets/electronic_furniture.jpeg';
-import engineeringWorksLogo from '../../../assets/engineering_works.jpeg';
-import furnitureLogo from '../../../assets/furniture.jpeg';
-import steelSyndicateLogo from '../../../assets/steel_syndicate.jpeg';
-
-// Import QR codes
-import furnitureQR from '../../../assets/furniture_qr.jpeg';
-import electronicQR from '../../../assets/electronic_qr.jpeg';
-
-// Import signatures
-import mohammedSign from '../../../assets/mohammed_sign.jpeg';
-import abbasSign from '../../../assets/abbas_sign.jpeg';
 import { useUserType } from '../../../contexts/UserTypeContext';
+
+// Define image paths from public folder
+const IMAGE_PATHS = {
+  logos: {
+    electronicFurniture: '/assets/electronic_furniture.jpeg',
+    engineeringWorks: '/assets/engineering_works.jpeg',
+    furniture: '/assets/furniture.jpeg',
+    steelSyndicate: '/assets/steel_syndicate.jpeg'
+  },
+  qrCodes: {
+    furniture: '/assets/furniture_qr.jpeg',
+    electronics: '/assets/electronic_qr.jpeg'
+  },
+  signatures: {
+    mohammed: '/assets/mohammed_sign.jpeg',
+    abbas: '/assets/abbas_sign.jpeg'
+  }
+};
 
 // Professional print styles optimized for invoices
 const invoicePrintStyles = {
@@ -241,7 +246,7 @@ const invoicePrintStyles = {
     },
     '.print-invoice-signature': {
       width: '140px', 
-      height: '70px',
+      height: '50px',
       margin: '0 auto 8px',
       display: 'flex',
       alignItems: 'center',
@@ -330,13 +335,13 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
     
     const name = companyName.toLowerCase();
     if (name.includes('patel electronics and furniture')) {
-      return electronicFurnitureLogo;
+      return IMAGE_PATHS.logos.electronicFurniture;
     } else if (name.includes('patel engineering works')) {
-      return engineeringWorksLogo;
+      return IMAGE_PATHS.logos.engineeringWorks;
     } else if (name.includes('patel furniture')) {
-      return furnitureLogo;
+      return IMAGE_PATHS.logos.furniture;
     } else if (name.includes('m-raj steel sydicate') || name.includes('m raj steel syndicate')) {
-      return steelSyndicateLogo;
+      return IMAGE_PATHS.logos.steelSyndicate;
     }
     return null;
   };
@@ -344,9 +349,9 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
   // Helper function to get QR code based on user type
   const getQRCode = (userType) => {
     if (userType === 'furniture') {
-      return furnitureQR;
+      return IMAGE_PATHS.qrCodes.furniture;
     } else if (userType === 'electronics') {
-      return electronicQR;
+      return IMAGE_PATHS.qrCodes.electronics;
     }
     return null;
   };
@@ -354,9 +359,9 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
   // Helper function to get signature based on user type
   const getSignature = (userType) => {
     if (userType === 'furniture') {
-      return mohammedSign;
+      return IMAGE_PATHS.signatures.mohammed;
     } else if (userType === 'electronics') {
-      return abbasSign;
+      return IMAGE_PATHS.signatures.abbas;
     }
     return null;
   };
@@ -471,14 +476,28 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
             <Box className="print-invoice-logo-section">
               <Box className="print-invoice-company-logo">
                 {companyLogo ? (
-                  <img src={companyLogo} alt="Company Logo" />
-                ) : (
-                  <BusinessIcon style={{ fontSize: '35px' }} />
-                )}
+                  <img 
+                    src={companyLogo} 
+                    alt="Company Logo"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <BusinessIcon 
+                  style={{ 
+                    fontSize: '35px',
+                    display: companyLogo ? 'none' : 'block'
+                  }} 
+                />
               </Box>
               <Box>
                 <Typography variant="h2" style={{ fontWeight: 'bold', marginBottom: '5px' }}>
                   {companyDetails.name}
+                </Typography>
+                <Typography variant="body1" style={{ fontSize: '11px', color: '#666' }}>
+                  Professional Business Solutions
                 </Typography>
               </Box>
             </Box>
@@ -795,33 +814,48 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
               <Typography variant="body2" style={{ marginBottom: '3px', fontSize: '10px' }}>
                 8) GST billed on all products
               </Typography>
-              <Typography variant="body2" style={{ marginBottom: '3px', fontSize: '10px' }}>
-                9) Payment should be made on provided QR only
-              </Typography>
             </Box>
           </Box>
 
           <Box className="print-invoice-qr-section">
             <Box className="print-invoice-qr-code">
               {qrCodeImage ? (
-                <img src={qrCodeImage} alt="QR Code" />
-              ) : (
-                <QRCodeIcon style={{ fontSize: '50px' }} />
-              )}
+                <img 
+                  src={qrCodeImage} 
+                  alt="QR Code"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <QRCodeIcon 
+                style={{ 
+                  fontSize: '50px',
+                  display: qrCodeImage ? 'none' : 'block'
+                }} 
+              />
             </Box>
             
             {/* Signature */}
-            <Box style={{ marginTop: '30px', textAlign: 'center', width: '100%' }}>
+            <Box style={{ textAlign: 'center', width: '100%', paddingTop: '10px' }}>
               <Box className="print-invoice-signature">
                 {signatureImage ? (
-                  <img src={signatureImage} alt="Signature" />
-                ) : (
-                  <div style={{ 
-                    borderBottom: '1px solid #000', 
-                    width: '100%',
-                    height: '100%'
-                  }} />
-                )}
+                  <img 
+                    src={signatureImage} 
+                    alt="Signature"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'block';
+                    }}
+                  />
+                ) : null}
+                <div style={{ 
+                  borderBottom: '1px solid #000', 
+                  width: '100%',
+                  height: '100%',
+                  display: signatureImage ? 'none' : 'block'
+                }} />
               </Box>
               <Typography variant="body2" style={{ fontSize: '11px', textAlign: 'center', paddingTop: '10px' }}>
                 Authorized Signature
