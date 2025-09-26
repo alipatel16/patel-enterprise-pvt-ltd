@@ -425,7 +425,6 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
     }
 
     setImagesToLoad(imagesToPreload);
-    let loadedCount = 0;
 
     const preloadImage = (src) => {
       return new Promise((resolve, reject) => {
@@ -482,14 +481,6 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
       // Also handle case where user cancels print dialog
       // This is a bit tricky - we'll use a timeout approach
       let printCheckTimer;
-      const checkPrintCancel = () => {
-        printCheckTimer = setTimeout(() => {
-          // If we reach here and no print happened, user likely cancelled
-          if (onPrint) {
-            onPrint();
-          }
-        }, 1000); // Wait 1 second after print dialog
-      };
 
       const clearPrintCheck = () => {
         if (printCheckTimer) {

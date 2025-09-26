@@ -108,13 +108,13 @@ const translations = {
   paymentQR: "Scan to Pay",
 };
 
-// Professional print styles - Enhanced from quotation styles
-const printStyles = {
+// UPDATED: Exact same print styles as PrintableInvoice
+const invoicePrintStyles = {
   "@media print": {
     // A4 Page setup with proper margins
     "@page": {
       size: "A4",
-      margin: "0.5in 0.4in",
+      margin: "0.6in 0.5in",
       "@top-left": { content: "none" },
       "@top-center": { content: "none" },
       "@top-right": { content: "none" },
@@ -123,14 +123,14 @@ const printStyles = {
       "@bottom-right": { content: "none" },
     },
 
-    // Hide browser elements and show only print content
+    // Hide everything except print content
     "body *": {
       visibility: "hidden !important",
     },
-    ".print-only, .print-only *": {
+    ".print-invoice-only, .print-invoice-only *": {
       visibility: "visible !important",
     },
-    ".print-only": {
+    ".print-invoice-only": {
       position: "absolute !important",
       left: "0 !important",
       top: "0 !important",
@@ -138,7 +138,7 @@ const printStyles = {
       display: "block !important",
       backgroundColor: "white !important",
     },
-    ".no-print": {
+    ".no-print-invoice": {
       display: "none !important",
     },
 
@@ -163,84 +163,92 @@ const printStyles = {
     ".MuiGrid-item": {
       padding: "0 !important",
     },
-    ".MuiPaper-root": {
-      backgroundColor: "transparent !important",
-      boxShadow: "none !important",
-    },
 
     // Print layout sections
-    ".print-header": {
-      borderBottom: "2px solid #000",
+    ".print-invoice-header": {
+      borderBottom: "1px solid #000",
       paddingBottom: "15px",
-      marginBottom: "20px",
+      marginBottom: "25px",
       pageBreakAfter: "avoid",
       display: "flex !important",
       justifyContent: "space-between",
       alignItems: "flex-start",
     },
-    ".print-company-section": {
+    ".print-invoice-company-section": {
       flex: "1",
-      paddingRight: "20px",
+      paddingRight: "30px",
     },
-    ".print-invoice-section": {
+    ".print-invoice-details-section": {
       textAlign: "right",
-      minWidth: "250px",
+      minWidth: "280px",
     },
-    ".print-logo-section": {
+    ".print-invoice-logo-section": {
       display: "flex !important",
       alignItems: "center",
       marginBottom: "15px",
       gap: "20px",
     },
-    ".print-company-logo": {
-      width: "60px",
-      height: "60px",
+    ".print-invoice-company-logo": {
+      width: "65px",
+      height: "65px",
       border: "2px solid #000",
       borderRadius: "8px",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "#f5f5f5",
+      backgroundColor: "#f8f9fa",
       flexShrink: 0,
+      overflow: "hidden",
     },
-    ".print-customer-sales-section": {
+    ".print-invoice-company-logo img": {
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      borderRadius: "6px",
+      imageRendering: "auto",
+      "-webkit-print-color-adjust": "exact",
+      "print-color-adjust": "exact",
+    },
+    ".print-invoice-customer-sales-section": {
       display: "flex !important",
       justifyContent: "space-between",
-      marginBottom: "25px",
       pageBreakAfter: "avoid",
+      gap: "20px",
+      paddingTop: "20px",
+      paddingBottom: "20px",
     },
-    ".print-customer-info, .print-sales-info": {
+    ".print-invoice-customer-info, .print-invoice-sales-info": {
       flex: "1",
       border: "1px solid #000",
-      padding: "12px",
-      marginRight: "15px",
-      "&:last-child": {
-        marginRight: "0",
-      },
+      padding: "15px",
+      borderRadius: "8px",
+      backgroundColor: "#fafafa",
+      marginBottom: "25px",
     },
-    ".print-items-section": {
+    ".print-invoice-items-section": {
       pageBreakInside: "avoid",
-      marginBottom: "20px",
+      marginBottom: "0px", // No margin to connect with totals
     },
-    ".print-items-table": {
+    ".print-invoice-items-table": {
       width: "100%",
       borderCollapse: "collapse",
-      border: "2px solid #000",
+      border: "1px solid #000",
+      marginBottom: "0", // No margin to connect with totals
       "& th": {
-        backgroundColor: "#f0f0f0 !important",
+        backgroundColor: "#e8f5e8 !important",
         border: "1px solid #000 !important",
-        padding: "10px 6px !important",
-        fontSize: "11px !important",
+        padding: "12px 8px !important",
+        fontSize: "12px !important",
         fontWeight: "bold !important",
         textAlign: "center !important",
-        lineHeight: "1.2 !important",
+        lineHeight: "1.3 !important",
       },
       "& td": {
         border: "1px solid #000 !important",
-        padding: "8px 6px !important",
-        fontSize: "10px !important",
+        padding: "10px 8px !important",
+        fontSize: "11px !important",
         verticalAlign: "top !important",
-        lineHeight: "1.3 !important",
+        lineHeight: "1.4 !important",
       },
       "& thead": {
         pageBreakAfter: "avoid",
@@ -250,114 +258,154 @@ const printStyles = {
         pageBreakAfter: "auto",
       },
     },
-    ".print-totals-section": {
-      display: "flex !important",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      marginBottom: "25px",
-      pageBreakInside: "avoid",
-    },
-    ".print-remarks-section": {
-      flex: "1",
-      paddingRight: "20px",
-    },
-    ".print-totals-box": {
-      border: "2px solid #000",
-      padding: "15px",
-      minWidth: "250px",
-      backgroundColor: "#f9f9f9",
-    },
-    ".print-payment-details": {
-      border: "2px solid #000",
-      padding: "15px",
+    // NEW: Divider after items table
+    ".print-invoice-totals-divider": {
+      borderTop: "1px solid #000",
+      margin: "0",
       marginBottom: "20px",
-      backgroundColor: "#f0f8ff",
-      pageBreakInside: "avoid",
     },
-    ".print-qr-payment-section": {
+    ".print-invoice-totals-section": {
       display: "flex !important",
       justifyContent: "space-between",
       alignItems: "flex-start",
-      marginTop: "20px",
+      marginBottom: "30px",
+      pageBreakInside: "avoid",
+      gap: "25px",
+    },
+    ".print-invoice-remarks-section": {
+      flex: "1",
+    },
+    ".print-invoice-totals-box": {
+      border: "3px solid #000",
+      padding: "20px",
+      minWidth: "280px",
+      backgroundColor: "#f0f8ff",
+      borderRadius: "8px",
+    },
+    ".print-invoice-payment-details": {
+      border: "2px solid #4caf50",
+      padding: "18px",
+      marginBottom: "25px",
+      backgroundColor: "#e8f5e8",
+      borderRadius: "8px",
       pageBreakInside: "avoid",
     },
-    ".print-qr-code": {
-      width: "100px",
-      height: "100px",
+    ".print-invoice-footer-section": {
+      display: "flex !important",
+      justifyContent: "space-between",
+      alignItems: "flex-start", // FIXED: Changed from flex-end to flex-start for proper alignment
+      marginTop: "40px",
+      borderTop: "2px solid #000",
+      paddingTop: "20px",
+      pageBreakInside: "avoid",
+    },
+    ".print-invoice-thank-you-section": {
+      flex: "1",
+      paddingRight: "25px",
+    },
+    ".print-invoice-qr-section": {
+      textAlign: "center",
+      minWidth: "140px", // Fixed width for consistency
+    },
+    ".print-invoice-qr-code": {
+      width: "140px",
+      height: "140px",
       border: "2px solid #000",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "#f5f5f5",
-      marginLeft: "20px",
+      backgroundColor: "#f8f9fa",
+      borderRadius: "8px",
+      overflow: "hidden",
     },
-    ".print-footer": {
-      marginTop: "30px",
-      borderTop: "2px solid #000",
-      paddingTop: "15px",
-      display: "flex !important",
-      justifyContent: "space-between",
-      alignItems: "flex-end",
-      pageBreakInside: "avoid",
+    ".print-invoice-qr-code img": {
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      borderRadius: "6px",
+      imageRendering: "auto",
+      "-webkit-print-color-adjust": "exact",
+      "print-color-adjust": "exact",
+    },
+    ".print-invoice-signature": {
+      width: "140px",
+      height: "50px",
+      margin: "0 auto 8px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+    },
+    ".print-invoice-signature img": {
+      width: "100%",
+      height: "100%",
+      objectFit: "contain",
+      imageRendering: "auto",
+      "-webkit-print-color-adjust": "exact",
+      "print-color-adjust": "exact",
     },
 
     // Typography adjustments for print
     h1: {
-      fontSize: "26px !important",
-      margin: "0 0 8px 0 !important",
+      fontSize: "28px !important",
+      margin: "0 0 10px 0 !important",
       fontWeight: "bold !important",
     },
     h2: {
-      fontSize: "20px !important",
-      margin: "0 0 6px 0 !important",
+      fontSize: "22px !important",
+      margin: "0 0 8px 0 !important",
       fontWeight: "bold !important",
     },
     h3: {
-      fontSize: "16px !important",
-      margin: "0 0 5px 0 !important",
+      fontSize: "18px !important",
+      margin: "0 0 6px 0 !important",
       fontWeight: "bold !important",
     },
     h4: {
-      fontSize: "14px !important",
-      margin: "0 0 4px 0 !important",
+      fontSize: "15px !important",
+      margin: "0 0 5px 0 !important",
       fontWeight: "bold !important",
     },
     h5: {
+      fontSize: "13px !important",
+      margin: "0 0 4px 0 !important",
+      fontWeight: "bold !important",
+    },
+    h6: {
       fontSize: "12px !important",
       margin: "0 0 3px 0 !important",
       fontWeight: "bold !important",
     },
-    h6: {
-      fontSize: "11px !important",
-      margin: "0 0 2px 0 !important",
-      fontWeight: "bold !important",
-    },
     "p, div, span": {
-      fontSize: "10px !important",
-      lineHeight: "1.4 !important",
+      fontSize: "11px !important",
+      lineHeight: "1.5 !important",
       margin: "0 !important",
     },
-    small: { fontSize: "9px !important" },
+    small: { fontSize: "10px !important" },
 
-    // Force black text and transparent backgrounds
+    // Force black text and proper backgrounds
     "*, *::before, *::after": {
       color: "black !important",
       backgroundColor: "transparent !important",
       "-webkit-print-color-adjust": "exact !important",
       "print-color-adjust": "exact !important",
     },
-    ".print-totals-box, .print-payment-details, .print-company-logo, .print-qr-code":
+    ".print-invoice-totals-box, .print-invoice-payment-details, .print-invoice-company-logo, .print-invoice-qr-code, .print-invoice-customer-info, .print-invoice-sales-info, .print-invoice-payment-status-section":
       {
         backgroundColor: "#f5f5f5 !important",
         "-webkit-print-color-adjust": "exact !important",
         "print-color-adjust": "exact !important",
       },
+    ".print-invoice-items-table th": {
+      backgroundColor: "#e8f5e8 !important",
+      "-webkit-print-color-adjust": "exact !important",
+      "print-color-adjust": "exact !important",
+    },
 
     // Page break controls
-    ".page-break-before": { pageBreakBefore: "always" },
-    ".page-break-after": { pageBreakAfter: "always" },
-    ".page-break-avoid": { pageBreakInside: "avoid" },
-    ".page-break-inside": { pageBreakInside: "auto" },
+    ".print-page-break-before": { pageBreakBefore: "always" },
+    ".print-page-break-after": { pageBreakAfter: "always" },
+    ".print-page-break-avoid": { pageBreakInside: "avoid" },
   },
 };
 
@@ -520,113 +568,120 @@ const InvoicePreview = forwardRef(
       return iconMap[method] || <PaymentIcon fontSize="small" />;
     };
 
-    // Print-optimized content component
-    const PrintContent = () => (
-      <Box className="print-only" sx={{ display: "none" }}>
-        {/* Print Header with Company Info and Invoice Details */}
-        <Box className="print-header">
-          <Box className="print-company-section">
-            <Box className="print-logo-section">
-              <Box className="print-company-logo">
-                <BusinessIcon style={{ fontSize: "30px" }} />
+    // UPDATED: Print-optimized content component - matching PrintableInvoice exactly
+    const PrintInvoiceContent = () => (
+      <Box className="print-invoice-only" sx={{ display: "none" }}>
+        {/* Header with Company Info and Invoice Details */}
+        <Box className="print-invoice-header">
+          <Box className="print-invoice-company-section">
+            <Box className="print-invoice-logo-section">
+              <Box className="print-invoice-company-logo">
+                <BusinessIcon style={{ fontSize: "35px" }} />
               </Box>
               <Box>
                 <Typography
                   variant="h2"
-                  style={{ fontWeight: "bold", marginBottom: "4px" }}
+                  style={{ fontWeight: "bold", marginBottom: "5px" }}
                 >
                   {companyDetails.name}
                 </Typography>
                 <Typography
                   variant="body1"
-                  style={{ fontSize: "10px", color: "#666" }}
+                  style={{ fontSize: "11px", color: "#666" }}
                 >
-                  {getDisplayName()} Business Solutions
+                  Professional Business Solutions
                 </Typography>
               </Box>
             </Box>
 
-            <Box style={{ fontSize: "10px", lineHeight: "1.4" }}>
+            <Box style={{ fontSize: "11px", lineHeight: "1.5" }}>
               <Typography variant="body2">
-                {companyDetails.address}, {companyDetails.city},{" "}
+                {companyDetails.address}, {companyDetails.city}
+              </Typography>
+              <Typography variant="body2">
                 {companyDetails.state} - {companyDetails.pincode}
               </Typography>
               <Typography variant="body2">
                 Phone: {companyDetails.phone} | Email: {companyDetails.email}
               </Typography>
+              <Typography variant="body2">GST: {companyDetails.gst}</Typography>
               <Typography variant="body2">
-                GST: {companyDetails.gst} | Website: {companyDetails.website}
+                Website: {companyDetails.website}
               </Typography>
             </Box>
           </Box>
 
-          <Box className="print-invoice-section">
+          <Box className="print-invoice-details-section">
             <Typography
               variant="h1"
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "flex-end",
-                gap: "8px",
+                gap: "10px",
+                marginBottom: "15px",
               }}
             >
-              <ReceiptIcon style={{ fontSize: "24px" }} />
-              {t.invoice}
+              <ReceiptIcon style={{ fontSize: "28px" }} />
+              INVOICE
             </Typography>
 
             <Box
               style={{
-                border: "2px solid black",
-                padding: "12px",
-                marginTop: "10px",
-                backgroundColor: "#f5f5f5",
+                border: "1px solid #000",
+                padding: "15px",
+                backgroundColor: "#f0f8ff",
                 borderRadius: "8px",
                 textAlign: "left",
               }}
             >
-              <Typography variant="body1">
+              <Typography variant="body1" style={{ marginBottom: "5px" }}>
                 <strong>Invoice #:</strong> {invoiceData.invoiceNumber}
               </Typography>
-              <Typography variant="body1">
+              <Typography variant="body1" style={{ marginBottom: "5px" }}>
                 <strong>Date:</strong> {formatDate(invoiceData.saleDate)}
               </Typography>
               {invoiceData.dueDate && (
-                <Typography variant="body1">
+                <Typography variant="body1" style={{ marginBottom: "5px" }}>
                   <strong>Due Date:</strong> {formatDate(invoiceData.dueDate)}
                 </Typography>
               )}
-              <Typography variant="body1">
-                <strong>Type:</strong>{" "}
-                {invoiceData.includeGST ? t.gstInvoice : t.nonGstInvoice}
-              </Typography>
             </Box>
           </Box>
         </Box>
 
         {/* Customer and Sales Person Information */}
-        <Box className="print-customer-sales-section">
-          <Box className="print-customer-info">
-            <Typography variant="h4" style={{ marginBottom: "8px" }}>
+        <Box className="print-invoice-customer-sales-section">
+          <Box className="print-invoice-customer-info">
+            <Typography
+              variant="h4"
+              style={{
+                marginBottom: "10px",
+                borderBottom: "1px solid #000",
+                paddingBottom: "8px",
+                paddingTop: "3px",
+              }}
+            >
               Bill To:
             </Typography>
             <Typography
               variant="h5"
-              style={{ fontWeight: "bold", marginBottom: "4px" }}
+              style={{ fontWeight: "bold", marginBottom: "6px" }}
             >
               {invoiceData.customerName || "Customer Name"}
             </Typography>
             {invoiceData.customerPhone && (
-              <Typography variant="body2">
+              <Typography variant="body2" style={{ marginBottom: "3px" }}>
                 Phone: {invoiceData.customerPhone}
               </Typography>
             )}
             {invoiceData.customerAddress && (
-              <Typography variant="body2">
+              <Typography variant="body2" style={{ marginBottom: "3px" }}>
                 Address: {invoiceData.customerAddress}
               </Typography>
             )}
             {invoiceData.customerState && (
-              <Typography variant="body2">
+              <Typography variant="body2" style={{ marginBottom: "3px" }}>
                 State: {invoiceData.customerState}
               </Typography>
             )}
@@ -637,26 +692,37 @@ const InvoicePreview = forwardRef(
             )}
           </Box>
 
-          <Box className="print-sales-info">
-            <Typography variant="h4" style={{ marginBottom: "8px" }}>
+          <Box className="print-invoice-sales-info">
+            <Typography
+              variant="h4"
+              style={{
+                marginBottom: "10px",
+                borderBottom: "1px solid #000",
+                paddingBottom: "8px",
+                paddingTop: "3px",
+              }}
+            >
               Sales Person:
             </Typography>
             <Typography
               variant="h5"
-              style={{ fontWeight: "bold", marginBottom: "4px" }}
+              style={{ fontWeight: "bold", marginBottom: "6px" }}
             >
               {invoiceData.salesPersonName || "Sales Person"}
             </Typography>
             <Typography variant="body2" style={{ color: "#666" }}>
               Sales Representative
             </Typography>
+            <Typography variant="body2" style={{ marginTop: "5px" }}>
+              Sale Date: {formatDate(invoiceData.saleDate)}
+            </Typography>
           </Box>
         </Box>
 
         {/* Items Table */}
-        <Box className="print-items-section">
-          <Typography variant="h4" style={{ marginBottom: "10px" }}>
-            {t.items}
+        <Box className="print-invoice-items-section">
+          <Typography variant="h4" style={{ marginBottom: "12px" }}>
+            Invoice Items
             {isBulkPricingInvoice && (
               <span
                 style={{
@@ -668,47 +734,64 @@ const InvoicePreview = forwardRef(
                   borderRadius: "4px",
                 }}
               >
-                {t.bulkPricingApplied}
+                Bulk Pricing Applied
               </span>
             )}
           </Typography>
 
-          <table className="print-items-table">
+          <table className="print-invoice-items-table">
             <thead>
               <tr>
                 <th style={{ width: "5%" }}>#</th>
-                <th style={{ width: "35%" }}>{t.description}</th>
-                <th style={{ width: "12%" }}>{t.hsnCode}</th>
-                <th style={{ width: "8%" }}>{t.qty}</th>
-                <th style={{ width: "15%" }}>{t.rate}</th>
-                {invoiceData.includeGST && (
-                  <th style={{ width: "10%" }}>{t.gst}</th>
-                )}
-                <th style={{ width: "15%" }}>{t.amount}</th>
+                <th style={{ width: "30%" }}>Description</th>
+                <th style={{ width: "10%" }}>HSN Code</th>
+                <th style={{ width: "8%" }}>Qty</th>
+                <th style={{ width: "12%" }}>Unit Rate</th>
+                {invoiceData.includeGST && <th style={{ width: "10%" }}>GST %</th>}
+                <th style={{ width: "15%" }}>Total Amount</th>
               </tr>
             </thead>
             <tbody>
-              {invoiceData.items.map((item, index) => (
+              {invoiceData.items?.map((item, index) => (
                 <tr key={index}>
-                  <td style={{ textAlign: "center" }}>{index + 1}</td>
+                  <td style={{ textAlign: "center", fontWeight: "bold" }}>
+                    {index + 1}
+                  </td>
                   <td>
-                    <strong style={{ fontSize: "11px" }}>{item.name}</strong>
+                    <strong style={{ fontSize: "12px" }}>{item.name}</strong>
                     {item.description && (
                       <div
                         style={{
-                          fontSize: "9px",
+                          fontSize: "10px",
                           color: "#666",
-                          marginTop: "2px",
+                          marginTop: "3px",
                         }}
                       >
                         {item.description}
+                      </div>
+                    )}
+                    {isBulkPricingInvoice && (
+                      <div style={{ marginTop: "3px" }}>
+                        <span
+                          style={{
+                            border: "1px solid #4caf50",
+                            padding: "1px 4px",
+                            fontSize: "8px",
+                            backgroundColor: "#e8f5e8",
+                            borderRadius: "3px",
+                          }}
+                        >
+                          Bulk Pricing Applied
+                        </span>
                       </div>
                     )}
                   </td>
                   <td style={{ textAlign: "center", fontFamily: "monospace" }}>
                     {item.hsnCode || "-"}
                   </td>
-                  <td style={{ textAlign: "center" }}>{item.quantity}</td>
+                  <td style={{ textAlign: "center", fontWeight: "bold" }}>
+                    {item.quantity}
+                  </td>
                   <td style={{ textAlign: "right" }}>
                     {isBulkPricingInvoice ? (
                       <span
@@ -717,6 +800,7 @@ const InvoicePreview = forwardRef(
                           padding: "1px 4px",
                           fontSize: "8px",
                           backgroundColor: "#e8f5e8",
+                          borderRadius: "3px",
                         }}
                       >
                         Bulk
@@ -740,6 +824,7 @@ const InvoicePreview = forwardRef(
                           padding: "1px 4px",
                           fontSize: "8px",
                           backgroundColor: "#e3f2fd",
+                          borderRadius: "3px",
                         }}
                       >
                         See Below
@@ -751,17 +836,18 @@ const InvoicePreview = forwardRef(
                 </tr>
               ))}
 
-              {invoiceData.items.length === 0 && (
+              {(!invoiceData.items || invoiceData.items.length === 0) && (
                 <tr>
                   <td
                     colSpan={invoiceData.includeGST ? 7 : 6}
                     style={{
                       textAlign: "center",
-                      padding: "15px",
+                      padding: "20px",
                       color: "#666",
+                      fontStyle: "italic",
                     }}
                   >
-                    No items added
+                    No items found
                   </td>
                 </tr>
               )}
@@ -769,17 +855,27 @@ const InvoicePreview = forwardRef(
           </table>
         </Box>
 
-        {/* Totals Section with Remarks */}
-        <Box className="print-totals-section">
-          <Box className="print-remarks-section">
+        {/* NEW: Divider line after items table */}
+        <hr className="print-invoice-totals-divider" />
+
+        {/* Totals Section with Remarks - NOW BELOW THE DIVIDER */}
+        <Box className="print-invoice-totals-section">
+          <Box className="print-invoice-remarks-section">
             {invoiceData.remarks && (
               <Box>
-                <Typography variant="h5" style={{ marginBottom: "6px" }}>
-                  {t.remarks}:
+                <Typography variant="h4" style={{ marginBottom: "8px" }}>
+                  Remarks:
                 </Typography>
                 <Typography
                   variant="body2"
-                  style={{ whiteSpace: "pre-wrap", lineHeight: "1.4" }}
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    lineHeight: "1.5",
+                    padding: "10px",
+                    backgroundColor: "#f9f9f9",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                  }}
                 >
                   {invoiceData.remarks}
                 </Typography>
@@ -787,15 +883,16 @@ const InvoicePreview = forwardRef(
             )}
           </Box>
 
-          <Box className="print-totals-box">
+          {/* Totals Box - Now displays like quotation page */}
+          <Box>
             <Box
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                marginBottom: "4px",
+                marginBottom: "6px",
               }}
             >
-              <Typography variant="body2">{t.subtotal}:</Typography>
+              <Typography variant="body2">Subtotal:</Typography>
               <Typography variant="body2" style={{ fontWeight: "bold" }}>
                 {formatCurrency(invoiceData.subtotal || 0)}
               </Typography>
@@ -806,14 +903,14 @@ const InvoicePreview = forwardRef(
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
-                  marginBottom: "4px",
+                  marginBottom: "6px",
                 }}
               >
                 <Typography variant="body2">
-                  {t.totalGST} (
+                  Total GST (
                   {invoiceData.customerState?.toLowerCase() === "gujarat"
-                    ? t.cgstSgst
-                    : t.igst}
+                    ? "CGST+SGST"
+                    : "IGST"}
                   ):
                 </Typography>
                 <Typography variant="body2" style={{ fontWeight: "bold" }}>
@@ -824,84 +921,121 @@ const InvoicePreview = forwardRef(
 
             <hr
               style={{
-                margin: "8px 0",
+                margin: "10px 0",
                 border: "none",
-                borderTop: "1px solid #000",
+                borderTop: "2px solid #000",
               }}
             />
 
             <Box style={{ display: "flex", justifyContent: "space-between" }}>
               <Typography variant="h5" style={{ fontWeight: "bold" }}>
-                {t.grandTotal}:
+                Grand Total:
               </Typography>
-              <Typography variant="h5" style={{ fontWeight: "bold" }}>
+              <Typography
+                variant="h5"
+                style={{ fontWeight: "bold", color: "#2e7d32" }}
+              >
                 {formatCurrency(invoiceData.grandTotal || 0)}
               </Typography>
             </Box>
           </Box>
         </Box>
 
-        {/* QR Code and Footer Section */}
-        <Box className="print-qr-payment-section">
-          <Box>
-            <Typography variant="h5" style={{ marginBottom: "6px" }}>
-              {t.thankYou}
-            </Typography>
-            <Typography variant="body2" style={{ marginBottom: "4px" }}>
-              For any queries, contact us at {companyDetails.phone}
-            </Typography>
-            <Typography variant="body2" style={{ marginBottom: "4px" }}>
-              Visit: {companyDetails.website}
-            </Typography>
-            <Typography variant="body2" style={{ marginBottom: "4px" }}>
-              Generated on {formatDate(new Date())}
-            </Typography>
-          </Box>
-
-          {/* Payment QR Code */}
-          <Box>
+        {/* Footer with QR Code and Signature */}
+        <Box className="print-invoice-footer-section">
+          <Box className="print-invoice-thank-you-section">
             <Typography
-              variant="body2"
-              style={{ textAlign: "center", marginBottom: "4px" }}
+              variant="h5"
+              style={{ marginBottom: "8px", color: "#1976d2" }}
             >
-              {t.paymentQR}
+              Terms & Conditions:
             </Typography>
-            <Box className="print-qr-code">
-              <QRCodeIcon style={{ fontSize: "40px" }} />
+
+            <Box style={{ fontSize: "10px", lineHeight: "1.4" }}>
+              <Typography
+                variant="body2"
+                style={{ marginBottom: "3px", fontSize: "10px" }}
+              >
+                1) Goods once sold will not be taken back under any
+                circumstances.
+              </Typography>
+              <Typography
+                variant="body2"
+                style={{ marginBottom: "3px", fontSize: "10px" }}
+              >
+                2) Cheques are subject to Realisation.
+              </Typography>
+              <Typography
+                variant="body2"
+                style={{ marginBottom: "3px", fontSize: "10px" }}
+              >
+                3) Subject to Viramgam Jurisdiction.
+              </Typography>
+              <Typography
+                variant="body2"
+                style={{ marginBottom: "3px", fontSize: "10px" }}
+              >
+                4) Warranty will be covered as per manufacturer's terms and
+                conditions.
+              </Typography>
+              <Typography
+                variant="body2"
+                style={{ marginBottom: "3px", fontSize: "10px" }}
+              >
+                5) Warranty from Company Not From us.
+              </Typography>
+              <Typography
+                variant="body2"
+                style={{ marginBottom: "3px", fontSize: "10px" }}
+              >
+                6) Patel Electronics & Furniture not liable for delays or
+                rejections. We will assist and guide you through the service
+                process.
+              </Typography>
+              <Typography
+                variant="body2"
+                style={{ marginBottom: "3px", fontSize: "10px" }}
+              >
+                7) Cheques are in favour of PATEL ELECTRONICS & FURNITURE
+              </Typography>
+              <Typography
+                variant="body2"
+                style={{ marginBottom: "3px", fontSize: "10px" }}
+              >
+                8) GST billed on all products
+              </Typography>
             </Box>
-            <Typography
-              variant="body2"
-              style={{ textAlign: "center", marginTop: "4px", fontSize: "8px" }}
-            >
-              UPI: company@upi
-            </Typography>
-          </Box>
-        </Box>
-
-        {/* Final Footer */}
-        <Box className="print-footer">
-          <Box>
-            <Typography
-              variant="body2"
-              style={{ fontSize: "9px", fontStyle: "italic" }}
-            >
-              This is a {invoiceData.includeGST ? "GST" : "Non-GST"} invoice
-              {invoiceData.customerGSTNumber && " for GST registered customer"}
-              {invoiceData.includeGST &&
-                invoiceData.customerState &&
-                ` • ${
-                  invoiceData.customerState?.toLowerCase() === "gujarat"
-                    ? t.intraState
-                    : t.interState
-                } ${t.transaction}`}
-            </Typography>
           </Box>
 
-          <Box style={{ textAlign: "right" }}>
-            <Typography variant="body2" style={{ marginBottom: "15px" }}>
-              _______________________
-            </Typography>
-            <Typography variant="body2">Authorized Signature</Typography>
+          <Box className="print-invoice-qr-section">
+            <Box className="print-invoice-qr-code">
+              <QRCodeIcon style={{ fontSize: "50px" }} />
+            </Box>
+
+            {/* Signature */}
+            <Box
+              style={{ textAlign: "center", width: "100%", paddingTop: "10px" }}
+            >
+              <Box className="print-invoice-signature">
+                <div
+                  style={{
+                    borderBottom: "1px solid #000",
+                    width: "100%",
+                    height: "100%",
+                  }}
+                />
+              </Box>
+              <Typography
+                variant="body2"
+                style={{
+                  fontSize: "11px",
+                  textAlign: "center",
+                  paddingTop: "10px",
+                }}
+              >
+                Authorized Signature
+              </Typography>
+            </Box>
           </Box>
         </Box>
       </Box>
@@ -909,8 +1043,8 @@ const InvoicePreview = forwardRef(
 
     return (
       <>
-        {/* Add print styles */}
-        <GlobalStyles styles={printStyles} />
+        {/* Add print styles - UPDATED to match PrintableInvoice exactly */}
+        <GlobalStyles styles={invoicePrintStyles} />
 
         <Box
           ref={ref}
@@ -918,7 +1052,7 @@ const InvoicePreview = forwardRef(
             backgroundColor: variant === "print" ? "white" : "background.paper",
             "@media print": {
               backgroundColor: "white !important",
-              "& .no-print": {
+              "& .no-print-invoice": {
                 display: "none !important",
               },
             },
@@ -937,7 +1071,7 @@ const InvoicePreview = forwardRef(
                 pageBreakAfter: "always",
               },
             }}
-            className="no-print"
+            className="no-print-invoice"
           >
             <CardContent sx={{ p: "15mm" }}>
               {/* Header Section */}
@@ -1106,17 +1240,6 @@ const InvoicePreview = forwardRef(
                               : t.nonGstInvoice}
                           </Typography>
                         </Stack>
-
-                        <Box
-                          sx={{
-                            display: "flex",
-                            gap: 1,
-                            mt: 1,
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          {/* Removed status chips as requested */}
-                        </Box>
                       </Paper>
                     </Box>
                   </Grid>
@@ -1622,7 +1745,7 @@ const InvoicePreview = forwardRef(
                         size="small"
                         startIcon={<RecordPaymentIcon />}
                         onClick={() => onRecordPayment(invoiceData)}
-                        className="no-print"
+                        className="no-print-invoice"
                         sx={{ fontSize: "11px" }}
                       >
                         Record Payment
@@ -2376,8 +2499,8 @@ const InvoicePreview = forwardRef(
           </Card>
         </Box>
 
-        {/* Print-only content */}
-        <PrintContent />
+        {/* UPDATED: Print-only content - matching PrintableInvoice structure exactly */}
+        <PrintInvoiceContent />
       </>
     );
   }
