@@ -30,6 +30,7 @@ import {
   Phone as PhoneIcon,
   Email as EmailIcon,
   LocationOn as LocationIcon,
+  Description as DescriptionIcon,
   MoreVert as MoreVertIcon,
   Edit as EditIcon,
   Visibility as ViewIcon,
@@ -111,7 +112,8 @@ const CustomerList = () => {
           customer.phone?.includes(searchTerm) ||
           customer.email?.toLowerCase().includes(searchTerm) ||
           customer.address?.toLowerCase().includes(searchTerm) ||
-          customer.gstNumber?.toLowerCase().includes(searchTerm)
+          customer.gstNumber?.toLowerCase().includes(searchTerm) ||
+          customer.purpose?.toLowerCase().includes(searchTerm) // ADDED: Search in purpose
         );
       });
     }
@@ -230,7 +232,6 @@ const CustomerList = () => {
 
   const handleActionMenuClose = () => {
     setActionMenuAnchor(null);
-    // setSelectedCustomer(null);
   };
 
   // Handle delete
@@ -362,7 +363,7 @@ const CustomerList = () => {
           value={searchValue}
           onChange={handleSearchChange}
           onClear={handleSearchClear}
-          placeholder="Search customers by name, phone, or email..."
+          placeholder="Search customers by name, phone, email, or purpose..."
           disabled={loading}
           filters={localFilters}
           onFilterChange={handleFilterChange}
@@ -415,7 +416,7 @@ const CustomerList = () => {
                   sx={{
                     cursor: "pointer",
                     transition: "all 0.2s ease-in-out",
-                    height: 280, // Fixed height for consistency
+                    height: customer.purpose ? 320 : 280, // MODIFIED: Dynamic height based on purpose
                     display: "flex",
                     flexDirection: "column",
                     "&:hover": {
@@ -486,8 +487,8 @@ const CustomerList = () => {
                       </IconButton>
                     </Box>
 
-                    {/* Contact Info - Fixed height section */}
-                    <Box mb={2} sx={{ flex: 1, minHeight: 120 }}>
+                    {/* Contact Info - Modified height section */}
+                    <Box mb={2} sx={{ flex: 1, minHeight: customer.purpose ? 160 : 120 }}>
                       {customer.phone && (
                         <Box display="flex" alignItems="center" gap={1} mb={1}>
                           <PhoneIcon
@@ -517,7 +518,7 @@ const CustomerList = () => {
                         </Box>
                       )}
                       {customer.address && (
-                        <Box display="flex" alignItems="flex-start" gap={1}>
+                        <Box display="flex" alignItems="flex-start" gap={1} mb={1}>
                           <LocationIcon
                             sx={{
                               fontSize: 16,
@@ -530,13 +531,50 @@ const CustomerList = () => {
                             sx={{
                               display: "-webkit-box",
                               WebkitBoxOrient: "vertical",
-                              WebkitLineClamp: 3,
+                              WebkitLineClamp: 2,
                               overflow: "hidden",
                               fontSize: "0.875rem",
                               lineHeight: 1.4,
                             }}
                           >
                             {customer.address}
+                          </Typography>
+                        </Box>
+                      )}
+                      {/* ADDED: Purpose Display */}
+                      {customer.purpose && (
+                        <Box 
+                          display="flex" 
+                          alignItems="flex-start" 
+                          gap={1}
+                          sx={{
+                            mt: 1.5,
+                            p: 1,
+                            bgcolor: 'action.hover',
+                            borderRadius: 1
+                          }}
+                        >
+                          <DescriptionIcon
+                            sx={{
+                              fontSize: 16,
+                              color: "primary.main",
+                              mt: 0.25,
+                            }}
+                          />
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              display: "-webkit-box",
+                              WebkitBoxOrient: "vertical",
+                              WebkitLineClamp: 2,
+                              overflow: "hidden",
+                              fontSize: "0.875rem",
+                              lineHeight: 1.4,
+                              fontStyle: 'italic',
+                              color: 'text.secondary'
+                            }}
+                          >
+                            {customer.purpose}
                           </Typography>
                         </Box>
                       )}

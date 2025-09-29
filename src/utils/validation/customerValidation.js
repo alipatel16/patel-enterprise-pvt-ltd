@@ -259,7 +259,7 @@ export const formatCustomerForDisplay = (customer) => {
     ...customer,
     customerTypeDisplay: getCustomerTypeDisplayName(customer.customerType),
     categoryDisplay: getCategoryDisplayName(customer.category),
-    fullAddress: [customer.address, customer.city, customer.state, customer.pincode]
+    fullAddress: [customer.address, customer.city, customer.state, customer.pincode, customer.purpose]
       .filter(Boolean)
       .join(', ')
   };
