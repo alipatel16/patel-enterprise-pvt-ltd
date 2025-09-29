@@ -493,6 +493,7 @@ const EmployeeReportsContent = () => {
                   <Grid item xs={12} md={4}>
                     <DatePicker
                       label="Filter by Date"
+                      format='dd/MM/yyyy'
                       value={dateFilter}
                       onChange={setDateFilter}
                       slotProps={{

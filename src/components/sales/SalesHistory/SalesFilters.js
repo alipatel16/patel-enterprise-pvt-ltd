@@ -258,6 +258,7 @@ const SalesFilters = ({
                 onChange={handleFilterChange('dateFrom')}
                 disabled={loading}
                 maxDate={tempFilters.dateTo || new Date()}
+                format='dd/MM/yyyy'
               />
             </Grid>
 
@@ -270,6 +271,7 @@ const SalesFilters = ({
                 disabled={loading}
                 minDate={tempFilters.dateFrom}
                 maxDate={new Date()}
+                format='dd/MM/yyyy'
               />
             </Grid>
 

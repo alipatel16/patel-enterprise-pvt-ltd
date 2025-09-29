@@ -432,6 +432,7 @@ const PaymentDeliveryOptions = ({
 
               <DatePicker
                 label="EMI Start Date"
+                format='dd/MM/yyyy'
                 value={formData.emiDetails.startDate}
                 onChange={onEMIStartDateChange}
                 disabled={loading}
@@ -561,6 +562,7 @@ const PaymentDeliveryOptions = ({
           {formData.deliveryStatus === DELIVERY_STATUS.SCHEDULED && (
             <DatePicker
               label="Scheduled Delivery Date"
+              format='dd/MM/yyyy'
               value={formData.scheduledDeliveryDate}
               onChange={onDeliveryDateChange}
               disabled={loading}

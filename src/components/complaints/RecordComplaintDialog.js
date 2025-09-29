@@ -515,6 +515,7 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
                 onChange={handleDateChange('expectedResolutionDate')}
                 renderInput={(params) => <TextField {...params} fullWidth required />}
                 minDate={new Date()}
+                format='dd/MM/yyyy'
               />
             </Grid>
 
@@ -626,6 +627,7 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
                     onChange={handleDateChange('companyRecordedDate')}
                     renderInput={(params) => <TextField {...params} fullWidth />}
                     maxDate={new Date()}
+                    format='dd/MM/yyyy'
                   />
                 </Grid>
               </>

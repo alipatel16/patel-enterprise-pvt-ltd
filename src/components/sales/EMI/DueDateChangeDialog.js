@@ -202,6 +202,7 @@ const DueDateChangeDialog = ({
               }
             }}
             disablePast
+            format='dd/MM/yyyy'
           />
         </Box>
 

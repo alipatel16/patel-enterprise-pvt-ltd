@@ -401,6 +401,7 @@ const EmployeeForm = ({
             <Grid item xs={12} sm={6}>
               <DatePicker
                 label="Joined Date"
+                format='dd/MM/yyyy'
                 value={formData.joinedDate || null}
                 onChange={handleChange("joinedDate")}
                 disabled={loading}

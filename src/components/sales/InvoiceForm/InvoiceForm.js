@@ -889,6 +889,7 @@ const InvoiceForm = ({
                   <DatePicker
                     label="Sale Date"
                     value={formData.saleDate}
+                    format='dd/MM/yyyy'
                     onChange={handleDateChange("saleDate")}
                     disabled={loading}
                     slotProps={{

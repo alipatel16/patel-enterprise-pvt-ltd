@@ -65,6 +65,93 @@ class SalesStatsService {
   }
 
   /**
+   * NEW: Get comprehensive sales statistics for a custom date range
+   * @param {string} userType - User type (electronics/furniture)
+   * @param {Date} fromDate - Start date (inclusive)
+   * @param {Date} toDate - End date (inclusive)
+   * @returns {Promise<Object>} Complete sales statistics
+   */
+  async getComprehensiveSalesStatsByDateRange(userType, fromDate, toDate) {
+    try {
+      // Validate dates
+      if (!fromDate || !toDate) {
+        throw new Error('Both fromDate and toDate are required');
+      }
+
+      if (fromDate > toDate) {
+        throw new Error('fromDate cannot be after toDate');
+      }
+
+      // Fetch all sales and customers in parallel for efficiency
+      const [allSales, customersData] = await Promise.all([
+        salesService.getAll(userType, {
+          orderBy: 'createdAt',
+          orderDirection: 'desc'
+        }),
+        customerService.getCustomers(userType, {})
+      ]);
+
+      const customers = customersData.customers || [];
+
+      // Set time to start and end of day for proper date comparison
+      const startDate = new Date(fromDate);
+      startDate.setHours(0, 0, 0, 0);
+      
+      const endDate = new Date(toDate);
+      endDate.setHours(23, 59, 59, 999);
+
+      // Filter sales by date range
+      const dateRangeSales = allSales.filter(sale => {
+        const saleDate = new Date(sale.saleDate || sale.createdAt);
+        return saleDate >= startDate && saleDate <= endDate;
+      });
+
+      // Filter customers by date range
+      const dateRangeCustomers = customers.filter(customer => {
+        const createdDate = new Date(customer.createdAt);
+        return createdDate >= startDate && createdDate <= endDate;
+      });
+
+      // Calculate statistics with date range info
+      const customerStats = this._calculateCustomerStatsForDateRange(customers, startDate, endDate);
+      const invoiceStats = this._calculateInvoiceStatsForDateRange(allSales, startDate, endDate);
+
+      const stats = {
+        // Period-specific sales breakdown
+        periodSales: this._calculatePeriodSalesBreakdown(dateRangeSales),
+        
+        // Customer registration stats
+        customerStats: customerStats,
+        
+        // Invoice creation stats
+        invoiceStats: invoiceStats,
+        
+        // Pending payments breakdown (filtered by date range for custom dates)
+        pendingPayments: this._calculatePendingPayments(dateRangeSales),
+        
+        // Payment method breakdown for period
+        paymentMethodBreakdown: this._calculatePaymentMethodBreakdown(dateRangeSales),
+        
+        // Summary totals for period
+        summary: this._calculateSummary(dateRangeSales),
+        
+        // Date range information
+        dateRange: {
+          start: startDate,
+          end: endDate,
+          fromDate: startDate,
+          toDate: endDate
+        }
+      };
+
+      return stats;
+    } catch (error) {
+      console.error('Error fetching sales stats by date range:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get detailed pending payments with customer/company breakdown
    * @param {string} userType - User type
    * @returns {Promise<Object>} Detailed pending payment information
@@ -268,6 +355,29 @@ class SalesStatsService {
   }
 
   /**
+   * NEW: Calculate customer statistics for a custom date range
+   * @private
+   */
+  _calculateCustomerStatsForDateRange(customers, startDate, endDate) {
+    const dateRangeCustomers = customers.filter(customer => {
+      const createdDate = new Date(customer.createdAt);
+      return createdDate >= startDate && createdDate <= endDate;
+    });
+
+    return {
+      dateRange: {
+        count: dateRangeCustomers.length,
+        customers: dateRangeCustomers.map(c => ({
+          name: c.name,
+          phone: c.phone,
+          date: c.createdAt
+        }))
+      },
+      total: customers.length
+    };
+  }
+
+  /**
    * Calculate invoice creation statistics
    * @private
    */
@@ -315,6 +425,42 @@ class SalesStatsService {
     });
 
     return stats;
+  }
+
+  /**
+   * NEW: Calculate invoice statistics for a custom date range
+   * @private
+   */
+  _calculateInvoiceStatsForDateRange(sales, startDate, endDate) {
+    const dateRangeSales = sales.filter(sale => {
+      const createdDate = new Date(sale.createdAt);
+      return createdDate >= startDate && createdDate <= endDate;
+    });
+
+    const dateRangeTotal = dateRangeSales.reduce((sum, sale) => {
+      return sum + (sale.grandTotal || sale.totalAmount || 0);
+    }, 0);
+
+    const totalAmount = sales.reduce((sum, sale) => {
+      return sum + (sale.grandTotal || sale.totalAmount || 0);
+    }, 0);
+
+    return {
+      dateRange: {
+        count: dateRangeSales.length,
+        totalAmount: dateRangeTotal,
+        invoices: dateRangeSales.map(s => ({
+          invoiceNumber: s.invoiceNumber,
+          customerName: s.customerName,
+          amount: s.grandTotal || s.totalAmount || 0,
+          date: s.createdAt
+        }))
+      },
+      total: {
+        count: sales.length,
+        totalAmount: totalAmount
+      }
+    };
   }
 
   /**

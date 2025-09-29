@@ -633,12 +633,6 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
                 >
                   {companyDetails.name}
                 </Typography>
-                <Typography
-                  variant="body1"
-                  style={{ fontSize: "11px", color: "#666" }}
-                >
-                  Professional Business Solutions
-                </Typography>
               </Box>
             </Box>
 
