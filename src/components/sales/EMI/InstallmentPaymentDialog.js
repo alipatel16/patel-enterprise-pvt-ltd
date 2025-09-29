@@ -26,12 +26,10 @@ import {
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 
-import { useAuth } from '../../../contexts/AuthContext/AuthContext';
 import { formatCurrency, formatDate } from '../../../utils/helpers/formatHelpers';
 
 /**
  * Dialog for recording installment payments with partial payment support
- * Now captures logged-in user details for audit trail
  */
 const InstallmentPaymentDialog = ({
   open,
@@ -40,8 +38,6 @@ const InstallmentPaymentDialog = ({
   invoice,
   onPaymentRecorded
 }) => {
-  const { user } = useAuth(); // Get logged-in user details
-  
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [transactionId, setTransactionId] = useState('');
@@ -101,19 +97,10 @@ const InstallmentPaymentDialog = ({
       setLoading(true);
       setError('');
 
-      // Capture logged-in user details
       const paymentDetails = {
         paymentMethod,
         transactionId: transactionId.trim() || null,
-        notes: notes.trim(),
-        // NEW: Add recorded by information
-        recordedBy: {
-          uid: user?.uid || null,
-          name: user?.name || 'Unknown',
-          email: user?.email || null,
-          role: user?.role || null,
-          recordedAt: new Date().toISOString()
-        }
+        notes: notes.trim()
       };
 
       await onPaymentRecorded(
@@ -220,17 +207,6 @@ const InstallmentPaymentDialog = ({
         </Box>
 
         <Divider sx={{ mb: 3 }} />
-
-        {/* Recording User Info */}
-        {user && (
-          <Box mb={3}>
-            <Alert severity="info" icon={false}>
-              <Typography variant="body2">
-                <strong>Recording as:</strong> {user.name} ({user.email})
-              </Typography>
-            </Alert>
-          </Box>
-        )}
 
         {/* Payment Form */}
         <Typography variant="subtitle1" fontWeight={600} gutterBottom>
