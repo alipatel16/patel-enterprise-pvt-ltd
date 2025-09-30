@@ -168,7 +168,8 @@ export const COLLECTIONS = {
   AUDIT_LOGS: 'audit_logs',
   CHECKLISTS: 'checklists',
   CHECKLIST_COMPLETIONS: 'checklist_completions',
-  COMPLAINTS: 'complaints'
+  COMPLAINTS: 'complaints',
+  UPAAD: 'upaad_records'
 };
 
 // NEW: Complaint Constants

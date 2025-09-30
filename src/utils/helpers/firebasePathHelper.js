@@ -122,3 +122,7 @@ export const getComplaintsPath = (userType, complaintId = null) => {
   const basePath = `${userType}/${COLLECTIONS.COMPLAINTS}`;
   return complaintId ? `${basePath}/${complaintId}` : basePath;
 };
+
+export const getUpaadPath = (userType, upaadId = null) => {
+  return getCollectionPath(userType, COLLECTIONS.UPAAD, upaadId);
+};
