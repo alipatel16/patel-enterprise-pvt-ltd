@@ -242,9 +242,9 @@ class SalesService extends BaseService {
         includeGST: invoiceData.includeGST,
         subtotal: Math.round(subtotal * 100) / 100,
         totalGST: Math.round(totalGST * 100) / 100,
-        grandTotal: Math.round((subtotal + totalGST) * 100) / 100,
+        grandTotal: Math.round(subtotal + totalGST),
         // Firebase rules expect 'totalAmount' - add this field
-        totalAmount: Math.round((subtotal + totalGST) * 100) / 100,
+        totalAmount: Math.round(subtotal + totalGST),
         paymentStatus: invoiceData.paymentStatus || PAYMENT_STATUS.PENDING,
         deliveryStatus: invoiceData.deliveryStatus || DELIVERY_STATUS.PENDING,
         remarks: invoiceData.remarks || "", // Remarks field
@@ -536,7 +536,7 @@ class SalesService extends BaseService {
         cleanUpdates.items = processedItems;
         cleanUpdates.subtotal = Math.round(subtotal * 100) / 100;
         cleanUpdates.totalGST = Math.round(totalGST * 100) / 100;
-        cleanUpdates.grandTotal = Math.round((subtotal + totalGST) * 100) / 100;
+        cleanUpdates.grandTotal = Math.round(subtotal + totalGST); // Round to nearest integer
         cleanUpdates.totalAmount = cleanUpdates.grandTotal;
 
         // CRITICAL FIX: If this is an EMI invoice with existing schedule,

@@ -112,10 +112,16 @@ export const getPaymentCategory = (paymentStatus, paymentMethod = null) => {
     case PAYMENT_STATUS.CREDIT_CARD:
       return PAYMENT_CATEGORIES.CREDIT_CARD_PAYMENT;
     case PAYMENT_STATUS.PAID:
+      // Map each payment method to its category
       if (paymentMethod === PAYMENT_METHODS.CARD) {
         return PAYMENT_CATEGORIES.CARD_PAYMENT;
-      } else {
+      } else if (paymentMethod === PAYMENT_METHODS.CREDIT_CARD) {
+        return PAYMENT_CATEGORIES.CREDIT_CARD_PAYMENT;
+      } else if (paymentMethod === PAYMENT_METHODS.CASH) {
         return PAYMENT_CATEGORIES.CASH_PAYMENT;
+      } else {
+        // For UPI, Net Banking, Cheque, Bank Transfer - return card payment
+        return PAYMENT_CATEGORIES.CARD_PAYMENT;
       }
     default:
       return PAYMENT_CATEGORIES.CASH_PAYMENT;

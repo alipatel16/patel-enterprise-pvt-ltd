@@ -86,6 +86,7 @@ const InvoiceForm = ({
   onCancel,
   loading = false,
   error = null,
+  userType = 'electronics',
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -116,7 +117,7 @@ const InvoiceForm = ({
     salesPersonId: "",
     salesPersonName: "",
     items: [],
-    includeGST: true,
+    includeGST: userType === 'electronics',
     paymentStatus: PAYMENT_STATUS.PAID,
     deliveryStatus: DELIVERY_STATUS.DELIVERED,
     scheduledDeliveryDate: null,
@@ -360,10 +361,12 @@ const InvoiceForm = ({
         });
       }
 
+      const grandTotal = Math.round(subtotal + totalGST);
+      
       setCalculations({
         subtotal: Math.round(subtotal * 100) / 100,
         totalGST: Math.round(totalGST * 100) / 100,
-        grandTotal: Math.round((subtotal + totalGST) * 100) / 100,
+        grandTotal: grandTotal, // Rounded to nearest integer
         itemTotals,
       });
     };
@@ -723,9 +726,6 @@ const InvoiceForm = ({
       if (!formData.paymentDetails.financeCompany) {
         errors.financeCompany = "Finance company is required";
       }
-      if (parseFloat(formData.paymentDetails.downPayment) < 0) {
-        errors.downPayment = "Down payment cannot be negative";
-      }
       if (
         parseFloat(formData.paymentDetails.downPayment) >
         calculations.grandTotal
@@ -737,9 +737,6 @@ const InvoiceForm = ({
     if (formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER) {
       if (!formData.paymentDetails.bankName) {
         errors.bankName = "Bank name is required";
-      }
-      if (parseFloat(formData.paymentDetails.downPayment) < 0) {
-        errors.downPayment = "Down payment cannot be negative";
       }
       if (
         parseFloat(formData.paymentDetails.downPayment) >
