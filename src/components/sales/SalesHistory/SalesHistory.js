@@ -842,7 +842,7 @@ const SalesHistory = () => {
                     sx={{
                       cursor: "pointer",
                       transition: "all 0.2s ease-in-out",
-                      height: 350, // Increased height to accommodate new fields
+                      height: 350,
                       display: "flex",
                       flexDirection: "column",
                       "&:hover": {
@@ -889,17 +889,25 @@ const SalesHistory = () => {
                               variant="h6"
                               component="h3"
                               noWrap
-                              sx={{ fontSize: "1rem", fontWeight: 600 }}
+                              sx={{ fontSize: "1.1rem", fontWeight: 700 }}
                             >
-                              {sale.invoiceNumber}
+                              {sale.customerName}
                             </Typography>
                             <Typography
                               variant="body2"
                               color="text.secondary"
                               noWrap
-                              sx={{ fontSize: "0.75rem" }}
+                              sx={{ fontSize: "0.85rem" }}
                             >
                               {formatDate(sale.saleDate || sale.createdAt)}
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              noWrap
+                              sx={{ fontSize: "0.85rem" }}
+                            >
+                              {sale.invoiceNumber}
                             </Typography>
                           </Box>
                         </Box>
@@ -915,27 +923,6 @@ const SalesHistory = () => {
 
                       {/* Customer Info - Fixed height section */}
                       <Box mb={2} sx={{ flex: 1, minHeight: 160 }}>
-                        {/* Only show customer name if not filtered by customer */}
-                        {!customerIdFromUrl && (
-                          <Box
-                            display="flex"
-                            alignItems="center"
-                            gap={1}
-                            mb={1}
-                          >
-                            <PersonIcon
-                              sx={{ fontSize: 16, color: "text.secondary" }}
-                            />
-                            <Typography
-                              variant="body2"
-                              noWrap
-                              sx={{ fontSize: "0.875rem" }}
-                            >
-                              {sale.customerName}
-                            </Typography>
-                          </Box>
-                        )}
-
                         {sale.customerPhone && (
                           <Box
                             display="flex"
