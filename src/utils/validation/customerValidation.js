@@ -55,6 +55,14 @@ export const validateCustomerData = (customerData, isEdit = false) => {
     }
   }
 
+  // State validation required
+  if (!isEdit || customerData.state !== undefined) {
+    if (!customerData.state || customerData.state.trim() === '') {
+      errors.state = VALIDATION_MESSAGES.REQUIRED;
+      isValid = false;
+    }
+  }
+
   // Email validation (optional but must be valid if provided)
   if (customerData.email && customerData.email.trim() !== '') {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
