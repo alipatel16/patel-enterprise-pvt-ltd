@@ -1118,7 +1118,7 @@ const InvoiceForm = ({
                 <Button
                   startIcon={<AddIcon />}
                   onClick={handleAddItem}
-                  disabled={loading}
+                  disabled={loading || isEdit}
                   variant="contained"
                   size={isMobile ? "small" : "medium"}
                 >
