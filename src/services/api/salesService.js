@@ -115,10 +115,6 @@ class SalesService extends BaseService {
 
       const invoiceNumber = `${prefix}${sequenceStr}`;
 
-      console.log(
-        `Generated invoice number: ${invoiceNumber} (userType: ${userType}, includeGST: ${includeGST})`
-      );
-
       return invoiceNumber;
     } catch (error) {
       console.error("Error generating invoice number:", error);
@@ -639,6 +635,95 @@ class SalesService extends BaseService {
         };
       }
 
+      // NEW FIX: Handle EMI down payment changes
+      if (
+        hasExistingEmiSchedule &&
+        existingInvoice.paymentStatus === "emi" &&
+        cleanUpdates.paymentDetails &&
+        cleanUpdates.paymentDetails.downPayment !== undefined
+      ) {
+        const newDownPayment = parseFloat(
+          cleanUpdates.paymentDetails.downPayment || 0
+        );
+        const existingDownPayment = parseFloat(
+          existingInvoice.emiDetails?.downPayment || 0
+        );
+
+        // Check if down payment has changed
+        if (newDownPayment !== existingDownPayment) {
+
+          // Update EMI details with new down payment
+          const totalAmount =
+            cleanUpdates.grandTotal ||
+            existingInvoice.grandTotal ||
+            existingInvoice.totalAmount ||
+            0;
+
+          // Calculate how much has been paid via installments (not including down payment)
+          const existingSchedule = existingEmiDetails.schedule || [];
+          const installmentsPaid = existingSchedule
+            .filter((emi) => emi.paid)
+            .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
+
+          // New EMI amount is total minus new down payment
+          const newEmiAmount = totalAmount - newDownPayment;
+
+          // Total remaining after subtracting both down payment and paid installments
+          const newRemainingBalance =
+            totalAmount - newDownPayment - installmentsPaid;
+
+          console.log("📊 EMI Calculation:", {
+            totalAmount,
+            newDownPayment,
+            installmentsPaid,
+            newEmiAmount,
+            newRemainingBalance,
+          });
+
+          // Update or initialize emiDetails with new down payment
+          if (!cleanUpdates.emiDetails) {
+            cleanUpdates.emiDetails = { ...existingEmiDetails };
+          }
+
+          cleanUpdates.emiDetails.downPayment = newDownPayment;
+          cleanUpdates.emiDetails.totalAmount = totalAmount;
+          cleanUpdates.emiDetails.emiAmount = newEmiAmount;
+          cleanUpdates.emiDetails.totalRemaining = Math.max(
+            0,
+            newRemainingBalance
+          );
+
+          // Redistribute unpaid installments based on new EMI amount
+          const unpaidInstallments = existingSchedule.filter(
+            (emi) => !emi.paid
+          );
+
+          if (unpaidInstallments.length > 0 && newRemainingBalance > 0) {
+            const equalAmount = newRemainingBalance / unpaidInstallments.length;
+
+            unpaidInstallments.forEach((unpaidEmi, index) => {
+              const scheduleIndex = existingSchedule.findIndex(
+                (emi) => emi.installmentNumber === unpaidEmi.installmentNumber
+              );
+
+              if (index === unpaidInstallments.length - 1) {
+                // Last installment gets remainder to handle rounding
+                const distributedSoFar =
+                  equalAmount * (unpaidInstallments.length - 1);
+                existingSchedule[scheduleIndex].amount =
+                  Math.round((newRemainingBalance - distributedSoFar) * 100) /
+                  100;
+              } else {
+                existingSchedule[scheduleIndex].amount =
+                  Math.round(equalAmount * 100) / 100;
+              }
+            });
+
+            cleanUpdates.emiDetails.schedule = existingSchedule;
+          }
+        }
+      }
+
       // CRITICAL FIX: Preserve customer due date change flags
       if (
         existingInvoice.customerDueDateChangeFlags &&
@@ -669,10 +754,6 @@ class SalesService extends BaseService {
       throw error;
     }
   }
-
-  // ... rest of the methods remain the same as in the original file ...
-  // (copying all other methods as they were, with no changes to functionality)
-
   /**
    * Delete invoice
    * @param {string} userType - User type
