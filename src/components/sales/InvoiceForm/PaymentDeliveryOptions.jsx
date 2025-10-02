@@ -44,6 +44,7 @@ const PaymentDeliveryOptions = ({
   onEMIStartDateChange,
   onDeliveryChange,
   onDeliveryDateChange,
+  isEdit = false,
 }) => {
   const currentPaymentCategory = getPaymentCategory(
     formData.paymentStatus,
@@ -228,7 +229,7 @@ const PaymentDeliveryOptions = ({
                     2
                   )}`
                 }
-                disabled={loading}
+                disabled={loading || isEdit}
                 sx={{ mb: 2 }}
                 inputProps={{
                   min: 0,
@@ -337,7 +338,7 @@ const PaymentDeliveryOptions = ({
                     2
                   )}`
                 }
-                disabled={loading}
+                disabled={loading || isEdit}
                 sx={{ mb: 2 }}
                 inputProps={{
                   min: 0,
@@ -427,7 +428,7 @@ const PaymentDeliveryOptions = ({
                   formErrors.downPayment ||
                   `EMI will be calculated on remaining amount after down payment`
                 }
-                disabled={loading}
+                disabled={loading || isEdit}
                 sx={{ mb: 2 }}
                 inputProps={{
                   min: 0,
@@ -449,7 +450,7 @@ const PaymentDeliveryOptions = ({
                 onChange={onEMIChange("monthlyAmount")}
                 error={!!formErrors.emiAmount}
                 helperText={formErrors.emiAmount}
-                disabled={loading}
+                disabled={loading|| isEdit}
                 sx={{ mb: 2 }}
                 inputProps={{ min: 1, step: 0.01 }}
               />
@@ -459,7 +460,7 @@ const PaymentDeliveryOptions = ({
                 format="dd/MM/yyyy"
                 value={formData.emiDetails.startDate}
                 onChange={onEMIStartDateChange}
-                disabled={loading}
+                disabled={loading || isEdit}
                 sx={{ mb: 2 }}
                 slotProps={{
                   textField: {

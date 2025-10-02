@@ -1538,6 +1538,7 @@ const InvoiceForm = ({
             formErrors={formErrors}
             calculations={calculations}
             loading={loading}
+            isEdit={isEdit}
             onPaymentStatusChange={handlePaymentStatusChange}
             onPaymentDetailsChange={handlePaymentDetailsChange}
             onEMIChange={handleEMIChange}
