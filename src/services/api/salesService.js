@@ -1382,7 +1382,11 @@ class SalesService extends BaseService {
   }
 
   /**
-   * Simple EMI payment recording with partial payment support
+   * Record installment payment
+   * Rules:
+   * - Partial (< installment): update only this installment
+   * - Exact (= installment): mark paid, no redistribution
+   * - Overpayment (> installment): mark paid + redistribute excess to remaining installments
    */
   async recordInstallmentPayment(
     userType,
@@ -1405,79 +1409,139 @@ class SalesService extends BaseService {
       const installment = schedule[installmentIndex];
       const paymentAmountNum = parseFloat(paymentAmount);
 
-      // CRITICAL FIX: Check if this is additional payment on partially paid installment
       const alreadyPaid = installment.paidAmount || 0;
       const installmentAmount = installment.amount || 0;
       const totalPaidNow = alreadyPaid + paymentAmountNum;
-      const isFullyPaid = totalPaidNow >= installmentAmount;
 
-      // STEP 1: Record payment
-      schedule[installmentIndex] = {
-        ...schedule[installmentIndex],
-        paid: isFullyPaid, // Mark as paid only if fully paid
-        paidAmount: totalPaidNow,
-        partiallyPaid: !isFullyPaid && totalPaidNow > 0, // NEW: Track partial payment
-        remainingAmount: Math.max(0, installmentAmount - totalPaidNow), // NEW: Track remaining
-        paymentDate: isFullyPaid
-          ? new Date().toISOString()
-          : installment.paymentDate || null,
-        lastPaymentDate: new Date().toISOString(), // NEW: Track last payment date
-        paymentHistory: [
-          ...(installment.paymentHistory || []),
-          {
-            amount: paymentAmountNum,
-            paymentDate: new Date().toISOString(),
-            paymentMethod: paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
-            transactionId: paymentDetails.transactionId || null,
-            notes: paymentDetails.notes || "",
-            recordedBy: paymentDetails.recordedBy || null,
-            recordedByName: paymentDetails.recordedByName || null,
-            cumulativePaid: totalPaidNow,
-          },
-        ],
-      };
+      let excessAmount = 0;
 
-      // STEP 2: Calculate totals
-      const downPayment = invoice.emiDetails?.downPayment || 0;
-      const originalTotal = invoice.grandTotal || invoice.totalAmount;
-      const installmentsPaid = schedule
-        .filter((emi) => emi.paid)
-        .reduce((sum, emi) => sum + emi.paidAmount, 0);
+      // --- STEP 1: Update this installment ---
+      if (totalPaidNow >= installmentAmount) {
+        // Full payment or overpayment
+        excessAmount = totalPaidNow - installmentAmount;
 
-      // Include partial payments in total paid
-      const partialPayments = schedule
-        .filter((emi) => emi.partiallyPaid && !emi.paid)
-        .reduce((sum, emi) => sum + (emi.paidAmount || 0), 0);
-
-      const totalPaid = downPayment + installmentsPaid + partialPayments;
-      const remainingBalance = originalTotal - totalPaid;
-
-      // STEP 3: Redistribute only FULLY unpaid installments
-      const unpaidInstallments = schedule.filter(
-        (emi) => !emi.paid && !emi.partiallyPaid
-      );
-
-      if (unpaidInstallments.length > 0 && remainingBalance > 0) {
-        const equalAmount = remainingBalance / unpaidInstallments.length;
-
-        unpaidInstallments.forEach((unpaidEmi, index) => {
-          const scheduleIndex = schedule.findIndex(
-            (emi) => emi.installmentNumber === unpaidEmi.installmentNumber
-          );
-
-          if (index === unpaidInstallments.length - 1) {
-            const distributedSoFar =
-              equalAmount * (unpaidInstallments.length - 1);
-            schedule[scheduleIndex].amount =
-              Math.round((remainingBalance - distributedSoFar) * 100) / 100;
-          } else {
-            schedule[scheduleIndex].amount =
-              Math.round(equalAmount * 100) / 100;
-          }
-        });
+        schedule[installmentIndex] = {
+          ...installment,
+          paid: true,
+          paidAmount: installmentAmount,
+          partiallyPaid: false,
+          remainingAmount: 0,
+          paymentDate: new Date().toISOString(),
+          lastPaymentDate: new Date().toISOString(),
+          paymentHistory: [
+            ...(installment.paymentHistory || []),
+            {
+              amount: paymentAmountNum,
+              paymentDate: new Date().toISOString(),
+              paymentMethod:
+                paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
+              transactionId: paymentDetails.transactionId || null,
+              notes: paymentDetails.notes || "",
+              recordedBy: paymentDetails.recordedBy || null,
+              recordedByName: paymentDetails.recordedByName || null,
+              cumulativePaid: totalPaidNow,
+            },
+          ],
+        };
+      } else {
+        // Partial payment
+        schedule[installmentIndex] = {
+          ...installment,
+          paid: false,
+          paidAmount: totalPaidNow,
+          partiallyPaid: true,
+          remainingAmount: installmentAmount - totalPaidNow,
+          lastPaymentDate: new Date().toISOString(),
+          paymentHistory: [
+            ...(installment.paymentHistory || []),
+            {
+              amount: paymentAmountNum,
+              paymentDate: new Date().toISOString(),
+              paymentMethod:
+                paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
+              transactionId: paymentDetails.transactionId || null,
+              notes: paymentDetails.notes || "",
+              recordedBy: paymentDetails.recordedBy || null,
+              recordedByName: paymentDetails.recordedByName || null,
+              cumulativePaid: totalPaidNow,
+            },
+          ],
+        };
       }
 
-      // STEP 4: Check if all installments are fully paid
+      // --- STEP 2: Redistribute ONLY if excessAmount > 0 ---
+      if (excessAmount > 0) {
+        let remainingExcess = excessAmount;
+
+        for (let i = installmentIndex + 1; i < schedule.length; i++) {
+          if (remainingExcess <= 0) break;
+
+          const emi = schedule[i];
+          if (emi.paid) continue; // skip already paid
+
+          const remaining = emi.amount - (emi.paidAmount || 0);
+
+          if (remainingExcess >= remaining) {
+            // Fully pay this installment too
+            schedule[i] = {
+              ...emi,
+              paid: true,
+              paidAmount: emi.amount,
+              partiallyPaid: false,
+              remainingAmount: 0,
+              paymentDate: new Date().toISOString(),
+              lastPaymentDate: new Date().toISOString(),
+              paymentHistory: [
+                ...(emi.paymentHistory || []),
+                {
+                  amount: remaining,
+                  paymentDate: new Date().toISOString(),
+                  paymentMethod:
+                    paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
+                  notes: "Auto-adjusted from overpayment",
+                },
+              ],
+            };
+            remainingExcess -= remaining;
+          } else {
+            // Partially pay this installment
+            schedule[i] = {
+              ...emi,
+              paid: false,
+              partiallyPaid: true,
+              paidAmount: (emi.paidAmount || 0) + remainingExcess,
+              remainingAmount:
+                emi.amount - ((emi.paidAmount || 0) + remainingExcess),
+              lastPaymentDate: new Date().toISOString(),
+              paymentHistory: [
+                ...(emi.paymentHistory || []),
+                {
+                  amount: remainingExcess,
+                  paymentDate: new Date().toISOString(),
+                  paymentMethod:
+                    paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
+                  notes: "Auto-adjusted from overpayment",
+                },
+              ],
+            };
+            remainingExcess = 0;
+          }
+        }
+      }
+
+      // --- STEP 3: Recalculate totals ---
+      const downPayment = invoice.emiDetails?.downPayment || 0;
+      const originalTotal = invoice.grandTotal || invoice.totalAmount;
+
+      const totalPaid =
+        downPayment +
+        schedule.reduce((sum, emi) => {
+          return sum + (emi.paidAmount || 0);
+        }, 0);
+
+      const remainingBalance = Math.max(0, originalTotal - totalPaid);
+
+      // --- STEP 4: Check if all are fully paid ---
       const allPaid = schedule.every((emi) => emi.paid);
 
       const updates = {
