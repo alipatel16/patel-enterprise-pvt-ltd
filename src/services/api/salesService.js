@@ -414,6 +414,14 @@ class SalesService extends BaseService {
    * @param {Object} updates - Update data
    * @returns {Promise<Object>} Updated invoice
    */
+  /**
+   * FIXED: Update invoice method that preserves EMI payment history
+   * IMPORTANT: Invoice number should NOT be changed during updates
+   * @param {string} userType - User type
+   * @param {string} invoiceId - Invoice ID
+   * @param {Object} updates - Update data
+   * @returns {Promise<Object>} Updated invoice
+   */
   async updateInvoice(userType, invoiceId, updates) {
     try {
       // CRITICAL FIX: Get existing invoice first to preserve EMI history
@@ -469,18 +477,15 @@ class SalesService extends BaseService {
           const bulkDetails = cleanUpdates.bulkPricingDetails;
 
           if (!cleanUpdates.includeGST || bulkDetails.gstSlab === 0) {
-            // No GST
             subtotal = bulkDetails.totalPrice;
             totalGST = 0;
           } else if (bulkDetails.isPriceInclusive) {
-            // GST included in bulk price
             const baseAmount =
               bulkDetails.totalPrice / (1 + bulkDetails.gstSlab / 100);
             subtotal = Math.round(baseAmount * 100) / 100;
             totalGST =
               Math.round((bulkDetails.totalPrice - baseAmount) * 100) / 100;
           } else {
-            // GST to be added to bulk price
             subtotal = bulkDetails.totalPrice;
             totalGST =
               Math.round(
@@ -488,7 +493,6 @@ class SalesService extends BaseService {
               ) / 100;
           }
 
-          // Store items without individual calculations
           cleanUpdates.items.forEach((item) => {
             processedItems.push({
               ...item,
@@ -499,10 +503,9 @@ class SalesService extends BaseService {
             });
           });
 
-          // Set bulk pricing flags
           cleanUpdates.bulkPricingApplied = true;
         } else {
-          // USE INDIVIDUAL ITEM CALCULATIONS (existing logic)
+          // USE INDIVIDUAL ITEM CALCULATIONS
           cleanUpdates.items.forEach((item) => {
             const itemCalc = calculateItemWithGST(
               item,
@@ -523,7 +526,6 @@ class SalesService extends BaseService {
             });
           });
 
-          // Remove bulk pricing if switching back to individual items
           if (cleanUpdates.bulkPricingDetails === undefined) {
             cleanUpdates.bulkPricingApplied = false;
           }
@@ -532,7 +534,7 @@ class SalesService extends BaseService {
         cleanUpdates.items = processedItems;
         cleanUpdates.subtotal = Math.round(subtotal * 100) / 100;
         cleanUpdates.totalGST = Math.round(totalGST * 100) / 100;
-        cleanUpdates.grandTotal = Math.round(subtotal + totalGST); // Round to nearest integer
+        cleanUpdates.grandTotal = Math.round(subtotal + totalGST);
         cleanUpdates.totalAmount = cleanUpdates.grandTotal;
 
         // CRITICAL FIX: If this is an EMI invoice with existing schedule,
@@ -543,21 +545,23 @@ class SalesService extends BaseService {
           const newTotal = cleanUpdates.grandTotal;
           const existingSchedule = [...existingEmiDetails.schedule];
 
-          // Calculate how much has been paid already
+          // CRITICAL FIX: Get down payment to calculate correct EMI amount
+          const downPayment = parseFloat(
+            existingInvoice.emiDetails?.downPayment || 0
+          );
+          const newEmiAmount = newTotal - downPayment;
+
           const totalPaid = existingSchedule
             .filter((emi) => emi.paid)
             .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
 
-          // Calculate new remaining balance
-          const newRemainingBalance = newTotal - totalPaid;
-
-          // Get unpaid installments
+          // FIXED: Calculate remaining based on EMI amount (after down payment)
+          const newRemainingBalance = newEmiAmount - totalPaid;
           const unpaidInstallments = existingSchedule.filter(
             (emi) => !emi.paid
           );
 
           if (unpaidInstallments.length > 0 && newRemainingBalance > 0) {
-            // Redistribute only the unpaid amounts
             const equalAmount = newRemainingBalance / unpaidInstallments.length;
 
             unpaidInstallments.forEach((unpaidEmi, index) => {
@@ -566,7 +570,6 @@ class SalesService extends BaseService {
               );
 
               if (index === unpaidInstallments.length - 1) {
-                // Last installment gets remainder to handle rounding
                 const distributedSoFar =
                   equalAmount * (unpaidInstallments.length - 1);
                 existingSchedule[scheduleIndex].amount =
@@ -580,43 +583,35 @@ class SalesService extends BaseService {
 
             console.log("✅ Redistributed unpaid amounts:", {
               newTotal,
+              downPayment,
+              newEmiAmount,
               totalPaid,
               newRemainingBalance,
               unpaidCount: unpaidInstallments.length,
             });
           }
 
-          // CRITICAL: Preserve the EMI details with updated schedule
           let updatedEmiDetails = {
             ...existingEmiDetails,
             schedule: existingSchedule,
-            // Update totals but preserve all other data
             totalPaid: Math.round(totalPaid * 100) / 100,
             totalRemaining: Math.round(newRemainingBalance * 100) / 100,
-            // Preserve last payment date and other metadata
-            // Keep any other existing properties
+            emiAmount: newEmiAmount, // Add this field
           };
 
           if (
             existingEmiDetails.lastPaymentDate !== undefined &&
             existingEmiDetails.lastPaymentDate !== null
           ) {
-            updatedEmiDetails = {
-              ...existingEmiDetails,
-              schedule: existingSchedule,
-              // Update totals but preserve all other data
-              totalPaid: Math.round(totalPaid * 100) / 100,
-              totalRemaining: Math.round(newRemainingBalance * 100) / 100,
-              // Preserve last payment date and other metadata
-              // Keep any other existing properties
-            };
+            updatedEmiDetails.lastPaymentDate =
+              existingEmiDetails.lastPaymentDate;
           }
 
           cleanUpdates.emiDetails = updatedEmiDetails;
         }
       }
 
-      // Handle payment details updates (preserve existing logic)
+      // Handle payment details updates
       if (cleanUpdates.paymentDetails) {
         cleanUpdates.paymentDetails = {
           downPayment: parseFloat(cleanUpdates.paymentDetails.downPayment || 0),
@@ -627,7 +622,6 @@ class SalesService extends BaseService {
           bankName: cleanUpdates.paymentDetails.bankName || "",
           financeCompany: cleanUpdates.paymentDetails.financeCompany || "",
           paymentReference: cleanUpdates.paymentDetails.paymentReference || "",
-          // CRITICAL: Preserve existing payment history
           paymentHistory:
             cleanUpdates.paymentDetails.paymentHistory ||
             existingInvoice.paymentDetails?.paymentHistory ||
@@ -635,7 +629,7 @@ class SalesService extends BaseService {
         };
       }
 
-      // NEW FIX: Handle EMI down payment changes
+      // FIX: Handle EMI down payment changes with payment history tracking
       if (
         hasExistingEmiSchedule &&
         existingInvoice.paymentStatus === "emi" &&
@@ -649,40 +643,57 @@ class SalesService extends BaseService {
           existingInvoice.emiDetails?.downPayment || 0
         );
 
-        // Check if down payment has changed
         if (newDownPayment !== existingDownPayment) {
+          console.log(
+            "💰 Down payment changed from",
+            existingDownPayment,
+            "to",
+            newDownPayment
+          );
 
-          // Update EMI details with new down payment
+          // Initialize emiDetails if it doesn't exist
+          if (!cleanUpdates.emiDetails) {
+            cleanUpdates.emiDetails = { ...existingInvoice.emiDetails };
+          }
+
           const totalAmount =
-            cleanUpdates.grandTotal ||
-            existingInvoice.grandTotal ||
-            existingInvoice.totalAmount ||
-            0;
-
-          // Calculate how much has been paid via installments (not including down payment)
-          const existingSchedule = existingEmiDetails.schedule || [];
+            cleanUpdates.grandTotal || existingInvoice.grandTotal || 0;
+          const existingSchedule =
+            cleanUpdates.emiDetails.schedule ||
+            existingInvoice.emiDetails.schedule ||
+            [];
           const installmentsPaid = existingSchedule
             .filter((emi) => emi.paid)
             .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
 
-          // New EMI amount is total minus new down payment
           const newEmiAmount = totalAmount - newDownPayment;
-
-          // Total remaining after subtracting both down payment and paid installments
           const newRemainingBalance =
             totalAmount - newDownPayment - installmentsPaid;
 
-          console.log("📊 EMI Calculation:", {
-            totalAmount,
-            newDownPayment,
-            installmentsPaid,
-            newEmiAmount,
-            newRemainingBalance,
-          });
+          // FIX: Add payment history entry if down payment increased
+          if (newDownPayment > existingDownPayment) {
+            const additionalPayment = newDownPayment - existingDownPayment;
 
-          // Update or initialize emiDetails with new down payment
-          if (!cleanUpdates.emiDetails) {
-            cleanUpdates.emiDetails = { ...existingEmiDetails };
+            const newPaymentRecord = {
+              amount: additionalPayment,
+              date: new Date().toISOString(),
+              method: cleanUpdates.paymentDetails.paymentMethod || "cash",
+              reference: cleanUpdates.paymentDetails.paymentReference || "",
+              recordedBy: updates.updatedBy,
+              recordedByName: updates.updatedByName,
+              type: "emi_down_payment_adjustment",
+              notes: `Additional down payment: ${existingDownPayment} → ${newDownPayment}`,
+            };
+
+            cleanUpdates.paymentDetails.paymentHistory = [
+              ...(cleanUpdates.paymentDetails.paymentHistory || []),
+              newPaymentRecord,
+            ];
+
+            console.log(
+              "✅ Added payment history entry for:",
+              additionalPayment
+            );
           }
 
           cleanUpdates.emiDetails.downPayment = newDownPayment;
@@ -693,7 +704,7 @@ class SalesService extends BaseService {
             newRemainingBalance
           );
 
-          // Redistribute unpaid installments based on new EMI amount
+          // Redistribute unpaid installments
           const unpaidInstallments = existingSchedule.filter(
             (emi) => !emi.paid
           );
@@ -707,7 +718,6 @@ class SalesService extends BaseService {
               );
 
               if (index === unpaidInstallments.length - 1) {
-                // Last installment gets remainder to handle rounding
                 const distributedSoFar =
                   equalAmount * (unpaidInstallments.length - 1);
                 existingSchedule[scheduleIndex].amount =
@@ -720,7 +730,144 @@ class SalesService extends BaseService {
             });
 
             cleanUpdates.emiDetails.schedule = existingSchedule;
+            console.log(
+              "✅ Redistributed installments after down payment change"
+            );
           }
+        }
+      }
+
+      // FIX: Handle EMI monthly amount changes with proper installment recalculation
+      if (
+        hasExistingEmiSchedule &&
+        existingInvoice.paymentStatus === "emi" &&
+        updates.emiDetails?.monthlyAmount !== undefined
+      ) {
+        const newMonthlyAmount = parseFloat(
+          updates.emiDetails.monthlyAmount || 0
+        );
+        const existingMonthlyAmount = parseFloat(
+          existingInvoice.emiDetails?.monthlyAmount || 0
+        );
+
+        if (
+          newMonthlyAmount !== existingMonthlyAmount &&
+          newMonthlyAmount > 0
+        ) {
+          console.log(
+            "💳 Monthly EMI changed from",
+            existingMonthlyAmount,
+            "to",
+            newMonthlyAmount
+          );
+
+          if (!cleanUpdates.emiDetails) {
+            cleanUpdates.emiDetails = { ...existingInvoice.emiDetails };
+          }
+
+          const totalAmount =
+            cleanUpdates.grandTotal || existingInvoice.grandTotal || 0;
+          const downPayment = parseFloat(
+            cleanUpdates.emiDetails.downPayment ||
+              existingInvoice.emiDetails?.downPayment ||
+              0
+          );
+          const emiAmount = totalAmount - downPayment;
+
+          const schedule = [
+            ...(cleanUpdates.emiDetails.schedule ||
+              existingInvoice.emiDetails.schedule ||
+              []),
+          ];
+
+          const installmentsPaid = schedule
+            .filter((emi) => emi.paid)
+            .reduce((sum, emi) => sum + (emi.paidAmount || 0), 0);
+          const remainingBalance = emiAmount - installmentsPaid;
+
+          // CRITICAL FIX: Calculate NEW number of installments needed
+          const newNumberOfInstallments = Math.ceil(
+            remainingBalance / newMonthlyAmount
+          );
+
+          const paidInstallments = schedule.filter((emi) => emi.paid);
+          const unpaidInstallments = schedule.filter((emi) => !emi.paid);
+
+          const newSchedule = [...paidInstallments];
+
+          const startDate = existingInvoice.emiDetails.startDate
+            ? new Date(existingInvoice.emiDetails.startDate)
+            : new Date();
+          const nextInstallmentNumber = paidInstallments.length + 1;
+
+          for (let i = 0; i < newNumberOfInstallments; i++) {
+            const installmentNumber = nextInstallmentNumber + i;
+            const dueDate = new Date(startDate);
+            dueDate.setMonth(dueDate.getMonth() + (installmentNumber - 1));
+
+            let amount;
+            if (i === newNumberOfInstallments - 1) {
+              const distributedSoFar =
+                newMonthlyAmount * (newNumberOfInstallments - 1);
+              amount =
+                Math.round((remainingBalance - distributedSoFar) * 100) / 100;
+            } else {
+              amount = Math.round(newMonthlyAmount * 100) / 100;
+            }
+
+            const existingUnpaid = unpaidInstallments.find(
+              (emi) => emi.installmentNumber === installmentNumber
+            );
+
+            newSchedule.push({
+              installmentNumber,
+              dueDate: existingUnpaid?.dueDate || dueDate.toISOString(),
+              amount,
+              paid: false,
+              ...(existingUnpaid?.dueDateChangeHistory && {
+                dueDateChangeHistory: existingUnpaid.dueDateChangeHistory,
+              }),
+              ...(existingUnpaid?.dueDateUpdated && {
+                dueDateUpdated: existingUnpaid.dueDateUpdated,
+              }),
+              ...(existingUnpaid?.dueDateUpdatedAt && {
+                dueDateUpdatedAt: existingUnpaid.dueDateUpdatedAt,
+              }),
+              ...(existingUnpaid?.dueDateChangeCount && {
+                dueDateChangeCount: existingUnpaid.dueDateChangeCount,
+              }),
+              ...(existingUnpaid?.lastDueDateChange && {
+                lastDueDateChange: existingUnpaid.lastDueDateChange,
+              }),
+              ...(existingUnpaid?.hasFrequentDueDateChanges && {
+                hasFrequentDueDateChanges:
+                  existingUnpaid.hasFrequentDueDateChanges,
+              }),
+            });
+          }
+
+          newSchedule.sort((a, b) => a.installmentNumber - b.installmentNumber);
+
+          cleanUpdates.emiDetails = {
+            ...existingInvoice.emiDetails,
+            ...cleanUpdates.emiDetails,
+            monthlyAmount: newMonthlyAmount,
+            schedule: newSchedule,
+            numberOfInstallments: newSchedule.length,
+            totalRemaining: Math.round(remainingBalance * 100) / 100,
+            emiAmount: emiAmount,
+            totalAmount: totalAmount,
+            downPayment: downPayment,
+          };
+
+          console.log("✅ Recalculated EMI schedule:", {
+            newMonthlyAmount,
+            newNumberOfInstallments,
+            totalInstallments: newSchedule.length,
+            paidCount: paidInstallments.length,
+            unpaidCount: newNumberOfInstallments,
+            remainingBalance,
+          });
         }
       }
 
@@ -737,7 +884,6 @@ class SalesService extends BaseService {
 
       const result = await this.update(userType, invoiceId, cleanUpdates);
 
-      // Verification log
       if (hasExistingEmiSchedule && result.emiDetails?.schedule) {
         const finalPaidCount = result.emiDetails.schedule.filter(
           (emi) => emi.paid
@@ -745,6 +891,10 @@ class SalesService extends BaseService {
         console.log(
           "✅ EMI history preserved - Final paid count:",
           finalPaidCount
+        );
+        console.log(
+          "✅ Monthly amount in DB:",
+          result.emiDetails.monthlyAmount
         );
       }
 
@@ -754,6 +904,7 @@ class SalesService extends BaseService {
       throw error;
     }
   }
+
   /**
    * Delete invoice
    * @param {string} userType - User type
@@ -1231,8 +1382,7 @@ class SalesService extends BaseService {
   }
 
   /**
-   * Simple EMI payment recording with basic redistribution
-   * No complex logic - just basic math
+   * Simple EMI payment recording with partial payment support
    */
   async recordInstallmentPayment(
     userType,
@@ -1252,42 +1402,62 @@ class SalesService extends BaseService {
         throw new Error("Installment not found");
       }
 
-      if (schedule[installmentIndex].paid) {
-        throw new Error("Installment already paid");
-      }
-
+      const installment = schedule[installmentIndex];
       const paymentAmountNum = parseFloat(paymentAmount);
 
-      // STEP 1: Record payment (don't touch anything else)
+      // CRITICAL FIX: Check if this is additional payment on partially paid installment
+      const alreadyPaid = installment.paidAmount || 0;
+      const installmentAmount = installment.amount || 0;
+      const totalPaidNow = alreadyPaid + paymentAmountNum;
+      const isFullyPaid = totalPaidNow >= installmentAmount;
+
+      // STEP 1: Record payment
       schedule[installmentIndex] = {
         ...schedule[installmentIndex],
-        paid: true,
-        paidAmount: paymentAmountNum, // FIXED: Remove incorrect downpayment reference
-        paymentDate: new Date().toISOString(),
-        paymentRecord: {
-          amount: paymentAmountNum,
-          paymentDate: new Date().toISOString(),
-          paymentMethod: paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
-          transactionId: paymentDetails.transactionId || null,
-          notes: paymentDetails.notes || "",
-          recordedBy: paymentDetails.recordedBy || null,
-          recordedByName: paymentDetails.recordedByName || null,
-        },
+        paid: isFullyPaid, // Mark as paid only if fully paid
+        paidAmount: totalPaidNow,
+        partiallyPaid: !isFullyPaid && totalPaidNow > 0, // NEW: Track partial payment
+        remainingAmount: Math.max(0, installmentAmount - totalPaidNow), // NEW: Track remaining
+        paymentDate: isFullyPaid
+          ? new Date().toISOString()
+          : installment.paymentDate || null,
+        lastPaymentDate: new Date().toISOString(), // NEW: Track last payment date
+        paymentHistory: [
+          ...(installment.paymentHistory || []),
+          {
+            amount: paymentAmountNum,
+            paymentDate: new Date().toISOString(),
+            paymentMethod: paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
+            transactionId: paymentDetails.transactionId || null,
+            notes: paymentDetails.notes || "",
+            recordedBy: paymentDetails.recordedBy || null,
+            recordedByName: paymentDetails.recordedByName || null,
+            cumulativePaid: totalPaidNow,
+          },
+        ],
       };
 
-      // STEP 2: Calculate totals - FIXED to include down payment
+      // STEP 2: Calculate totals
+      const downPayment = invoice.emiDetails?.downPayment || 0;
       const originalTotal = invoice.grandTotal || invoice.totalAmount;
-      const downPayment = invoice.emiDetails?.downPayment || 0; // Get down payment
       const installmentsPaid = schedule
         .filter((emi) => emi.paid)
         .reduce((sum, emi) => sum + emi.paidAmount, 0);
-      const totalPaid = downPayment + installmentsPaid; // Include down payment in total
+
+      // Include partial payments in total paid
+      const partialPayments = schedule
+        .filter((emi) => emi.partiallyPaid && !emi.paid)
+        .reduce((sum, emi) => sum + (emi.paidAmount || 0), 0);
+
+      const totalPaid = downPayment + installmentsPaid + partialPayments;
       const remainingBalance = originalTotal - totalPaid;
 
-      // STEP 3: Find unpaid installments and redistribute ONLY them
-      const unpaidInstallments = schedule.filter((emi) => !emi.paid);
+      // STEP 3: Redistribute only FULLY unpaid installments
+      const unpaidInstallments = schedule.filter(
+        (emi) => !emi.paid && !emi.partiallyPaid
+      );
 
-      if (unpaidInstallments.length > 0) {
+      if (unpaidInstallments.length > 0 && remainingBalance > 0) {
         const equalAmount = remainingBalance / unpaidInstallments.length;
 
         unpaidInstallments.forEach((unpaidEmi, index) => {
@@ -1296,7 +1466,6 @@ class SalesService extends BaseService {
           );
 
           if (index === unpaidInstallments.length - 1) {
-            // Last installment gets remainder to handle rounding
             const distributedSoFar =
               equalAmount * (unpaidInstallments.length - 1);
             schedule[scheduleIndex].amount =
@@ -1308,8 +1477,9 @@ class SalesService extends BaseService {
         });
       }
 
-      // STEP 4: Update totals
+      // STEP 4: Check if all installments are fully paid
       const allPaid = schedule.every((emi) => emi.paid);
+
       const updates = {
         emiDetails: {
           ...invoice.emiDetails,
@@ -1322,9 +1492,8 @@ class SalesService extends BaseService {
       };
 
       if (allPaid) {
-        updates.fullyPaid = true; // NEW - Set fullyPaid flag instead of changing status
+        updates.fullyPaid = true;
         updates.paymentDate = new Date().toISOString();
-        // Keep paymentStatus as EMI for tracking purposes
       }
 
       return await this.update(userType, invoiceId, updates);

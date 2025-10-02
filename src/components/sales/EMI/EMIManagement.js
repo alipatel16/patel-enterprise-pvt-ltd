@@ -241,6 +241,15 @@ const EMIManagement = ({ invoice }) => {
     );
   };
 
+  const hasPartialPayment = (installment) => {
+    return (
+      installment.partiallyPaid ||
+      (installment.paidAmount > 0 &&
+        installment.paidAmount < installment.amount &&
+        !installment.paid)
+    );
+  };
+
   // Mobile-friendly pending installments list with due date change indicators
   const renderPendingInstallmentsMobile = () => (
     <List>
@@ -248,6 +257,10 @@ const EMIManagement = ({ invoice }) => {
         const statusConfig = getInstallmentStatusConfig(installment);
         const changeCount = installment.dueDateChangeCount || 0;
         const hasFrequentChanges = installment.hasFrequentDueDateChanges;
+        const isPartial = hasPartialPayment(installment);
+        const paidAmount = installment.paidAmount || 0;
+        const remainingAmount =
+          installment.remainingAmount || installment.amount - paidAmount;
 
         return (
           <ListItem
@@ -258,15 +271,19 @@ const EMIManagement = ({ invoice }) => {
                 : installment.isDueToday
                 ? theme.palette.warning.light + "10"
                 : hasFrequentChanges
-                ? theme.palette.warning.light + "05" // Subtle highlight for frequent changes
+                ? theme.palette.warning.light + "05"
+                : isPartial
+                ? theme.palette.info.light + "05"
                 : "transparent",
               borderRadius: 1,
               mb: 1,
               border: "1px solid",
               borderColor: hasFrequentChanges
                 ? theme.palette.warning.main
+                : isPartial
+                ? theme.palette.info.main
                 : theme.palette.divider,
-              borderLeftWidth: hasFrequentChanges ? "4px" : "1px",
+              borderLeftWidth: hasFrequentChanges || isPartial ? "4px" : "1px",
             }}
           >
             <ListItemText
@@ -285,16 +302,23 @@ const EMIManagement = ({ invoice }) => {
                     icon={statusConfig.icon}
                   />
 
-                  {/* Due date change indicator */}
                   {getDueDateChangeIndicator(installment)}
 
-                  {/* Frequent changes flag */}
                   {hasFrequentChanges && (
                     <Chip
                       label={`${changeCount} Changes`}
                       size="small"
                       color="warning"
                       icon={<FlagIcon />}
+                      sx={{ fontSize: "0.625rem" }}
+                    />
+                  )}
+
+                  {isPartial && (
+                    <Chip
+                      label="Partial Payment"
+                      size="small"
+                      color="info"
                       sx={{ fontSize: "0.625rem" }}
                     />
                   )}
@@ -306,6 +330,17 @@ const EMIManagement = ({ invoice }) => {
                     <strong>Amount:</strong>{" "}
                     {formatCurrency(installment.amount)}
                   </Typography>
+                  {isPartial && (
+                    <>
+                      <Typography variant="body2" color="success.main">
+                        <strong>Paid:</strong> {formatCurrency(paidAmount)}
+                      </Typography>
+                      <Typography variant="body2" color="warning.main">
+                        <strong>Remaining:</strong>{" "}
+                        {formatCurrency(remainingAmount)}
+                      </Typography>
+                    </>
+                  )}
                   <Typography variant="body2" color="text.secondary">
                     <strong>Due Date:</strong> {formatDate(installment.dueDate)}
                     {installment.dueDateUpdated && (
@@ -318,11 +353,10 @@ const EMIManagement = ({ invoice }) => {
                     )}
                   </Typography>
 
-                  {/* Show last change info for frequent changers */}
                   {hasFrequentChanges && installment.lastDueDateChange && (
                     <Typography variant="caption" color="warning.main">
                       Last changed:{" "}
-                      {formatDate(installment.lastDueDateChange.changedAt)}(
+                      {formatDate(installment.lastDueDateChange.changedAt)} (
                       {installment.lastDueDateChange.reason})
                     </Typography>
                   )}
@@ -337,7 +371,7 @@ const EMIManagement = ({ invoice }) => {
                   startIcon={<PaymentIcon />}
                   onClick={() => handlePaymentClick(installment)}
                 >
-                  Pay
+                  {isPartial ? "Pay Remaining" : "Pay"}
                 </Button>
                 <IconButton
                   size="small"
@@ -362,6 +396,8 @@ const EMIManagement = ({ invoice }) => {
             <TableCell>Installment #</TableCell>
             <TableCell>Due Date</TableCell>
             <TableCell align="right">Amount</TableCell>
+            <TableCell align="right">Paid</TableCell>
+            <TableCell align="right">Remaining</TableCell>
             <TableCell>Status</TableCell>
             <TableCell align="center">Changes</TableCell>
             <TableCell align="center">Actions</TableCell>
@@ -372,6 +408,10 @@ const EMIManagement = ({ invoice }) => {
             const statusConfig = getInstallmentStatusConfig(installment);
             const changeCount = installment.dueDateChangeCount || 0;
             const hasFrequentChanges = installment.hasFrequentDueDateChanges;
+            const isPartial = hasPartialPayment(installment);
+            const paidAmount = installment.paidAmount || 0;
+            const remainingAmount =
+              installment.remainingAmount || installment.amount - paidAmount;
 
             return (
               <TableRow
@@ -383,9 +423,13 @@ const EMIManagement = ({ invoice }) => {
                     ? theme.palette.warning.light + "10"
                     : hasFrequentChanges
                     ? theme.palette.warning.light + "05"
+                    : isPartial
+                    ? theme.palette.info.light + "05"
                     : "transparent",
                   borderLeft: hasFrequentChanges
                     ? `3px solid ${theme.palette.warning.main}`
+                    : isPartial
+                    ? `3px solid ${theme.palette.info.main}`
                     : "none",
                 }}
               >
@@ -396,6 +440,14 @@ const EMIManagement = ({ invoice }) => {
                     </Typography>
                     {hasFrequentChanges && (
                       <FlagIcon fontSize="small" color="warning" />
+                    )}
+                    {isPartial && (
+                      <Chip
+                        label="Partial"
+                        size="small"
+                        color="info"
+                        sx={{ fontSize: "0.625rem" }}
+                      />
                     )}
                   </Box>
                 </TableCell>
@@ -417,6 +469,26 @@ const EMIManagement = ({ invoice }) => {
                 <TableCell align="right">
                   <Typography variant="body2" fontWeight={500}>
                     {formatCurrency(installment.amount)}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Typography
+                    variant="body2"
+                    color="success.main"
+                    fontWeight={500}
+                  >
+                    {formatCurrency(paidAmount)}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Typography
+                    variant="body2"
+                    color={
+                      remainingAmount > 0 ? "warning.main" : "text.secondary"
+                    }
+                    fontWeight={500}
+                  >
+                    {formatCurrency(remainingAmount)}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -457,7 +529,7 @@ const EMIManagement = ({ invoice }) => {
                     onClick={() => handlePaymentClick(installment)}
                     sx={{ mr: 1 }}
                   >
-                    Pay
+                    {isPartial ? "Pay Remaining" : "Pay"}
                   </Button>
                   <IconButton
                     size="small"

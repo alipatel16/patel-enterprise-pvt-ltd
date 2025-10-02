@@ -647,56 +647,6 @@ const ItemModal = ({
                     </Grid>
                   </Grid>
 
-                  {parseFloat(formData.quantity) > 1 && (
-                    <>
-                      <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
-                        Total for {formData.quantity} units:
-                      </Typography>
-                      <Grid container spacing={2}>
-                        <Grid item xs={4}>
-                          <Typography variant="body2" color="text.secondary">
-                            Total Base:
-                          </Typography>
-                          <Typography variant="body1" fontWeight={600}>
-                            ₹
-                            {(
-                              gstCalculation.baseAmount *
-                              parseFloat(formData.quantity)
-                            ).toFixed(2)}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={4}>
-                          <Typography variant="body2" color="text.secondary">
-                            Total GST:
-                          </Typography>
-                          <Typography variant="body1" fontWeight={600}>
-                            ₹
-                            {(
-                              gstCalculation.gstAmount *
-                              parseFloat(formData.quantity)
-                            ).toFixed(2)}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={4}>
-                          <Typography variant="body2" color="text.secondary">
-                            Grand Total:
-                          </Typography>
-                          <Typography
-                            variant="h6"
-                            color="primary.main"
-                            fontWeight={700}
-                          >
-                            ₹
-                            {(
-                              gstCalculation.totalAmount *
-                              parseFloat(formData.quantity)
-                            ).toFixed(2)}
-                          </Typography>
-                        </Grid>
-                      </Grid>
-                    </>
-                  )}
-
                   <Box sx={{ mt: 2 }}>
                     <Chip
                       size="small"

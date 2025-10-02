@@ -815,48 +815,43 @@ const InvoiceForm = ({
 
   // Form submission - INCLUDE company in submission
   const handleSubmit = async (event) => {
-    event.preventDefault();
+  event.preventDefault();
 
-    const errors = validateForm();
-    setFormErrors(errors);
+  const errors = validateForm();
+  setFormErrors(errors);
 
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
+  if (Object.keys(errors).length > 0) {
+    return;
+  }
 
-    const invoiceData = {
-      ...formData,
-      saleDate: formData.saleDate.toISOString(),
-      scheduledDeliveryDate: formData.scheduledDeliveryDate?.toISOString(),
-      emiDetails:
-        formData.paymentStatus === PAYMENT_STATUS.EMI
-          ? {
-              ...formData.emiDetails,
-              startDate: formData.emiDetails.startDate?.toISOString(),
-              schedule: generateEMISchedule(),
-            }
-          : null,
-      // FIX: Include bulk pricing information in submission
-      bulkPricingApplied,
-      bulkPricingDetails: bulkPricingApplied
-        ? formData.bulkPricingDetails
+  const invoiceData = {
+    ...formData,
+    saleDate: formData.saleDate.toISOString(),
+    scheduledDeliveryDate: formData.scheduledDeliveryDate?.toISOString(),
+    emiDetails:
+      formData.paymentStatus === PAYMENT_STATUS.EMI
+        ? {
+            ...formData.emiDetails,
+            startDate: formData.emiDetails.startDate?.toISOString(),
+            // CRITICAL FIX: Only generate schedule for NEW invoices, not edits
+            schedule: isEdit && invoice?.emiDetails?.schedule 
+              ? invoice.emiDetails.schedule  // Preserve existing schedule when editing
+              : generateEMISchedule(),       // Generate new schedule only for new invoices
+          }
         : null,
-      customerGSTNumber: formData?.customerGSTNumber,
-      // ADD: Include company in submission
-      company: formData.company,
-    };
-
-    console.log("CUSTOMER,GST");
-
-    if (onSubmit) {
-      await onSubmit(invoiceData);
-    }
+    bulkPricingApplied,
+    bulkPricingDetails: bulkPricingApplied
+      ? formData.bulkPricingDetails
+      : null,
+    customerGSTNumber: formData?.customerGSTNumber,
+    company: formData.company,
   };
 
-  const currentPaymentCategory = getPaymentCategory(
-    formData.paymentStatus,
-    formData.paymentDetails.paymentMethod
-  );
+
+  if (onSubmit) {
+    await onSubmit(invoiceData);
+  }
+};
 
   return (
     <Box component="form" onSubmit={handleSubmit}>
