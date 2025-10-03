@@ -32,6 +32,7 @@ import { useUserType } from '../../contexts/UserTypeContext';
 import customerService from '../../services/api/customerService';
 import employeeService from '../../services/api/employeeService';
 import complaintService from '../../services/api/complaintService';
+import brandHierarchyService from '../../services/api/BrandHierarchyService';
 
 const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
   const { user } = useAuth();
@@ -47,14 +48,15 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     description: '',
     category: '',
     severity: 'medium',
-    assigneeType: 'employee',
+    assigneeType: userType === 'electronics' ? 'service_person' : 'employee', // Default to service_person for electronics
     assignedEmployeeId: '',
     assignedEmployeeName: '',
     servicePersonName: '',
     servicePersonContact: '',
     companyComplaintNumber: '',
     companyRecordedDate: null,
-    expectedResolutionDate: null
+    expectedResolutionDate: null,
+    detectedBrand: null // Store detected brand
   });
 
   // UI state
@@ -64,13 +66,47 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
   const [employeeOptions, setEmployeeOptions] = useState([]);
   const [customerLoading, setCustomerLoading] = useState(false);
   const [employeeLoading, setEmployeeLoading] = useState(false);
+  const [brandOptions, setBrandOptions] = useState([]);
+  const [brandLoading, setBrandLoading] = useState(false);
 
   // Load employees on component mount
   useEffect(() => {
     if (open) {
       loadEmployees();
+      // Load brands for electronics
+      if (userType === 'electronics') {
+        loadBrands();
+      }
     }
   }, [open, userType]);
+
+  // Load brands (Electronics only)
+  const loadBrands = async () => {
+    if (userType !== 'electronics') return;
+    
+    try {
+      setBrandLoading(true);
+      const brands = await brandHierarchyService.getAllBrands(userType);
+      const brandSuggestions = brands.map(brand => ({
+        id: brand.id,
+        brandName: brand.brandName,
+        hierarchy: brand.hierarchy || []
+      }));
+      setBrandOptions(brandSuggestions);
+    } catch (error) {
+      console.error('Error loading brands:', error);
+    } finally {
+      setBrandLoading(false);
+    }
+  };
+
+  // Update default assignee type when userType changes
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      assigneeType: userType === 'electronics' ? 'service_person' : 'employee'
+    }));
+  }, [userType]);
 
   // Load employees
   const loadEmployees = async () => {
@@ -185,6 +221,85 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     }
   };
 
+  // Handle brand selection from dropdown (Electronics only)
+  const handleBrandSelect = (event, brand) => {
+    if (!brand) {
+      setFormData(prev => ({
+        ...prev,
+        title: '',
+        detectedBrand: null,
+        servicePersonName: '',
+        servicePersonContact: ''
+      }));
+      return;
+    }
+
+    // Set title with brand name
+    const titleWithBrand = brand.brandName;
+    setFormData(prev => ({
+      ...prev,
+      title: titleWithBrand,
+      detectedBrand: brand
+    }));
+
+    // Auto-assign first level if hierarchy exists
+    if (brand.hierarchy && brand.hierarchy.length > 0) {
+      const firstLevel = brand.hierarchy[0];
+      setFormData(prev => ({
+        ...prev,
+        assigneeType: 'service_person',
+        servicePersonName: firstLevel.name,
+        servicePersonContact: firstLevel.contact
+      }));
+    }
+  };
+
+  // Handle manual title input (Electronics only)
+  const handleTitleInputChange = (event, value, reason) => {
+    if (reason === 'input') {
+      setFormData(prev => ({
+        ...prev,
+        title: value
+      }));
+
+      // Try to detect brand from typed text
+      if (value && value.length >= 2) {
+        detectBrandFromTitle(value);
+      }
+    }
+  };
+
+  // Detect brand from title (Electronics only)
+  const detectBrandFromTitle = async (title) => {
+    if (!title || title.trim().length < 2) {
+      return;
+    }
+
+    try {
+      const detectedBrand = await brandHierarchyService.detectBrandFromTitle(userType, title);
+      
+      if (detectedBrand && detectedBrand.hierarchy && detectedBrand.hierarchy.length > 0) {
+        // Brand found with hierarchy, auto-assign first level
+        const firstLevel = detectedBrand.hierarchy[0];
+        setFormData(prev => ({
+          ...prev,
+          detectedBrand: detectedBrand,
+          assigneeType: 'service_person',
+          servicePersonName: firstLevel.name,
+          servicePersonContact: firstLevel.contact
+        }));
+      } else if (!detectedBrand) {
+        // Brand not found, will be created when saving
+        setFormData(prev => ({
+          ...prev,
+          detectedBrand: null
+        }));
+      }
+    } catch (error) {
+      console.error('Error detecting brand:', error);
+    }
+  };
+
   // Handle date change
   const handleDateChange = (field) => (date) => {
     setFormData(prev => ({
@@ -200,9 +315,6 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     }
     if (!formData.title.trim()) {
       return 'Complaint title is required';
-    }
-    if (formData.title.length < 5) {
-      return 'Complaint title must be at least 5 characters';
     }
     if (!formData.description.trim()) {
       return 'Complaint description is required';
@@ -263,6 +375,28 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
       }
 
       setLoading(true);
+
+      // For electronics, auto-create brand if not exists
+      if (userType === 'electronics' && formData.title && !formData.detectedBrand) {
+        try {
+          const potentialBrandName = brandHierarchyService.extractPotentialBrandName(formData.title);
+          if (potentialBrandName) {
+            // Check if brand exists
+            const existingBrand = await brandHierarchyService.findBrandByName(userType, potentialBrandName);
+            if (!existingBrand) {
+              // Create new brand without hierarchy
+              await brandHierarchyService.saveBrand(userType, {
+                brandName: potentialBrandName,
+                hierarchy: []
+              });
+              console.log('Auto-created brand:', potentialBrandName);
+            }
+          }
+        } catch (brandError) {
+          console.warn('Could not auto-create brand:', brandError);
+          // Continue with complaint creation even if brand creation fails
+        }
+      }
 
       const complaintData = {
         customerId: formData.customerId,
@@ -326,14 +460,15 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
       description: '',
       category: '',
       severity: 'medium',
-      assigneeType: 'employee',
+      assigneeType: userType === 'electronics' ? 'service_person' : 'employee',
       assignedEmployeeId: '',
       assignedEmployeeName: '',
       servicePersonName: '',
       servicePersonContact: '',
       companyComplaintNumber: '',
       companyRecordedDate: null,
-      expectedResolutionDate: null
+      expectedResolutionDate: null,
+      detectedBrand: null
     });
     setError('');
     setCustomerOptions([]);
@@ -439,15 +574,69 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <TextField
-                label="Complaint Title"
-                value={formData.title}
-                onChange={handleChange('title')}
-                fullWidth
-                required
-                helperText={`${formData.title.length}/100 characters`}
-                inputProps={{ maxLength: 100 }}
-              />
+              {userType === 'electronics' ? (
+                // Electronics: Autocomplete with brand suggestions
+                <Autocomplete
+                  freeSolo
+                  options={brandOptions}
+                  loading={brandLoading}
+                  value={formData.title}
+                  onChange={handleBrandSelect}
+                  onInputChange={handleTitleInputChange}
+                  getOptionLabel={(option) => typeof option === 'string' ? option : option.brandName}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Complaint Title"
+                      placeholder="Start typing brand name (e.g., LG, Samsung)..."
+                      fullWidth
+                      required
+                      helperText={`${formData.title.length}/100 characters - Select brand or type freely`}
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {brandLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props}>
+                      <Box>
+                        <Typography variant="body2" fontWeight={500}>
+                          {option.brandName}
+                        </Typography>
+                        {option.hierarchy && option.hierarchy.length > 0 && (
+                          <Typography variant="caption" color="text.secondary">
+                            {option.hierarchy.length} service level{option.hierarchy.length > 1 ? 's' : ''} • 
+                            Level 1: {option.hierarchy[0].name}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  )}
+                />
+              ) : (
+                // Furniture: Regular text field
+                <TextField
+                  label="Complaint Title"
+                  value={formData.title}
+                  onChange={handleChange('title')}
+                  fullWidth
+                  required
+                  helperText={`${formData.title.length}/100 characters`}
+                  inputProps={{ maxLength: 100 }}
+                />
+              )}
+              {/* Show brand detection for electronics */}
+              {userType === 'electronics' && formData.detectedBrand && (
+                <Alert severity="success" sx={{ mt: 1 }}>
+                  Brand "{formData.detectedBrand.brandName}" detected! Auto-assigned to {formData.servicePersonName}
+                </Alert>
+              )}
             </Grid>
 
             <Grid item xs={12} md={6}>

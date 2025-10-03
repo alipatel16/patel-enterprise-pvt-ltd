@@ -34,6 +34,7 @@ import { useUserType } from '../../contexts/UserTypeContext';
 import customerService from '../../services/api/customerService';
 import employeeService from '../../services/api/employeeService';
 import complaintService from '../../services/api/complaintService';
+import brandHierarchyService from '../../services/api/BrandHierarchyService';
 import { formatDate } from '../../utils/helpers/formatHelpers';
 
 const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) => {
@@ -69,6 +70,12 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
   const [employeeOptions, setEmployeeOptions] = useState([]);
   const [customerLoading, setCustomerLoading] = useState(false);
   const [employeeLoading, setEmployeeLoading] = useState(false);
+  const [nextHierarchyLevel, setNextHierarchyLevel] = useState(null);
+  const [defaultHierarchyLevel, setDefaultHierarchyLevel] = useState(null);
+  const [isAtLastLevel, setIsAtLastLevel] = useState(false);
+  const [checkingHierarchy, setCheckingHierarchy] = useState(false);
+  const [brandOptions, setBrandOptions] = useState([]);
+  const [brandLoading, setBrandLoading] = useState(false);
 
   // Initialize form data when complaint changes
   useEffect(() => {
@@ -94,8 +101,131 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         statusRemarks: ''
       });
       loadEmployees();
+      
+      // Load brands for electronics
+      if (userType === 'electronics') {
+        loadBrands();
+      }
+      
+      // Check for next hierarchy level (electronics only)
+      if (userType === 'electronics' && complaint.assigneeType === 'service_person') {
+        checkHierarchyLevels(complaint);
+      }
     }
   }, [complaint, open, userType]);
+
+  // Load brands (Electronics only)
+  const loadBrands = async () => {
+    if (userType !== 'electronics') return;
+    
+    try {
+      setBrandLoading(true);
+      const brands = await brandHierarchyService.getAllBrands(userType);
+      const brandSuggestions = brands.map(brand => ({
+        id: brand.id,
+        brandName: brand.brandName,
+        hierarchy: brand.hierarchy || []
+      }));
+      setBrandOptions(brandSuggestions);
+    } catch (error) {
+      console.error('Error loading brands:', error);
+    } finally {
+      setBrandLoading(false);
+    }
+  };
+
+  // Check hierarchy levels (Electronics only)
+  const checkHierarchyLevels = async (currentComplaint) => {
+    if (userType !== 'electronics' || !currentComplaint.title || !currentComplaint.servicePersonContact) {
+      setNextHierarchyLevel(null);
+      setDefaultHierarchyLevel(null);
+      setIsAtLastLevel(false);
+      return;
+    }
+
+    try {
+      setCheckingHierarchy(true);
+      const detectedBrand = await brandHierarchyService.detectBrandFromTitle(userType, currentComplaint.title);
+      
+      if (detectedBrand) {
+        // Check if at last level of brand hierarchy
+        const atLastLevel = await brandHierarchyService.isAtLastHierarchyLevel(
+          userType,
+          detectedBrand.brandName,
+          currentComplaint.servicePersonContact
+        );
+        setIsAtLastLevel(atLastLevel);
+
+        // Get next level in brand hierarchy
+        const nextLevel = await brandHierarchyService.getNextHierarchyLevel(
+          userType,
+          detectedBrand.brandName,
+          currentComplaint.servicePersonContact
+        );
+        setNextHierarchyLevel(nextLevel);
+
+        // If at last level, load default hierarchy
+        if (atLastLevel) {
+          const defaultLevel = await brandHierarchyService.getDefaultHierarchy(userType);
+          if (defaultLevel) {
+            // Check if already assigned to default
+            const isAlreadyAtDefault = currentComplaint.servicePersonContact === defaultLevel.contact;
+            setDefaultHierarchyLevel(isAlreadyAtDefault ? null : defaultLevel);
+          } else {
+            setDefaultHierarchyLevel(null);
+          }
+        } else {
+          setDefaultHierarchyLevel(null);
+        }
+      } else {
+        setNextHierarchyLevel(null);
+        setDefaultHierarchyLevel(null);
+        setIsAtLastLevel(false);
+      }
+    } catch (error) {
+      console.error('Error checking hierarchy:', error);
+      setNextHierarchyLevel(null);
+      setDefaultHierarchyLevel(null);
+      setIsAtLastLevel(false);
+    } finally {
+      setCheckingHierarchy(false);
+    }
+  };
+
+  // Handle assign to next hierarchy level
+  const handleAssignToNextLevel = () => {
+    if (nextHierarchyLevel) {
+      setFormData(prev => ({
+        ...prev,
+        servicePersonName: nextHierarchyLevel.name,
+        servicePersonContact: nextHierarchyLevel.contact,
+        assigneeType: 'service_person'
+      }));
+      
+      // Re-check hierarchy after assignment
+      const updatedComplaint = {
+        ...complaint,
+        servicePersonContact: nextHierarchyLevel.contact
+      };
+      checkHierarchyLevels(updatedComplaint);
+    }
+  };
+
+  // Handle assign to default hierarchy level
+  const handleAssignToDefaultLevel = () => {
+    if (defaultHierarchyLevel) {
+      setFormData(prev => ({
+        ...prev,
+        servicePersonName: defaultHierarchyLevel.name,
+        servicePersonContact: defaultHierarchyLevel.contact,
+        assigneeType: 'service_person'
+      }));
+      
+      // Clear buttons since we're now at default
+      setNextHierarchyLevel(null);
+      setDefaultHierarchyLevel(null);
+    }
+  };
 
   // Load employees
   const loadEmployees = async () => {
@@ -210,6 +340,62 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
+  // Handle brand selection from dropdown (Electronics only)
+  const handleBrandSelect = (event, brand) => {
+    if (!brand) {
+      setFormData(prev => ({
+        ...prev,
+        title: ''
+      }));
+      return;
+    }
+
+    // If brand is a string (typed freely), just set the title
+    if (typeof brand === 'string') {
+      setFormData(prev => ({
+        ...prev,
+        title: brand
+      }));
+      return;
+    }
+
+    // Set title with brand name
+    const titleWithBrand = brand.brandName;
+    setFormData(prev => ({
+      ...prev,
+      title: titleWithBrand
+    }));
+
+    // Auto-assign first level if hierarchy exists
+    if (brand.hierarchy && brand.hierarchy.length > 0) {
+      const firstLevel = brand.hierarchy[0];
+      setFormData(prev => ({
+        ...prev,
+        assigneeType: 'service_person',
+        servicePersonName: firstLevel.name,
+        servicePersonContact: firstLevel.contact
+      }));
+      
+      // Re-check hierarchy after assignment
+      const updatedComplaint = {
+        ...complaint,
+        title: titleWithBrand,
+        servicePersonContact: firstLevel.contact
+      };
+      checkHierarchyLevels(updatedComplaint);
+    }
+  };
+
+  // Handle manual title input (Electronics only)
+  const handleTitleInputChange = (event, value, reason) => {
+    if (reason === 'input') {
+      setFormData(prev => ({
+        ...prev,
+        title: value
+      }));
+    }
+  };
+
   // Handle date change
   const handleDateChange = (field) => (date) => {
     setFormData(prev => ({
@@ -225,9 +411,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
     if (!formData.title.trim()) {
       return 'Complaint title is required';
-    }
-    if (formData.title.length < 5) {
-      return 'Complaint title must be at least 5 characters';
     }
     if (!formData.description.trim()) {
       return 'Complaint description is required';
@@ -487,15 +670,63 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <TextField
-                label="Complaint Title"
-                value={formData.title}
-                onChange={handleChange('title')}
-                fullWidth
-                required
-                helperText={`${formData.title.length}/100 characters`}
-                inputProps={{ maxLength: 100 }}
-              />
+              {userType === 'electronics' ? (
+                // Electronics: Autocomplete with brand suggestions
+                <Autocomplete
+                  freeSolo
+                  options={brandOptions}
+                  loading={brandLoading}
+                  value={formData.title}
+                  onChange={handleBrandSelect}
+                  onInputChange={handleTitleInputChange}
+                  getOptionLabel={(option) => typeof option === 'string' ? option : option.brandName}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Complaint Title"
+                      placeholder="Start typing brand name or select from dropdown..."
+                      fullWidth
+                      required
+                      helperText={`${formData.title.length}/100 characters - Select brand or type freely`}
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {brandLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props}>
+                      <Box>
+                        <Typography variant="body2" fontWeight={500}>
+                          {option.brandName}
+                        </Typography>
+                        {option.hierarchy && option.hierarchy.length > 0 && (
+                          <Typography variant="caption" color="text.secondary">
+                            {option.hierarchy.length} service level{option.hierarchy.length > 1 ? 's' : ''} • 
+                            Level 1: {option.hierarchy[0].name}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  )}
+                />
+              ) : (
+                // Furniture: Regular text field
+                <TextField
+                  label="Complaint Title"
+                  value={formData.title}
+                  onChange={handleChange('title')}
+                  fullWidth
+                  required
+                  helperText={`${formData.title.length}/100 characters`}
+                  inputProps={{ maxLength: 100 }}
+                />
+              )}
             </Grid>
 
             <Grid item xs={12} md={6}>
@@ -666,6 +897,47 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
             {/* Service Person Assignment */}
             {formData.assigneeType === 'service_person' && (
               <>
+                {/* Electronics: Show escalation buttons */}
+                {userType === 'electronics' && (nextHierarchyLevel || defaultHierarchyLevel) && (
+                  <Grid item xs={12}>
+                    {nextHierarchyLevel && (
+                      <Alert 
+                        severity="info" 
+                        action={
+                          <Button 
+                            color="inherit" 
+                            size="small"
+                            onClick={handleAssignToNextLevel}
+                          >
+                            Assign to Level {nextHierarchyLevel.level}
+                          </Button>
+                        }
+                        sx={{ mb: defaultHierarchyLevel ? 1 : 0 }}
+                      >
+                        Next hierarchy level available: {nextHierarchyLevel.name} ({nextHierarchyLevel.contact})
+                      </Alert>
+                    )}
+                    
+                    {defaultHierarchyLevel && isAtLastLevel && (
+                      <Alert 
+                        severity="warning" 
+                        action={
+                          <Button 
+                            color="inherit" 
+                            size="small"
+                            onClick={handleAssignToDefaultLevel}
+                            variant="outlined"
+                          >
+                            Assign to Default Level
+                          </Button>
+                        }
+                      >
+                        At last brand hierarchy level. Escalate to default level: {defaultHierarchyLevel.name} ({defaultHierarchyLevel.contact})
+                      </Alert>
+                    )}
+                  </Grid>
+                )}
+                
                 <Grid item xs={12} md={6}>
                   <TextField
                     label="Service Person Name"

@@ -789,10 +789,6 @@ class EnhancedComplaintService {
         throw new Error('Customer is required');
       }
       
-      if (!complaintData.title || complaintData.title.trim().length < rules.TITLE.MIN_LENGTH) {
-        throw new Error(`Title must be at least ${rules.TITLE.MIN_LENGTH} characters`);
-      }
-      
       if (!complaintData.description || complaintData.description.trim().length < rules.DESCRIPTION.MIN_LENGTH) {
         throw new Error(`Description must be at least ${rules.DESCRIPTION.MIN_LENGTH} characters`);
       }

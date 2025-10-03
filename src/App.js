@@ -73,6 +73,7 @@ import EmployeeChecklistDashboard from "./pages/checklists/EmployeeChecklistDash
 // Complaints
 import ComplaintsPage from "./pages/complaints/ComplaintsPage";
 import ViewComplaintPage from "./pages/complaints/ViewComplaintPage";
+import ComplaintSettingsPage from "./pages/complaints/ComplaintSettingsPage";
 
 // Pages - Error
 import NotFoundPage from "./pages/NotFoundPage";
@@ -363,6 +364,14 @@ const AppContent = () => {
             element={
               <ProtectedRoute>
                 <ViewComplaintPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/complaints/settings"
+            element={
+              <ProtectedRoute>
+                <ComplaintSettingsPage />
               </ProtectedRoute>
             }
           />
