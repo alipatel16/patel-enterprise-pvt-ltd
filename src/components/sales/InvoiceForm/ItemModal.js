@@ -373,7 +373,7 @@ const ItemModal = ({
                   setSelectedProduct(null);
                 }
               }}
-              disabled={loading || isEdit}
+              disabled={loading}
               renderInput={(params) => (
                 <TextField
                   {...params}
