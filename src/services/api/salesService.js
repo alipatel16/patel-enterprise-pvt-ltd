@@ -19,8 +19,6 @@ class SalesService extends BaseService {
 
   /**
    * Helper function to clean undefined values from object
-   * @param {Object} obj - Object to clean
-   * @returns {Object} Cleaned object without undefined values
    */
   cleanUndefinedValues(obj) {
     const cleaned = {};
@@ -30,9 +28,7 @@ class SalesService extends BaseService {
         const value = obj[key];
 
         if (value !== undefined && value !== null) {
-          // Special handling for bulk pricing removal
           if (key === "bulkPricingDetails" && value === null) {
-            // Explicitly remove bulk pricing
             continue;
           }
 
@@ -41,7 +37,6 @@ class SalesService extends BaseService {
             !Array.isArray(value) &&
             !(value instanceof Date)
           ) {
-            // Recursively clean nested objects
             const cleanedNested = this.cleanUndefinedValues(value);
             if (Object.keys(cleanedNested).length > 0) {
               cleaned[key] = cleanedNested;
@@ -50,7 +45,6 @@ class SalesService extends BaseService {
             cleaned[key] = value;
           }
         }
-        // Skip undefined and null values entirely
       }
     }
 
@@ -59,36 +53,22 @@ class SalesService extends BaseService {
 
   /**
    * Generate unique invoice number with new format
-   * Format: EL_GST_001, EL_NGST_001, FN_GST_001, FN_NGST_001
-   * @param {string} userType - User type (electronics/furniture)
-   * @param {boolean} includeGST - Whether GST is included in invoice
-   * @returns {Promise<string>} Generated invoice number
    */
   async generateInvoiceNumber(userType, includeGST = true) {
     try {
-      // Determine prefix based on user type and GST inclusion
       let prefix;
       if (userType === "electronics") {
         prefix = includeGST ? "EL_GST_" : "EL_NGST_";
       } else {
-        // furniture
         prefix = includeGST ? "FN_GST_" : "FN_NGST_";
       }
 
-      // Get the current year and month for tracking period
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, "0");
-      const currentPeriod = `${year}${month}`;
-
-      // Get all invoices with this prefix to find the highest sequence number
       const allInvoices = await this.getAll(userType, {
         orderBy: "createdAt",
         orderDirection: "desc",
-        limit: 1000, // Get enough to find the max sequence
+        limit: 1000,
       });
 
-      // Filter invoices with the same prefix and find the highest sequence
       let maxSequence = 0;
 
       if (allInvoices && allInvoices.length > 0) {
@@ -97,7 +77,6 @@ class SalesService extends BaseService {
             invoice.invoiceNumber &&
             invoice.invoiceNumber.startsWith(prefix)
           ) {
-            // Extract sequence number from invoice number (last 3 digits)
             const match = invoice.invoiceNumber.match(/(\d{3})$/);
             if (match) {
               const sequence = parseInt(match[1]);
@@ -109,16 +88,12 @@ class SalesService extends BaseService {
         });
       }
 
-      // Increment sequence for new invoice
       const newSequence = maxSequence + 1;
       const sequenceStr = String(newSequence).padStart(3, "0");
 
-      const invoiceNumber = `${prefix}${sequenceStr}`;
-
-      return invoiceNumber;
+      return `${prefix}${sequenceStr}`;
     } catch (error) {
       console.error("Error generating invoice number:", error);
-      // Fallback to timestamp-based number
       const timestamp = Date.now().toString().slice(-6);
       const fallbackPrefix =
         userType === "electronics"
@@ -133,47 +108,36 @@ class SalesService extends BaseService {
   }
 
   /**
-   * Create new invoice (alias for createSale for backward compatibility)
-   * @param {string} userType - User type
-   * @param {Object} invoiceData - Invoice data
-   * @returns {Promise<Object>} Created invoice
+   * Create new invoice
    */
   async createInvoice(userType, invoiceData) {
     try {
-      // IMPORTANT: Generate invoice number with GST consideration
       const invoiceNumber = await this.generateInvoiceNumber(
         userType,
         invoiceData.includeGST
       );
 
-      // Calculate totals with GST slabs
       let subtotal = 0;
       let totalGST = 0;
       let processedItems = [];
 
-      // Process each item with its GST slab
       if (invoiceData.items && invoiceData.items.length > 0) {
-        // CHECK: Is bulk pricing applied?
         if (
           invoiceData.bulkPricingDetails &&
           invoiceData.bulkPricingDetails.totalPrice > 0
         ) {
-          // USE BULK PRICING - ignore individual item calculations
           const bulkDetails = invoiceData.bulkPricingDetails;
 
           if (!invoiceData.includeGST || bulkDetails.gstSlab === 0) {
-            // No GST
             subtotal = bulkDetails.totalPrice;
             totalGST = 0;
           } else if (bulkDetails.isPriceInclusive) {
-            // GST included in bulk price
             const baseAmount =
               bulkDetails.totalPrice / (1 + bulkDetails.gstSlab / 100);
             subtotal = Math.round(baseAmount * 100) / 100;
             totalGST =
               Math.round((bulkDetails.totalPrice - baseAmount) * 100) / 100;
           } else {
-            // GST to be added to bulk price
             subtotal = bulkDetails.totalPrice;
             totalGST =
               Math.round(
@@ -181,17 +145,15 @@ class SalesService extends BaseService {
               ) / 100;
           }
 
-          // Store items without individual calculations (bulk pricing overrides)
           processedItems = invoiceData.items.map((item) => ({
             ...item,
-            baseAmount: 0, // Not applicable with bulk pricing
-            gstAmount: 0, // Not applicable with bulk pricing
-            totalAmount: 0, // Not applicable with bulk pricing
-            bulkPricing: true, // Flag to indicate bulk pricing
+            baseAmount: 0,
+            gstAmount: 0,
+            totalAmount: 0,
+            bulkPricing: true,
             hsnCode: item.hsnCode || "",
           }));
         } else {
-          // USE INDIVIDUAL ITEM CALCULATIONS (existing logic)
           invoiceData.items.forEach((item) => {
             const itemCalc = calculateItemWithGST(
               item,
@@ -214,23 +176,28 @@ class SalesService extends BaseService {
         }
       }
 
-      // NEW - Determine original payment category for tracking
       const originalPaymentCategory = getPaymentCategory(
         invoiceData.paymentStatus,
         invoiceData.paymentDetails?.paymentMethod
       );
 
-      // Clean invoice data - remove undefined values and structure properly
+      const grandTotal = Math.round(subtotal + totalGST);
+      
+      // Calculate net payable (after exchange)
+      const exchangeAmount = invoiceData.exchangeDetails?.hasExchange 
+        ? parseFloat(invoiceData.exchangeDetails.exchangeAmount || 0)
+        : 0;
+      const netPayable = Math.max(0, grandTotal - exchangeAmount);
+
       const cleanInvoiceData = {
         invoiceNumber,
         saleDate: invoiceData.saleDate,
-        company: invoiceData.company, // ADD: Include company information
+        company: invoiceData.company,
         customerId: invoiceData.customerId,
         customerName: invoiceData.customerName,
         customerPhone: invoiceData.customerPhone,
         customerAddress: invoiceData.customerAddress,
         customerState: invoiceData.customerState,
-        // NEW - Add customer GST number
         customerGSTNumber: invoiceData.customerGSTNumber || "",
         salesPersonId: invoiceData.salesPersonId,
         salesPersonName: invoiceData.salesPersonName,
@@ -238,15 +205,29 @@ class SalesService extends BaseService {
         includeGST: invoiceData.includeGST,
         subtotal: Math.round(subtotal * 100) / 100,
         totalGST: Math.round(totalGST * 100) / 100,
-        grandTotal: Math.round(subtotal + totalGST),
-        // Firebase rules expect 'totalAmount' - add this field
-        totalAmount: Math.round(subtotal + totalGST),
+        grandTotal: grandTotal,
+        totalAmount: grandTotal,
+
+        exchangeDetails: invoiceData.exchangeDetails?.hasExchange
+          ? {
+              hasExchange: true,
+              exchangeAmount: exchangeAmount,
+              itemReceived: invoiceData.exchangeDetails.itemReceived || false,
+              exchangeDescription:
+                invoiceData.exchangeDetails.exchangeDescription || "",
+              exchangeReceivedDate: invoiceData.exchangeDetails.itemReceived
+                ? new Date().toISOString()
+                : null,
+            }
+          : null,
+
+        // CRITICAL FIX: Net payable after exchange
+        netPayable: netPayable,
+
         paymentStatus: invoiceData.paymentStatus || PAYMENT_STATUS.PENDING,
         deliveryStatus: invoiceData.deliveryStatus || DELIVERY_STATUS.PENDING,
-        remarks: invoiceData.remarks || "", // Remarks field
-        // NEW - Add original payment category for tracking
+        remarks: invoiceData.remarks || "",
         originalPaymentCategory: originalPaymentCategory,
-        // NEW - Add fullyPaid flag for tracking complete payments while maintaining category
         fullyPaid: invoiceData.paymentStatus === PAYMENT_STATUS.PAID,
         status: "active",
         createdAt: new Date().toISOString(),
@@ -259,34 +240,33 @@ class SalesService extends BaseService {
         }),
       };
 
-      // Only add scheduledDeliveryDate if it exists
       if (invoiceData.scheduledDeliveryDate) {
         cleanInvoiceData.scheduledDeliveryDate =
           invoiceData.scheduledDeliveryDate;
       }
 
-      // Handle payment details for finance and bank transfer
+      // CRITICAL FIX: Use netPayable for all payment calculations
       if (
         invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE ||
-        invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
+        invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER ||
+        invoiceData.paymentStatus === PAYMENT_STATUS.PENDING
       ) {
         if (invoiceData.paymentDetails) {
+          const downPaymentAmount = parseFloat(
+            invoiceData.paymentDetails.downPayment || 0
+          );
+          
           cleanInvoiceData.paymentDetails = {
-            downPayment: parseFloat(
-              invoiceData.paymentDetails.downPayment || 0
-            ),
-            remainingBalance: parseFloat(
-              invoiceData.paymentDetails.remainingBalance || 0
-            ),
+            downPayment: downPaymentAmount,
+            remainingBalance: Math.max(0, netPayable - downPaymentAmount),
             paymentMethod:
               invoiceData.paymentDetails.paymentMethod || PAYMENT_METHODS.CASH,
             bankName: invoiceData.paymentDetails.bankName || "",
             financeCompany: invoiceData.paymentDetails.financeCompany || "",
             paymentReference: invoiceData.paymentDetails.paymentReference || "",
-            // Track payment history for partial payments
-            paymentHistory: [
+            paymentHistory: downPaymentAmount > 0 ? [
               {
-                amount: parseFloat(invoiceData.paymentDetails.downPayment || 0),
+                amount: downPaymentAmount,
                 date: new Date().toISOString(),
                 method:
                   invoiceData.paymentDetails.paymentMethod ||
@@ -296,12 +276,24 @@ class SalesService extends BaseService {
                 recordedByName: invoiceData.createdByName,
                 type: "down_payment",
               },
-            ].filter((payment) => payment.amount > 0), // Only add if there's a down payment
+            ] : [],
+          };
+        }
+        else {
+          // If no payment details provided, initialize with netPayable as remaining balance
+          cleanInvoiceData.paymentDetails = {
+            downPayment: 0,
+            remainingBalance: netPayable,
+            paymentMethod: PAYMENT_METHODS.CASH,
+            bankName: "",
+            financeCompany: "",
+            paymentReference: "",
+            paymentHistory: [],
           };
         }
       }
 
-      // Handle EMI details with down payment support
+      // CRITICAL FIX: EMI calculations based on netPayable
       if (
         invoiceData.paymentStatus === PAYMENT_STATUS.EMI &&
         invoiceData.emiDetails
@@ -309,8 +301,7 @@ class SalesService extends BaseService {
         const downPayment = parseFloat(
           invoiceData.paymentDetails?.downPayment || 0
         );
-        const totalAmount = cleanInvoiceData.grandTotal;
-        const emiAmount = totalAmount - downPayment; // EMI calculated on remaining amount
+        const emiAmount = netPayable - downPayment;
 
         const emiDetails = {
           monthlyAmount: parseFloat(invoiceData.emiDetails.monthlyAmount || 0),
@@ -318,15 +309,13 @@ class SalesService extends BaseService {
             invoiceData.emiDetails.numberOfInstallments || 1
           ),
           downPayment: downPayment,
-          totalAmount: totalAmount,
-          emiAmount: emiAmount, // EMI is calculated on this amount
+          totalAmount: netPayable,
+          emiAmount: emiAmount,
         };
 
-        // Only add startDate and schedule if startDate exists
         if (invoiceData.emiDetails.startDate) {
           emiDetails.startDate = invoiceData.emiDetails.startDate;
 
-          // Generate schedule based on EMI amount (after down payment)
           if (
             invoiceData.emiDetails.schedule &&
             invoiceData.emiDetails.schedule.length > 0
@@ -337,7 +326,6 @@ class SalesService extends BaseService {
 
         cleanInvoiceData.emiDetails = emiDetails;
 
-        // Record down payment in payment history if provided
         if (downPayment > 0) {
           cleanInvoiceData.paymentDetails = {
             downPayment: downPayment,
@@ -361,15 +349,12 @@ class SalesService extends BaseService {
         }
       }
 
-      // NEW: Save products to catalog after processing items
       if (processedItems && processedItems.length > 0) {
-        // Save each item as a product in the catalog (non-blocking)
         processedItems.forEach(async (item) => {
           try {
             await productService.saveProductFromInvoiceItem(userType, item);
           } catch (error) {
             console.error("Error saving product:", error);
-            // Don't fail invoice creation if product save fails
           }
         });
       }
@@ -381,22 +366,10 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Create new sale/invoice
-   * @param {string} userType - User type
-   * @param {Object} saleData - Sale data
-   * @returns {Promise<Object>} Created sale
-   */
   async createSale(userType, saleData) {
     return await this.createInvoice(userType, saleData);
   }
 
-  /**
-   * Get invoice by ID
-   * @param {string} userType - User type
-   * @param {string} invoiceId - Invoice ID
-   * @returns {Promise<Object>} Invoice data
-   */
   async getInvoiceById(userType, invoiceId) {
     try {
       return await this.getById(userType, invoiceId);
@@ -407,60 +380,65 @@ class SalesService extends BaseService {
   }
 
   /**
-   * FIXED: Update invoice method that preserves EMI payment history
-   * IMPORTANT: Invoice number should NOT be changed during updates
-   * @param {string} userType - User type
-   * @param {string} invoiceId - Invoice ID
-   * @param {Object} updates - Update data
-   * @returns {Promise<Object>} Updated invoice
-   */
-  /**
-   * FIXED: Update invoice method that preserves EMI payment history
-   * IMPORTANT: Invoice number should NOT be changed during updates
-   * @param {string} userType - User type
-   * @param {string} invoiceId - Invoice ID
-   * @param {Object} updates - Update data
-   * @returns {Promise<Object>} Updated invoice
+   * Update invoice - CRITICAL FIXES for exchange credit calculations
    */
   async updateInvoice(userType, invoiceId, updates) {
     try {
-      // CRITICAL FIX: Get existing invoice first to preserve EMI history
       const existingInvoice = await this.getById(userType, invoiceId);
-
-      // Clean undefined values from updates
       const cleanUpdates = this.cleanUndefinedValues(updates);
 
-      // CRITICAL: Remove invoiceNumber from updates to prevent changes during edit
       if (cleanUpdates.invoiceNumber) {
-        console.log(
-          "Removing invoiceNumber from updates to prevent modification during edit"
-        );
         delete cleanUpdates.invoiceNumber;
       }
 
-      // ADD: Include company information if provided
       if (updates.company) {
         cleanUpdates.company = updates.company;
       }
 
-      // CRITICAL FIX: Preserve existing EMI details before any processing
+      // Handle exchange details updates
+      if (updates.exchangeDetails !== undefined) {
+        if (updates.exchangeDetails?.hasExchange) {
+          cleanUpdates.exchangeDetails = {
+            hasExchange: true,
+            exchangeAmount: parseFloat(
+              updates.exchangeDetails.exchangeAmount || 0
+            ),
+            itemReceived: updates.exchangeDetails.itemReceived || false,
+            exchangeDescription:
+              updates.exchangeDetails.exchangeDescription || "",
+            exchangeReceivedDate: updates.exchangeDetails.itemReceived
+              ? existingInvoice.exchangeDetails?.exchangeReceivedDate ||
+                new Date().toISOString()
+              : null,
+          };
+
+          const grandTotal =
+            cleanUpdates.grandTotal || existingInvoice.grandTotal;
+          cleanUpdates.netPayable = Math.max(
+            0,
+            grandTotal - cleanUpdates.exchangeDetails.exchangeAmount
+          );
+        } else {
+          cleanUpdates.exchangeDetails = null;
+          cleanUpdates.netPayable =
+            cleanUpdates.grandTotal || existingInvoice.grandTotal;
+        }
+      }
+
+      // If items changed, recalculate net payable with exchange
+      if (cleanUpdates.items && cleanUpdates.grandTotal) {
+        const exchangeAmount =
+          cleanUpdates.exchangeDetails?.exchangeAmount ||
+          existingInvoice.exchangeDetails?.exchangeAmount ||
+          0;
+        cleanUpdates.netPayable = Math.max(
+          0,
+          cleanUpdates.grandTotal - exchangeAmount
+        );
+      }
+
       const existingEmiDetails = existingInvoice.emiDetails;
       const hasExistingEmiSchedule = existingEmiDetails?.schedule?.length > 0;
-
-      // Log for debugging
-      if (hasExistingEmiSchedule) {
-        console.log(
-          "🔒 Preserving EMI schedule with",
-          existingEmiDetails.schedule.length,
-          "installments"
-        );
-
-        // Count paid installments for verification
-        const paidCount = existingEmiDetails.schedule.filter(
-          (emi) => emi.paid
-        ).length;
-        console.log("📊 Preserving", paidCount, "paid installments");
-      }
 
       // Recalculate totals if items changed
       if (cleanUpdates.items) {
@@ -468,12 +446,10 @@ class SalesService extends BaseService {
         let totalGST = 0;
         const processedItems = [];
 
-        // CHECK: Is bulk pricing applied in the update?
         if (
           cleanUpdates.bulkPricingDetails &&
           cleanUpdates.bulkPricingDetails.totalPrice > 0
         ) {
-          // USE BULK PRICING - ignore individual item calculations
           const bulkDetails = cleanUpdates.bulkPricingDetails;
 
           if (!cleanUpdates.includeGST || bulkDetails.gstSlab === 0) {
@@ -505,7 +481,6 @@ class SalesService extends BaseService {
 
           cleanUpdates.bulkPricingApplied = true;
         } else {
-          // USE INDIVIDUAL ITEM CALCULATIONS
           cleanUpdates.items.forEach((item) => {
             const itemCalc = calculateItemWithGST(
               item,
@@ -537,15 +512,18 @@ class SalesService extends BaseService {
         cleanUpdates.grandTotal = Math.round(subtotal + totalGST);
         cleanUpdates.totalAmount = cleanUpdates.grandTotal;
 
-        // CRITICAL FIX: If this is an EMI invoice with existing schedule,
-        // preserve the schedule and only update unpaid installment amounts
-        if (hasExistingEmiSchedule && existingInvoice.paymentStatus === "emi") {
-          console.log("💰 EMI invoice detected - preserving payment history");
+        // Recalculate netPayable with exchange
+        const exchangeAmount =
+          cleanUpdates.exchangeDetails?.exchangeAmount ||
+          existingInvoice.exchangeDetails?.exchangeAmount ||
+          0;
+        cleanUpdates.netPayable = Math.max(0, cleanUpdates.grandTotal - exchangeAmount);
 
-          const newTotal = cleanUpdates.grandTotal;
+        // CRITICAL FIX: Preserve EMI schedule with net payable
+        if (hasExistingEmiSchedule && existingInvoice.paymentStatus === "emi") {
+          const newTotal = cleanUpdates.netPayable;
           const existingSchedule = [...existingEmiDetails.schedule];
 
-          // CRITICAL FIX: Get down payment to calculate correct EMI amount
           const downPayment = parseFloat(
             existingInvoice.emiDetails?.downPayment || 0
           );
@@ -555,7 +533,6 @@ class SalesService extends BaseService {
             .filter((emi) => emi.paid)
             .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
 
-          // FIXED: Calculate remaining based on EMI amount (after down payment)
           const newRemainingBalance = newEmiAmount - totalPaid;
           const unpaidInstallments = existingSchedule.filter(
             (emi) => !emi.paid
@@ -580,15 +557,6 @@ class SalesService extends BaseService {
                   Math.round(equalAmount * 100) / 100;
               }
             });
-
-            console.log("✅ Redistributed unpaid amounts:", {
-              newTotal,
-              downPayment,
-              newEmiAmount,
-              totalPaid,
-              newRemainingBalance,
-              unpaidCount: unpaidInstallments.length,
-            });
           }
 
           let updatedEmiDetails = {
@@ -596,7 +564,8 @@ class SalesService extends BaseService {
             schedule: existingSchedule,
             totalPaid: Math.round(totalPaid * 100) / 100,
             totalRemaining: Math.round(newRemainingBalance * 100) / 100,
-            emiAmount: newEmiAmount, // Add this field
+            emiAmount: newEmiAmount,
+            totalAmount: newTotal,
           };
 
           if (
@@ -611,13 +580,20 @@ class SalesService extends BaseService {
         }
       }
 
-      // Handle payment details updates
+      // CRITICAL FIX: Payment details with netPayable
       if (cleanUpdates.paymentDetails) {
+        const downPaymentAmount = parseFloat(
+          cleanUpdates.paymentDetails.downPayment || 0
+        );
+        const netPayableAmount = 
+          cleanUpdates.netPayable || 
+          existingInvoice.netPayable || 
+          cleanUpdates.grandTotal || 
+          existingInvoice.grandTotal;
+        
         cleanUpdates.paymentDetails = {
-          downPayment: parseFloat(cleanUpdates.paymentDetails.downPayment || 0),
-          remainingBalance: parseFloat(
-            cleanUpdates.paymentDetails.remainingBalance || 0
-          ),
+          downPayment: downPaymentAmount,
+          remainingBalance: Math.max(0, netPayableAmount - downPaymentAmount),
           paymentMethod: cleanUpdates.paymentDetails.paymentMethod || "cash",
           bankName: cleanUpdates.paymentDetails.bankName || "",
           financeCompany: cleanUpdates.paymentDetails.financeCompany || "",
@@ -629,7 +605,7 @@ class SalesService extends BaseService {
         };
       }
 
-      // FIX: Handle EMI down payment changes with payment history tracking
+      // EMI down payment changes
       if (
         hasExistingEmiSchedule &&
         existingInvoice.paymentStatus === "emi" &&
@@ -644,20 +620,16 @@ class SalesService extends BaseService {
         );
 
         if (newDownPayment !== existingDownPayment) {
-          console.log(
-            "💰 Down payment changed from",
-            existingDownPayment,
-            "to",
-            newDownPayment
-          );
-
-          // Initialize emiDetails if it doesn't exist
           if (!cleanUpdates.emiDetails) {
             cleanUpdates.emiDetails = { ...existingInvoice.emiDetails };
           }
 
           const totalAmount =
-            cleanUpdates.grandTotal || existingInvoice.grandTotal || 0;
+            cleanUpdates.netPayable || 
+            existingInvoice.netPayable ||
+            cleanUpdates.grandTotal || 
+            existingInvoice.grandTotal || 
+            0;
           const existingSchedule =
             cleanUpdates.emiDetails.schedule ||
             existingInvoice.emiDetails.schedule ||
@@ -670,7 +642,6 @@ class SalesService extends BaseService {
           const newRemainingBalance =
             totalAmount - newDownPayment - installmentsPaid;
 
-          // FIX: Add payment history entry if down payment increased
           if (newDownPayment > existingDownPayment) {
             const additionalPayment = newDownPayment - existingDownPayment;
 
@@ -689,11 +660,6 @@ class SalesService extends BaseService {
               ...(cleanUpdates.paymentDetails.paymentHistory || []),
               newPaymentRecord,
             ];
-
-            console.log(
-              "✅ Added payment history entry for:",
-              additionalPayment
-            );
           }
 
           cleanUpdates.emiDetails.downPayment = newDownPayment;
@@ -704,7 +670,6 @@ class SalesService extends BaseService {
             newRemainingBalance
           );
 
-          // Redistribute unpaid installments
           const unpaidInstallments = existingSchedule.filter(
             (emi) => !emi.paid
           );
@@ -730,14 +695,11 @@ class SalesService extends BaseService {
             });
 
             cleanUpdates.emiDetails.schedule = existingSchedule;
-            console.log(
-              "✅ Redistributed installments after down payment change"
-            );
           }
         }
       }
 
-      // FIX: Handle EMI monthly amount changes with proper installment recalculation
+      // EMI monthly amount changes
       if (
         hasExistingEmiSchedule &&
         existingInvoice.paymentStatus === "emi" &&
@@ -754,19 +716,16 @@ class SalesService extends BaseService {
           newMonthlyAmount !== existingMonthlyAmount &&
           newMonthlyAmount > 0
         ) {
-          console.log(
-            "💳 Monthly EMI changed from",
-            existingMonthlyAmount,
-            "to",
-            newMonthlyAmount
-          );
-
           if (!cleanUpdates.emiDetails) {
             cleanUpdates.emiDetails = { ...existingInvoice.emiDetails };
           }
 
           const totalAmount =
-            cleanUpdates.grandTotal || existingInvoice.grandTotal || 0;
+            cleanUpdates.netPayable ||
+            existingInvoice.netPayable ||
+            cleanUpdates.grandTotal || 
+            existingInvoice.grandTotal || 
+            0;
           const downPayment = parseFloat(
             cleanUpdates.emiDetails.downPayment ||
               existingInvoice.emiDetails?.downPayment ||
@@ -785,7 +744,6 @@ class SalesService extends BaseService {
             .reduce((sum, emi) => sum + (emi.paidAmount || 0), 0);
           const remainingBalance = emiAmount - installmentsPaid;
 
-          // CRITICAL FIX: Calculate NEW number of installments needed
           const newNumberOfInstallments = Math.ceil(
             remainingBalance / newMonthlyAmount
           );
@@ -859,19 +817,9 @@ class SalesService extends BaseService {
             totalAmount: totalAmount,
             downPayment: downPayment,
           };
-
-          console.log("✅ Recalculated EMI schedule:", {
-            newMonthlyAmount,
-            newNumberOfInstallments,
-            totalInstallments: newSchedule.length,
-            paidCount: paidInstallments.length,
-            unpaidCount: newNumberOfInstallments,
-            remainingBalance,
-          });
         }
       }
 
-      // CRITICAL FIX: Preserve customer due date change flags
       if (
         existingInvoice.customerDueDateChangeFlags &&
         !cleanUpdates.customerDueDateChangeFlags
@@ -882,35 +830,12 @@ class SalesService extends BaseService {
 
       cleanUpdates.updatedAt = new Date().toISOString();
 
-      const result = await this.update(userType, invoiceId, cleanUpdates);
-
-      if (hasExistingEmiSchedule && result.emiDetails?.schedule) {
-        const finalPaidCount = result.emiDetails.schedule.filter(
-          (emi) => emi.paid
-        ).length;
-        console.log(
-          "✅ EMI history preserved - Final paid count:",
-          finalPaidCount
-        );
-        console.log(
-          "✅ Monthly amount in DB:",
-          result.emiDetails.monthlyAmount
-        );
-      }
-
-      return result;
+      return await this.update(userType, invoiceId, cleanUpdates);
     } catch (error) {
-      console.error("Error updating invoice:", error);
       throw error;
     }
   }
 
-  /**
-   * Delete invoice
-   * @param {string} userType - User type
-   * @param {string} invoiceId - Invoice ID
-   * @returns {Promise<boolean>} Success status
-   */
   async deleteInvoice(userType, invoiceId) {
     try {
       await this.delete(userType, invoiceId);
@@ -921,32 +846,16 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Update sale/invoice
-   * @param {string} userType - User type
-   * @param {string} saleId - Sale ID
-   * @param {Object} updates - Update data
-   * @returns {Promise<Object>} Updated sale
-   */
   async updateSale(userType, saleId, updates) {
     return await this.updateInvoice(userType, saleId, updates);
   }
 
-  /**
-   * Get sales with filters - simplified for client-side filtering
-   * @param {string} userType - User type
-   * @param {Object} filters - Filter options (mostly ignored for client-side filtering)
-   * @returns {Promise<Array>} All sales data
-   */
   async getSales(userType, filters = {}) {
     try {
-      // Simple query to get all sales, let client handle filtering/sorting
       const sales = await this.getAll(userType, {
         orderBy: "createdAt",
         orderDirection: "desc",
       });
-
-      // Return simple array for client-side processing
       return sales;
     } catch (error) {
       console.error("Error getting sales:", error);
@@ -954,19 +863,12 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Search sales by term
-   * @param {string} userType - User type
-   * @param {string} searchTerm - Search term
-   * @returns {Promise<Array>} Matching sales
-   */
   async searchSales(userType, searchTerm) {
     try {
-      // Get all sales and filter client-side (Firebase limitation)
       const allSales = await this.getAll(userType, {
         orderBy: "createdAt",
         orderDirection: "desc",
-        limit: 100, // Reasonable limit for search
+        limit: 100,
       });
 
       if (!searchTerm.trim()) {
@@ -986,12 +888,6 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Get sales statistics - UPDATED to handle new payment types and tracking
-   * @param {string} userType - User type
-   * @param {Object} filters - Filter options
-   * @returns {Promise<Object>} Sales statistics
-   */
   async getSalesStats(userType, filters = {}) {
     try {
       const sales = await this.getAll(userType, {
@@ -1011,16 +907,16 @@ class SalesService extends BaseService {
         return saleDate >= todayStart;
       });
 
-      // Calculate actual amounts paid for partial payments
       const calculateActualAmountPaid = (sale) => {
         if (
           sale.paymentStatus === PAYMENT_STATUS.FINANCE ||
-          sale.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
+          sale.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER ||
+          sale.paymentStatus === PAYMENT_STATUS.PENDING
         ) {
           return sale.paymentDetails?.downPayment || 0;
         }
         if (sale.paymentStatus === PAYMENT_STATUS.PAID || sale.fullyPaid) {
-          return sale.grandTotal || sale.totalAmount || 0;
+          return sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
         }
         if (
           sale.paymentStatus === PAYMENT_STATUS.EMI &&
@@ -1033,7 +929,6 @@ class SalesService extends BaseService {
         return 0;
       };
 
-      // NEW - Calculate stats by original payment category
       const statsByCategory = {};
       sales.forEach((sale) => {
         const category = sale.originalPaymentCategory || "unknown";
@@ -1046,27 +941,25 @@ class SalesService extends BaseService {
         }
         statsByCategory[category].count++;
         statsByCategory[category].totalAmount +=
-          sale.grandTotal || sale.totalAmount || 0;
+          sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
         statsByCategory[category].paidAmount += calculateActualAmountPaid(sale);
       });
 
       const stats = {
         totalSales: sales.length,
         totalAmount: sales.reduce(
-          (sum, sale) => sum + (sale.grandTotal || sale.totalAmount || 0),
+          (sum, sale) => sum + (sale.netPayable || sale.grandTotal || sale.totalAmount || 0),
           0
         ),
-        // Actual amount collected
         totalAmountPaid: sales.reduce(
           (sum, sale) => sum + calculateActualAmountPaid(sale),
           0
         ),
         todaysSales: todaysSales.length,
         todaysAmount: todaysSales.reduce(
-          (sum, sale) => sum + (sale.grandTotal || sale.totalAmount || 0),
+          (sum, sale) => sum + (sale.netPayable || sale.grandTotal || sale.totalAmount || 0),
           0
         ),
-        // Today's actual collections
         todaysAmountPaid: todaysSales.reduce(
           (sum, sale) => sum + calculateActualAmountPaid(sale),
           0
@@ -1077,27 +970,23 @@ class SalesService extends BaseService {
         pendingDeliveries: sales.filter(
           (sale) => sale.deliveryStatus === DELIVERY_STATUS.PENDING
         ).length,
-        // Updated to use fullyPaid flag instead of just paymentStatus
         paidInvoices: sales.filter(
           (sale) => sale.paymentStatus === PAYMENT_STATUS.PAID || sale.fullyPaid
         ).length,
         emiInvoices: sales.filter(
           (sale) => sale.paymentStatus === PAYMENT_STATUS.EMI
         ).length,
-        // Finance and Bank Transfer invoices (regardless of full payment status)
         financeInvoices: sales.filter(
           (sale) => sale.paymentStatus === PAYMENT_STATUS.FINANCE
         ).length,
         bankTransferInvoices: sales.filter(
           (sale) => sale.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
         ).length,
-        // Outstanding amounts
         outstandingAmount: sales.reduce((sum, sale) => {
-          const totalAmount = sale.grandTotal || sale.totalAmount || 0;
+          const totalAmount = sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
           const paidAmount = calculateActualAmountPaid(sale);
           return sum + Math.max(0, totalAmount - paidAmount);
         }, 0),
-        // NEW - Stats by original payment category
         statsByCategory,
       };
 
@@ -1108,11 +997,6 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Get pending EMI payments
-   * @param {string} userType - User type
-   * @returns {Promise<Array>} Pending EMI payments
-   */
   async getPendingEMIPayments(userType) {
     try {
       return await this.getAll(userType, {
@@ -1126,11 +1010,6 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Get pending deliveries
-   * @param {string} userType - User type
-   * @returns {Promise<Array>} Pending deliveries
-   */
   async getPendingDeliveries(userType) {
     try {
       return await this.getAll(userType, {
@@ -1145,12 +1024,7 @@ class SalesService extends BaseService {
   }
 
   /**
-   * UPDATED - Record additional payment for PENDING, FINANCE, and BANK_TRANSFER invoices
-   * @param {string} userType - User type
-   * @param {string} invoiceId - Invoice ID
-   * @param {number} paymentAmount - Payment amount
-   * @param {Object} paymentDetails - Payment details including date
-   * @returns {Promise<Object>} Updated invoice
+   * CRITICAL FIX: Record additional payment using netPayable
    */
   async recordAdditionalPayment(
     userType,
@@ -1161,11 +1035,12 @@ class SalesService extends BaseService {
     try {
       const invoice = await this.getById(userType, invoiceId);
 
-      // Initialize paymentDetails if it doesn't exist (for PENDING invoices)
+      const totalAmount = invoice.netPayable || invoice.grandTotal || invoice.totalAmount || 0;
+
       if (!invoice.paymentDetails) {
         invoice.paymentDetails = {
           downPayment: 0,
-          remainingBalance: invoice.grandTotal || invoice.totalAmount || 0,
+          remainingBalance: totalAmount,
           paymentMethod: PAYMENT_METHODS.CASH,
           paymentHistory: [],
         };
@@ -1174,14 +1049,11 @@ class SalesService extends BaseService {
       const currentPaid = parseFloat(invoice.paymentDetails.downPayment || 0);
       const additionalAmount = parseFloat(paymentAmount);
       const newTotalPaid = currentPaid + additionalAmount;
-      const totalAmount = invoice.grandTotal || invoice.totalAmount || 0;
       const newRemainingBalance = Math.max(0, totalAmount - newTotalPaid);
 
-      // Use provided payment date or current date
       const paymentDate =
         paymentDetails.paymentDate || new Date().toISOString();
 
-      // Add to payment history
       const newPaymentRecord = {
         amount: additionalAmount,
         date: paymentDate,
@@ -1209,11 +1081,9 @@ class SalesService extends BaseService {
         updatedAt: new Date().toISOString(),
       };
 
-      // If fully paid, set fullyPaid flag but KEEP original payment status for tracking
       if (newRemainingBalance === 0) {
         updates.fullyPaid = true;
         updates.paymentDate = paymentDate;
-        // DON'T change paymentStatus - keep it as PENDING/FINANCE/BANK_TRANSFER for tracking
       }
 
       return await this.update(userType, invoiceId, updates);
@@ -1223,14 +1093,6 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Update payment status
-   * @param {string} userType - User type
-   * @param {string} invoiceId - Invoice ID
-   * @param {string} paymentStatus - New payment status
-   * @param {Object} paymentDetails - Additional payment data
-   * @returns {Promise<Object>} Updated invoice
-   */
   async updatePaymentStatus(
     userType,
     invoiceId,
@@ -1246,7 +1108,7 @@ class SalesService extends BaseService {
 
       if (paymentStatus === PAYMENT_STATUS.PAID) {
         updates.paymentDate = new Date().toISOString();
-        updates.fullyPaid = true; // NEW - Set fullyPaid flag
+        updates.fullyPaid = true;
       }
 
       return await this.updateInvoice(userType, invoiceId, updates);
@@ -1256,14 +1118,6 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Update delivery status
-   * @param {string} userType - User type
-   * @param {string} invoiceId - Invoice ID
-   * @param {string} deliveryStatus - New delivery status
-   * @param {Object} deliveryDetails - Additional delivery data
-   * @returns {Promise<Object>} Updated invoice
-   */
   async updateDeliveryStatus(
     userType,
     invoiceId,
@@ -1288,14 +1142,6 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Update EMI payment
-   * @param {string} userType - User type
-   * @param {string} invoiceId - Invoice ID
-   * @param {number} emiIndex - EMI installment index
-   * @param {Object} paymentDetails - Payment details
-   * @returns {Promise<Object>} Updated invoice
-   */
   async updateEMIPayment(userType, invoiceId, emiIndex, paymentDetails) {
     try {
       const invoice = await this.getById(userType, invoiceId);
@@ -1321,12 +1167,10 @@ class SalesService extends BaseService {
           updatedAt: new Date().toISOString(),
         };
 
-        // Check if all EMIs are paid
         const allPaid = schedule.every((emi) => emi.paid);
         if (allPaid) {
-          updates.fullyPaid = true; // NEW - Set fullyPaid flag instead of changing status
+          updates.fullyPaid = true;
           updates.paymentDate = new Date().toISOString();
-          // Keep paymentStatus as EMI for tracking purposes
         }
 
         return await this.updateInvoice(userType, invoiceId, updates);
@@ -1339,12 +1183,6 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Get customer purchase history
-   * @param {string} userType - User type
-   * @param {string} customerId - Customer ID
-   * @returns {Promise<Array>} Customer's purchase history
-   */
   async getCustomerPurchaseHistory(userType, customerId) {
     try {
       return await this.getAll(userType, {
@@ -1358,13 +1196,6 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Get sales by date range
-   * @param {string} userType - User type
-   * @param {string} startDate - Start date
-   * @param {string} endDate - End date
-   * @returns {Promise<Array>} Sales in date range
-   */
   async getSalesByDateRange(userType, startDate, endDate) {
     try {
       return await this.getAll(userType, {
@@ -1382,11 +1213,7 @@ class SalesService extends BaseService {
   }
 
   /**
-   * Record installment payment
-   * Rules:
-   * - Partial (< installment): update only this installment
-   * - Exact (= installment): mark paid, no redistribution
-   * - Overpayment (> installment): mark paid + redistribute excess to remaining installments
+   * CRITICAL FIX: Record installment payment using netPayable
    */
   async recordInstallmentPayment(
     userType,
@@ -1415,9 +1242,7 @@ class SalesService extends BaseService {
 
       let excessAmount = 0;
 
-      // --- STEP 1: Update this installment ---
       if (totalPaidNow >= installmentAmount) {
-        // Full payment or overpayment
         excessAmount = totalPaidNow - installmentAmount;
 
         schedule[installmentIndex] = {
@@ -1444,7 +1269,6 @@ class SalesService extends BaseService {
           ],
         };
       } else {
-        // Partial payment
         schedule[installmentIndex] = {
           ...installment,
           paid: false,
@@ -1469,7 +1293,6 @@ class SalesService extends BaseService {
         };
       }
 
-      // --- STEP 2: Redistribute ONLY if excessAmount > 0 ---
       if (excessAmount > 0) {
         let remainingExcess = excessAmount;
 
@@ -1477,12 +1300,11 @@ class SalesService extends BaseService {
           if (remainingExcess <= 0) break;
 
           const emi = schedule[i];
-          if (emi.paid) continue; // skip already paid
+          if (emi.paid) continue;
 
           const remaining = emi.amount - (emi.paidAmount || 0);
 
           if (remainingExcess >= remaining) {
-            // Fully pay this installment too
             schedule[i] = {
               ...emi,
               paid: true,
@@ -1504,7 +1326,6 @@ class SalesService extends BaseService {
             };
             remainingExcess -= remaining;
           } else {
-            // Partially pay this installment
             schedule[i] = {
               ...emi,
               paid: false,
@@ -1529,9 +1350,8 @@ class SalesService extends BaseService {
         }
       }
 
-      // --- STEP 3: Recalculate totals ---
       const downPayment = invoice.emiDetails?.downPayment || 0;
-      const originalTotal = invoice.grandTotal || invoice.totalAmount;
+      const originalTotal = invoice.netPayable || invoice.grandTotal || invoice.totalAmount;
 
       const totalPaid =
         downPayment +
@@ -1541,7 +1361,6 @@ class SalesService extends BaseService {
 
       const remainingBalance = Math.max(0, originalTotal - totalPaid);
 
-      // --- STEP 4: Check if all are fully paid ---
       const allPaid = schedule.every((emi) => emi.paid);
 
       const updates = {
@@ -1567,9 +1386,6 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Get installment payment history - simplified to show only actual payments
-   */
   async getInstallmentPaymentHistory(userType, invoiceId) {
     try {
       const invoice = await this.getById(userType, invoiceId);
@@ -1593,12 +1409,6 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Get pending installments for an invoice
-   * @param {string} userType - User type
-   * @param {string} invoiceId - Invoice ID
-   * @returns {Promise<Array>} Pending installments
-   */
   async getPendingInstallments(userType, invoiceId) {
     try {
       const invoice = await this.getById(userType, invoiceId);
@@ -1630,15 +1440,6 @@ class SalesService extends BaseService {
     }
   }
 
-  /**
-   * Update installment due date with change tracking
-   * @param {string} userType - User type
-   * @param {string} invoiceId - Invoice ID
-   * @param {number} installmentNumber - Installment number
-   * @param {string} newDueDate - New due date
-   * @param {Object} changeDetails - Change details (reason, changedBy, etc.)
-   * @returns {Promise<Object>} Updated invoice
-   */
   async updateInstallmentDueDate(
     userType,
     invoiceId,
@@ -1668,12 +1469,10 @@ class SalesService extends BaseService {
 
       const currentInstallment = schedule[installmentIndex];
 
-      // Initialize due date change tracking if not exists
       if (!currentInstallment.dueDateChangeHistory) {
         currentInstallment.dueDateChangeHistory = [];
       }
 
-      // Record the change in history
       const changeRecord = {
         previousDueDate: currentInstallment.dueDate,
         newDueDate: newDueDate,
@@ -1684,10 +1483,8 @@ class SalesService extends BaseService {
         notes: changeDetails.notes || "",
       };
 
-      // Add to change history
       currentInstallment.dueDateChangeHistory.push(changeRecord);
 
-      // Update installment with new due date and metadata
       schedule[installmentIndex] = {
         ...currentInstallment,
         dueDate: newDueDate,
@@ -1695,15 +1492,12 @@ class SalesService extends BaseService {
         dueDateUpdatedAt: new Date().toISOString(),
         dueDateChangeCount: currentInstallment.dueDateChangeHistory.length,
         lastDueDateChange: changeRecord,
-        // Flag for multiple changes (3+ times)
         hasFrequentDueDateChanges:
           currentInstallment.dueDateChangeHistory.length >= 3,
       };
 
-      // Update customer-level tracking for frequent due date changes
       let customerDueDateChangeFlags = invoice.customerDueDateChangeFlags || {};
 
-      // Count total due date changes for this customer across all installments
       const totalCustomerChanges = schedule.reduce((total, inst) => {
         return total + (inst.dueDateChangeHistory?.length || 0);
       }, 0);
@@ -1712,7 +1506,7 @@ class SalesService extends BaseService {
         totalChanges: totalCustomerChanges,
         hasFrequentChanges: totalCustomerChanges >= 3,
         lastChangeDate: new Date().toISOString(),
-        flaggedForReview: totalCustomerChanges >= 5, // Flag for management review at 5+ changes
+        flaggedForReview: totalCustomerChanges >= 5,
       };
 
       const updates = {
@@ -1732,7 +1526,7 @@ class SalesService extends BaseService {
   }
 
   /**
-   * Get EMI summary for an invoice - FIXED VERSION
+   * CRITICAL FIX: Get EMI summary using netPayable
    */
   async getEMISummary(userType, invoiceId) {
     try {
@@ -1747,15 +1541,14 @@ class SalesService extends BaseService {
       const paidInstallments = schedule.filter((emi) => emi.paid).length;
       const pendingInstallments = totalInstallments - paidInstallments;
 
-      const totalAmount = invoice.grandTotal || invoice.totalAmount;
-      const downPayment = invoice.emiDetails?.downPayment || 0; // Add down payment
+      const totalAmount = invoice.netPayable || invoice.grandTotal || invoice.totalAmount;
+      const downPayment = invoice.emiDetails?.downPayment || 0;
 
-      // Calculate actual amount paid (down payment + paid installments)
       const installmentsPaid = schedule
         .filter((emi) => emi.paid)
         .reduce((sum, emi) => sum + (emi.paidAmount || 0), 0);
 
-      const paidAmount = downPayment + installmentsPaid; // Include down payment
+      const paidAmount = downPayment + installmentsPaid;
       const remainingAmount = totalAmount - paidAmount;
 
       const today = new Date();
@@ -1776,7 +1569,7 @@ class SalesService extends BaseService {
         pendingInstallments,
         overdueInstallments,
         totalAmount: Math.round(totalAmount * 100) / 100,
-        downPayment: Math.round(downPayment * 100) / 100, // Add to return
+        downPayment: Math.round(downPayment * 100) / 100,
         emiAmount:
           Math.round(
             (invoice.emiDetails?.emiAmount || totalAmount - downPayment) * 100
@@ -1793,8 +1586,57 @@ class SalesService extends BaseService {
       throw error;
     }
   }
+
+  async updateExchangeItemStatus(
+    userType,
+    invoiceId,
+    itemReceived,
+    receivedBy,
+    receivedByName
+  ) {
+    try {
+      const invoice = await this.getById(userType, invoiceId);
+
+      if (!invoice.exchangeDetails?.hasExchange) {
+        throw new Error("Invoice does not have exchange details");
+      }
+
+      const updates = {
+        exchangeDetails: {
+          ...invoice.exchangeDetails,
+          itemReceived,
+          exchangeReceivedDate: itemReceived ? new Date().toISOString() : null,
+          receivedBy: itemReceived ? receivedBy : null,
+          receivedByName: itemReceived ? receivedByName : null,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      return await this.update(userType, invoiceId, updates);
+    } catch (error) {
+      console.error("Error updating exchange item status:", error);
+      throw error;
+    }
+  }
+
+  async getPendingExchanges(userType) {
+    try {
+      const allSales = await this.getAll(userType, {
+        orderBy: "createdAt",
+        orderDirection: "desc",
+      });
+
+      return allSales.filter(
+        (sale) =>
+          sale.exchangeDetails?.hasExchange &&
+          !sale.exchangeDetails?.itemReceived
+      );
+    } catch (error) {
+      console.error("Error getting pending exchanges:", error);
+      throw error;
+    }
+  }
 }
 
-// Create and export singleton instance
 const salesService = new SalesService();
 export default salesService;

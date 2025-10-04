@@ -1,4 +1,4 @@
-// Updated DrawerContent.js - Add Quotation Navigation
+// Updated DrawerContent.js - Add Exchange Navigation
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -30,6 +30,7 @@ import {
   RequestQuote as QuotationIcon,
   Add as AddQuotationIcon,
   LocalShipping as DeliveriesIcon,
+  SwapHoriz as ExchangesIcon,
 } from "@mui/icons-material";
 
 import { useAuth } from "../../../contexts/AuthContext/AuthContext";
@@ -73,10 +74,16 @@ const DrawerContent = ({ onItemClick }) => {
       active: location.pathname.startsWith("/complaints"),
     },
     {
-      label: "Deliveries", // ← NEW ITEM
+      label: "Deliveries",
       icon: DeliveriesIcon,
       path: "/deliveries",
       active: location.pathname.startsWith("/deliveries"),
+    },
+    {
+      label: "Exchanges", // ← NEW ITEM
+      icon: ExchangesIcon,
+      path: "/exchanges",
+      active: location.pathname.startsWith("/exchanges"),
     },
     {
       label: "Attendance",
@@ -99,12 +106,12 @@ const DrawerContent = ({ onItemClick }) => {
       active: location.pathname.startsWith("/my-checklists"),
       employeeOnly: true,
     },
-    // NEW: Quotation section separator
+    // Quotation section separator
     {
       type: "divider",
       label: "Quotations & Sales",
     },
-    // NEW: Quotation navigation items
+    // Quotation navigation items
     {
       label: "Quotations",
       icon: QuotationIcon,
@@ -136,7 +143,7 @@ const DrawerContent = ({ onItemClick }) => {
         location.pathname.startsWith("/sales/edit") ||
         location.pathname === "/sales",
     },
-    // NEW: Reports section separator
+    // Reports section separator
     {
       type: "divider",
       label: "Reports & Analytics",

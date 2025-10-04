@@ -51,13 +51,14 @@ import {
   DELIVERY_STATUS,
   getPaymentCategory,
 } from "../../../utils/constants/appConstants";
-import { 
-  getAllCompanies  // Add this import
+import {
+  getAllCompanies, // Add this import
 } from "../../../utils/constants/companyConstants";
 
 // Import the new ItemModal component
 import ItemModal from "./ItemModal";
 import PaymentDeliveryOptions from "./PaymentDeliveryOptions";
+import ExchangeDetails from "./ExchangeDetails";
 
 // Helper function to safely parse dates
 const parseDate = (dateValue) => {
@@ -86,7 +87,7 @@ const InvoiceForm = ({
   onCancel,
   loading = false,
   error = null,
-  userType = 'electronics',
+  userType = "electronics",
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -117,11 +118,17 @@ const InvoiceForm = ({
     salesPersonId: "",
     salesPersonName: "",
     items: [],
-    includeGST: userType === 'electronics',
+    includeGST: userType === "electronics",
     paymentStatus: PAYMENT_STATUS.PAID,
     deliveryStatus: DELIVERY_STATUS.DELIVERED,
     scheduledDeliveryDate: null,
     remarks: "",
+    exchangeDetails: {
+      hasExchange: false,
+      exchangeAmount: 0,
+      itemReceived: false,
+      exchangeDescription: "",
+    },
     paymentDetails: {
       downPayment: 0,
       remainingBalance: 0,
@@ -189,6 +196,12 @@ const InvoiceForm = ({
         deliveryStatus: invoice.deliveryStatus || DELIVERY_STATUS.DELIVERED,
         scheduledDeliveryDate,
         remarks: invoice.remarks || "",
+        exchangeDetails: invoice.exchangeDetails || {
+          hasExchange: false,
+          exchangeAmount: 0,
+          itemReceived: false,
+          exchangeDescription: "",
+        },
         paymentDetails: {
           downPayment: invoice.paymentDetails?.downPayment || 0,
           remainingBalance: invoice.paymentDetails?.remainingBalance || 0,
@@ -241,6 +254,13 @@ const InvoiceForm = ({
       }
     }
   }, [isEdit, invoice]);
+
+  const handleExchangeChange = (exchangeDetails) => {
+    setFormData((prev) => ({
+      ...prev,
+      exchangeDetails,
+    }));
+  };
 
   // Bulk pricing handlers
   const handleBulkPricingToggle = () => {
@@ -362,11 +382,17 @@ const InvoiceForm = ({
       }
 
       const grandTotal = Math.round(subtotal + totalGST);
-      
+
+      const exchangeAmount = formData.exchangeDetails?.hasExchange
+        ? parseFloat(formData.exchangeDetails.exchangeAmount || 0)
+        : 0;
+      const netPayable = Math.max(0, grandTotal - exchangeAmount);
+
       setCalculations({
         subtotal: Math.round(subtotal * 100) / 100,
         totalGST: Math.round(totalGST * 100) / 100,
         grandTotal: grandTotal, // Rounded to nearest integer
+        netPayable: netPayable,
         itemTotals,
       });
     };
@@ -378,6 +404,7 @@ const InvoiceForm = ({
     formData.includeGST,
     bulkPricingApplied,
     formData.bulkPricingDetails,
+    formData.exchangeDetails,
   ]);
 
   // Auto-calculate remaining balance for finance/bank transfer
@@ -387,10 +414,8 @@ const InvoiceForm = ({
       formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
     ) {
       const downPayment = parseFloat(formData.paymentDetails.downPayment) || 0;
-      const remainingBalance = Math.max(
-        0,
-        calculations.grandTotal - downPayment
-      );
+      const baseAmount = calculations.netPayable || calculations.grandTotal;
+      const remainingBalance = Math.max(0, baseAmount - downPayment);
 
       setFormData((prev) => ({
         ...prev,
@@ -401,6 +426,7 @@ const InvoiceForm = ({
       }));
     }
   }, [
+    calculations.netPayable,
     calculations.grandTotal,
     formData.paymentDetails.downPayment,
     formData.paymentStatus,
@@ -611,6 +637,8 @@ const InvoiceForm = ({
         paymentStatus: newStatus,
       };
 
+      const baseAmount = calculations.netPayable || calculations.grandTotal;
+
       if (
         newStatus === PAYMENT_STATUS.FINANCE ||
         newStatus === PAYMENT_STATUS.BANK_TRANSFER
@@ -618,23 +646,22 @@ const InvoiceForm = ({
         updatedData.paymentDetails = {
           ...prev.paymentDetails,
           downPayment: 0,
-          remainingBalance: calculations.grandTotal,
+          remainingBalance: baseAmount,
         };
       } else if (newStatus === PAYMENT_STATUS.PAID) {
         updatedData.paymentDetails = {
           ...prev.paymentDetails,
-          downPayment: calculations.grandTotal,
+          downPayment: baseAmount,
           remainingBalance: 0,
         };
       }
 
       if (
         newStatus === PAYMENT_STATUS.EMI &&
-        prev.emiDetails.monthlyAmount > 0 &&
-        calculations.grandTotal > 0
+        prev.emiDetails.monthlyAmount > 0
       ) {
         const numberOfInstallments = Math.ceil(
-          calculations.grandTotal / parseFloat(prev.emiDetails.monthlyAmount)
+          baseAmount / parseFloat(prev.emiDetails.monthlyAmount)
         );
         updatedData.emiDetails = {
           ...prev.emiDetails,
@@ -667,7 +694,8 @@ const InvoiceForm = ({
         calculations.grandTotal > 0
       ) {
         const downPayment = parseFloat(prev.paymentDetails?.downPayment || 0);
-        const emiAmount = calculations.grandTotal - downPayment;
+        const baseAmount = calculations.netPayable || calculations.grandTotal;
+        const emiAmount = baseAmount - downPayment;
         const numberOfInstallments = Math.ceil(emiAmount / parseFloat(value));
         updatedEmiDetails.numberOfInstallments = numberOfInstallments;
       }
@@ -692,6 +720,8 @@ const InvoiceForm = ({
   // Form validation - ADD company validation
   const validateForm = () => {
     const errors = {};
+
+    const baseAmount = calculations.netPayable || calculations.grandTotal;
 
     if (!formData.company) {
       errors.company = "Company selection is required";
@@ -728,7 +758,7 @@ const InvoiceForm = ({
       }
       if (
         parseFloat(formData.paymentDetails.downPayment) >
-        calculations.grandTotal
+        baseAmount
       ) {
         errors.downPayment = "Down payment cannot exceed total amount";
       }
@@ -740,7 +770,7 @@ const InvoiceForm = ({
       }
       if (
         parseFloat(formData.paymentDetails.downPayment) >
-        calculations.grandTotal
+        baseAmount
       ) {
         errors.downPayment = "Down payment cannot exceed total amount";
       }
@@ -786,7 +816,7 @@ const InvoiceForm = ({
     const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
     const startDate = new Date(formData.emiDetails.startDate);
     const downPayment = parseFloat(formData.paymentDetails?.downPayment || 0);
-    const totalAmount = calculations.grandTotal;
+    const totalAmount = calculations.netPayable || calculations.grandTotal;
     const emiAmount = totalAmount - downPayment; // EMI calculated on remaining amount
     const numberOfInstallments = parseInt(
       formData.emiDetails.numberOfInstallments
@@ -815,43 +845,46 @@ const InvoiceForm = ({
 
   // Form submission - INCLUDE company in submission
   const handleSubmit = async (event) => {
-  event.preventDefault();
+    event.preventDefault();
 
-  const errors = validateForm();
-  setFormErrors(errors);
+    const errors = validateForm();
+    setFormErrors(errors);
 
-  if (Object.keys(errors).length > 0) {
-    return;
-  }
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
 
-  const invoiceData = {
-    ...formData,
-    saleDate: formData.saleDate.toISOString(),
-    scheduledDeliveryDate: formData.scheduledDeliveryDate?.toISOString(),
-    emiDetails:
-      formData.paymentStatus === PAYMENT_STATUS.EMI
-        ? {
-            ...formData.emiDetails,
-            startDate: formData.emiDetails.startDate?.toISOString(),
-            // CRITICAL FIX: Only generate schedule for NEW invoices, not edits
-            schedule: isEdit && invoice?.emiDetails?.schedule 
-              ? invoice.emiDetails.schedule  // Preserve existing schedule when editing
-              : generateEMISchedule(),       // Generate new schedule only for new invoices
-          }
+    const invoiceData = {
+      ...formData,
+      saleDate: formData.saleDate.toISOString(),
+      scheduledDeliveryDate: formData.scheduledDeliveryDate?.toISOString(),
+      exchangeDetails: formData.exchangeDetails?.hasExchange
+        ? formData.exchangeDetails
         : null,
-    bulkPricingApplied,
-    bulkPricingDetails: bulkPricingApplied
-      ? formData.bulkPricingDetails
-      : null,
-    customerGSTNumber: formData?.customerGSTNumber,
-    company: formData.company,
+      emiDetails:
+        formData.paymentStatus === PAYMENT_STATUS.EMI
+          ? {
+              ...formData.emiDetails,
+              startDate: formData.emiDetails.startDate?.toISOString(),
+              // CRITICAL FIX: Only generate schedule for NEW invoices, not edits
+              schedule:
+                isEdit && invoice?.emiDetails?.schedule
+                  ? invoice.emiDetails.schedule // Preserve existing schedule when editing
+                  : generateEMISchedule(), // Generate new schedule only for new invoices
+            }
+          : null,
+      bulkPricingApplied,
+      bulkPricingDetails: bulkPricingApplied
+        ? formData.bulkPricingDetails
+        : null,
+      customerGSTNumber: formData?.customerGSTNumber,
+      company: formData.company,
+    };
+
+    if (onSubmit) {
+      await onSubmit(invoiceData);
+    }
   };
-
-
-  if (onSubmit) {
-    await onSubmit(invoiceData);
-  }
-};
 
   return (
     <Box component="form" onSubmit={handleSubmit}>
@@ -881,7 +914,7 @@ const InvoiceForm = ({
                   <DatePicker
                     label="Sale Date"
                     value={formData.saleDate}
-                    format='dd/MM/yyyy'
+                    format="dd/MM/yyyy"
                     onChange={handleDateChange("saleDate")}
                     disabled={loading}
                     slotProps={{
@@ -951,7 +984,8 @@ const InvoiceForm = ({
                             {option.name}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {option.category} | {option.address} | GST: {option.gstNumber}
+                            {option.category} | {option.address} | GST:{" "}
+                            {option.gstNumber}
                           </Typography>
                         </Box>
                       </Box>
@@ -969,14 +1003,20 @@ const InvoiceForm = ({
                         border: "1px solid rgba(25, 118, 210, 0.2)",
                       }}
                     >
-                      <Typography variant="subtitle2" color="primary" gutterBottom>
+                      <Typography
+                        variant="subtitle2"
+                        color="primary"
+                        gutterBottom
+                      >
                         Selected Company Details:
                       </Typography>
                       <Typography variant="body2">
-                        <strong>{formData.company.name}</strong> ({formData.company.category})
+                        <strong>{formData.company.name}</strong> (
+                        {formData.company.category})
                       </Typography>
                       <Typography variant="body2">
-                        {formData.company.address}, {formData.company.city}, {formData.company.state} - {formData.company.pincode}
+                        {formData.company.address}, {formData.company.city},{" "}
+                        {formData.company.state} - {formData.company.pincode}
                       </Typography>
                       <Typography variant="body2">
                         Phone: {formData.company.phone}
@@ -1285,6 +1325,13 @@ const InvoiceForm = ({
             </CardContent>
           </Card>
 
+          <ExchangeDetails
+            exchangeDetails={formData.exchangeDetails}
+            onExchangeChange={handleExchangeChange}
+            loading={loading}
+            grandTotal={calculations.grandTotal}
+          />
+
           {/* Bulk Pricing Section */}
           {formData.items.length > 0 && (
             <Card sx={{ mb: 3 }}>
@@ -1527,6 +1574,47 @@ const InvoiceForm = ({
                     color="primary.main"
                   >
                     ₹{calculations.grandTotal.toFixed(2)}
+                  </Typography>
+                </Box>
+
+                {formData.exchangeDetails?.hasExchange &&
+                  formData.exchangeDetails?.exchangeAmount > 0 && (
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2" color="success.main">
+                        Less: Exchange Credit:
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        color="success.main"
+                        fontWeight="600"
+                      >
+                        -₹{formData.exchangeDetails.exchangeAmount.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  )}
+
+                <Divider sx={{ my: 1 }} />
+
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="h6" fontWeight="bold">
+                    {formData.exchangeDetails?.hasExchange
+                      ? "Net Payable:"
+                      : "Grand Total:"}
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    fontWeight="bold"
+                    color="primary.main"
+                  >
+                    ₹
+                    {(formData.exchangeDetails?.hasExchange
+                      ? Math.max(
+                          0,
+                          calculations.grandTotal -
+                            formData.exchangeDetails.exchangeAmount
+                        )
+                      : calculations.grandTotal
+                    ).toFixed(2)}
                   </Typography>
                 </Box>
               </Box>

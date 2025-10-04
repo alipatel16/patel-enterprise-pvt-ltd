@@ -32,6 +32,7 @@ import {
 /**
  * PaymentDeliveryOptions Component
  * Handles payment and delivery options for invoice forms
+ * UPDATED: All payment calculations now use netPayable (after exchange deduction)
  */
 const PaymentDeliveryOptions = ({
   formData,
@@ -50,6 +51,9 @@ const PaymentDeliveryOptions = ({
     formData.paymentStatus,
     formData.paymentDetails.paymentMethod
   );
+
+  // CRITICAL: Use netPayable for all payment calculations (accounts for exchange)
+  const basePaymentAmount = calculations.netPayable || calculations.grandTotal;
 
   return (
     <>
@@ -181,7 +185,7 @@ const PaymentDeliveryOptions = ({
                   {formData.paymentDetails.paymentMethod ===
                     PAYMENT_METHODS.CASH && <MoneyIcon color="success" />}
                   <Typography variant="body2" fontWeight={600}>
-                    Amount: ₹{calculations.grandTotal.toFixed(2)}
+                    Amount: ₹{basePaymentAmount.toFixed(2)}
                   </Typography>
                 </Box>
               </Box>
@@ -225,15 +229,13 @@ const PaymentDeliveryOptions = ({
                 error={!!formErrors.downPayment}
                 helperText={
                   formErrors.downPayment ||
-                  `Remaining: ₹${formData.paymentDetails.remainingBalance.toFixed(
-                    2
-                  )}`
+                  `Remaining: ₹${formData.paymentDetails.remainingBalance.toFixed(2)} | Max: ₹${basePaymentAmount.toFixed(2)}`
                 }
                 disabled={loading || isEdit}
                 sx={{ mb: 2 }}
                 inputProps={{
                   min: 0,
-                  max: calculations.grandTotal,
+                  max: basePaymentAmount,
                   step: 0.01,
                 }}
                 InputProps={{
@@ -272,10 +274,7 @@ const PaymentDeliveryOptions = ({
                 <Box display="flex" justifyContent="space-between" mb={1}>
                   <Typography variant="body2">Down Payment:</Typography>
                   <Typography variant="body2" fontWeight={600}>
-                    ₹
-                    {parseFloat(
-                      formData.paymentDetails.downPayment || 0
-                    ).toFixed(2)}
+                    ₹{parseFloat(formData.paymentDetails.downPayment || 0).toFixed(2)}
                   </Typography>
                 </Box>
                 <Box display="flex" justifyContent="space-between" mb={1}>
@@ -290,7 +289,7 @@ const PaymentDeliveryOptions = ({
                     Total:
                   </Typography>
                   <Typography variant="body2" fontWeight={600}>
-                    ₹{calculations.grandTotal.toFixed(2)}
+                    ₹{basePaymentAmount.toFixed(2)}
                   </Typography>
                 </Box>
               </Box>
@@ -334,15 +333,13 @@ const PaymentDeliveryOptions = ({
                 error={!!formErrors.downPayment}
                 helperText={
                   formErrors.downPayment ||
-                  `Remaining: ₹${formData.paymentDetails.remainingBalance.toFixed(
-                    2
-                  )}`
+                  `Remaining: ₹${formData.paymentDetails.remainingBalance.toFixed(2)} | Max: ₹${basePaymentAmount.toFixed(2)}`
                 }
                 disabled={loading || isEdit}
                 sx={{ mb: 2 }}
                 inputProps={{
                   min: 0,
-                  max: calculations.grandTotal,
+                  max: basePaymentAmount,
                   step: 0.01,
                 }}
                 InputProps={{
@@ -381,10 +378,7 @@ const PaymentDeliveryOptions = ({
                 <Box display="flex" justifyContent="space-between" mb={1}>
                   <Typography variant="body2">Down Payment:</Typography>
                   <Typography variant="body2" fontWeight={600}>
-                    ₹
-                    {parseFloat(
-                      formData.paymentDetails.downPayment || 0
-                    ).toFixed(2)}
+                    ₹{parseFloat(formData.paymentDetails.downPayment || 0).toFixed(2)}
                   </Typography>
                 </Box>
                 <Box display="flex" justifyContent="space-between" mb={1}>
@@ -399,7 +393,7 @@ const PaymentDeliveryOptions = ({
                     Total:
                   </Typography>
                   <Typography variant="body2" fontWeight={600}>
-                    ₹{calculations.grandTotal.toFixed(2)}
+                    ₹{basePaymentAmount.toFixed(2)}
                   </Typography>
                 </Box>
               </Box>
@@ -409,11 +403,9 @@ const PaymentDeliveryOptions = ({
           {/* EMI Details */}
           {formData.paymentStatus === PAYMENT_STATUS.EMI && (
             <Box>
-              {/* NEW: Down Payment Option for EMI */}
               <Alert severity="info" sx={{ mb: 2 }}>
                 <Typography variant="body2">
-                  Configure EMI payment. You can optionally set a down payment
-                  amount.
+                  Configure EMI payment. You can optionally set a down payment amount.
                 </Typography>
               </Alert>
 
@@ -426,13 +418,13 @@ const PaymentDeliveryOptions = ({
                 error={!!formErrors.downPayment}
                 helperText={
                   formErrors.downPayment ||
-                  `EMI will be calculated on remaining amount after down payment`
+                  `EMI will be calculated on remaining amount after down payment. Max: ₹${basePaymentAmount.toFixed(2)}`
                 }
                 disabled={loading || isEdit}
                 sx={{ mb: 2 }}
                 inputProps={{
                   min: 0,
-                  max: calculations.grandTotal,
+                  max: basePaymentAmount,
                   step: 0.01,
                 }}
                 InputProps={{
@@ -450,7 +442,7 @@ const PaymentDeliveryOptions = ({
                 onChange={onEMIChange("monthlyAmount")}
                 error={!!formErrors.emiAmount}
                 helperText={formErrors.emiAmount}
-                disabled={loading|| isEdit}
+                disabled={loading || isEdit}
                 sx={{ mb: 2 }}
                 inputProps={{ min: 1, step: 0.01 }}
               />
@@ -471,120 +463,110 @@ const PaymentDeliveryOptions = ({
                 }}
               />
 
-              {formData.emiDetails.monthlyAmount > 0 &&
-                calculations.grandTotal > 0 && (
-                  <Box
-                    sx={{
-                      mt: 2,
-                      p: 2,
-                      backgroundColor: "rgba(25, 118, 210, 0.1)",
-                      borderRadius: 1,
-                      border: "1px solid rgba(25, 118, 210, 0.2)",
-                    }}
-                  >
-                    <Typography
-                      variant="subtitle2"
-                      color="primary"
-                      gutterBottom
-                    >
-                      EMI Calculation Summary:
-                    </Typography>
-                    <Typography variant="body2" sx={{ mb: 1 }}>
-                      <strong>Invoice Total:</strong> ₹
-                      {calculations.grandTotal.toFixed(2)}
-                    </Typography>
+              {formData.emiDetails.monthlyAmount > 0 && basePaymentAmount > 0 && (
+                <Box
+                  sx={{
+                    mt: 2,
+                    p: 2,
+                    backgroundColor: "rgba(25, 118, 210, 0.1)",
+                    borderRadius: 1,
+                    border: "1px solid rgba(25, 118, 210, 0.2)",
+                  }}
+                >
+                  <Typography variant="subtitle2" color="primary" gutterBottom>
+                    EMI Calculation Summary:
+                  </Typography>
 
-                    {formData.paymentDetails?.downPayment > 0 && (
-                      <>
-                        <Typography variant="body2" sx={{ mb: 1 }}>
-                          <strong>Down Payment:</strong> ₹
-                          {parseFloat(
-                            formData.paymentDetails.downPayment
-                          ).toFixed(2)}
-                        </Typography>
-                        <Typography variant="body2" sx={{ mb: 1 }}>
-                          <strong>EMI Amount (After Down Payment):</strong> ₹
-                          {(
-                            calculations.grandTotal -
-                            parseFloat(formData.paymentDetails.downPayment || 0)
-                          ).toFixed(2)}
-                        </Typography>
-                      </>
-                    )}
+                  {/* Show breakdown if exchange exists */}
+                  {calculations.netPayable && calculations.netPayable !== calculations.grandTotal && (
+                    <>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Items Total:</strong> ₹{calculations.grandTotal.toFixed(2)}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }} color="success.main">
+                        <strong>Less: Exchange Credit:</strong> -₹{(calculations.grandTotal - calculations.netPayable).toFixed(2)}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Net Payable:</strong> ₹{basePaymentAmount.toFixed(2)}
+                      </Typography>
+                      <Divider sx={{ my: 1 }} />
+                    </>
+                  )}
 
+                  {!calculations.netPayable || calculations.netPayable === calculations.grandTotal ? (
                     <Typography variant="body2" sx={{ mb: 1 }}>
-                      <strong>Monthly EMI:</strong> ₹
-                      {parseFloat(formData.emiDetails.monthlyAmount).toFixed(2)}
+                      <strong>Invoice Total:</strong> ₹{basePaymentAmount.toFixed(2)}
                     </Typography>
-                    <Typography variant="body2" sx={{ mb: 1 }}>
-                      <strong>Number of Installments:</strong>{" "}
-                      {formData.emiDetails.numberOfInstallments} months
-                    </Typography>
+                  ) : null}
 
-                    {(() => {
-                      const monthlyAmount = parseFloat(
-                        formData.emiDetails.monthlyAmount
+                  {formData.paymentDetails?.downPayment > 0 && (
+                    <>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Down Payment:</strong> ₹{parseFloat(formData.paymentDetails.downPayment).toFixed(2)}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>EMI Amount (After Down Payment):</strong> ₹
+                        {(basePaymentAmount - parseFloat(formData.paymentDetails.downPayment || 0)).toFixed(2)}
+                      </Typography>
+                      <Divider sx={{ my: 1 }} />
+                    </>
+                  )}
+
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Monthly EMI:</strong> ₹{parseFloat(formData.emiDetails.monthlyAmount).toFixed(2)}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Number of Installments:</strong> {formData.emiDetails.numberOfInstallments} months
+                  </Typography>
+
+                  {(() => {
+                    const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
+                    const numberOfInstallments = formData.emiDetails.numberOfInstallments;
+                    const totalAmount = basePaymentAmount - parseFloat(formData.paymentDetails?.downPayment || 0);
+
+                    if (numberOfInstallments > 1) {
+                      const regularInstallments = numberOfInstallments - 1;
+                      const regularInstallmentTotal = monthlyAmount * regularInstallments;
+                      const lastInstallmentAmount = totalAmount - regularInstallmentTotal;
+
+                      return (
+                        <>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ display: "block", mb: 1 }}
+                          >
+                            • First {regularInstallments} installments: ₹{monthlyAmount.toFixed(2)} each = ₹
+                            {regularInstallmentTotal.toFixed(2)}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ display: "block", mb: 1 }}
+                          >
+                            • Last installment: ₹{lastInstallmentAmount.toFixed(2)}
+                          </Typography>
+                        </>
                       );
-                      const numberOfInstallments =
-                        formData.emiDetails.numberOfInstallments;
-                      const totalAmount =
-                        calculations.grandTotal -
-                        parseFloat(formData.paymentDetails?.downPayment || 0);
+                    }
+                    return null;
+                  })()}
 
-                      if (numberOfInstallments > 1) {
-                        const regularInstallments = numberOfInstallments - 1;
-                        const regularInstallmentTotal =
-                          monthlyAmount * regularInstallments;
-                        const lastInstallmentAmount =
-                          totalAmount - regularInstallmentTotal;
+                  <Divider sx={{ my: 1 }} />
+                  <Typography variant="body2" color="success.main" fontWeight={600}>
+                    <strong>Total EMI Amount:</strong> ₹
+                    {(basePaymentAmount - parseFloat(formData.paymentDetails?.downPayment || 0)).toFixed(2)}
+                  </Typography>
 
-                        return (
-                          <>
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                              sx={{ display: "block", mb: 1 }}
-                            >
-                              • First {regularInstallments} installments: ₹
-                              {monthlyAmount.toFixed(2)} each = ₹
-                              {regularInstallmentTotal.toFixed(2)}
-                            </Typography>
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                              sx={{ display: "block", mb: 1 }}
-                            >
-                              • Last installment: ₹
-                              {lastInstallmentAmount.toFixed(2)}
-                            </Typography>
-                          </>
-                        );
-                      }
-                      return null;
-                    })()}
-
-                    <Typography
-                      variant="body2"
-                      color="success.main"
-                      fontWeight={600}
-                    >
-                      <strong>Total EMI Amount:</strong> ₹
-                      {(
-                        calculations.grandTotal -
-                        parseFloat(formData.paymentDetails?.downPayment || 0)
-                      ).toFixed(2)}
-                    </Typography>
-
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ display: "block", mt: 1, fontStyle: "italic" }}
-                    >
-                      Note: Last installment amount is adjusted to match invoice
-                      total
-                    </Typography>
-                  </Box>
-                )}
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mt: 1, fontStyle: "italic" }}
+                  >
+                    Note: Last installment amount is adjusted to match exact total
+                  </Typography>
+                </Box>
+              )}
             </Box>
           )}
         </CardContent>
@@ -606,9 +588,7 @@ const PaymentDeliveryOptions = ({
               disabled={loading}
             >
               <MenuItem value={DELIVERY_STATUS.DELIVERED}>Delivered</MenuItem>
-              <MenuItem value={DELIVERY_STATUS.SCHEDULED}>
-                Schedule Later
-              </MenuItem>
+              <MenuItem value={DELIVERY_STATUS.SCHEDULED}>Schedule Later</MenuItem>
               <MenuItem value={DELIVERY_STATUS.PENDING}>Pending</MenuItem>
             </TextField>
           </FormControl>
@@ -625,8 +605,8 @@ const PaymentDeliveryOptions = ({
                   fullWidth: true,
                   error: !!formErrors.deliveryDate,
                   helperText: formErrors.deliveryDate,
-                },
-              }}
+                }}
+              }
             />
           )}
         </CardContent>

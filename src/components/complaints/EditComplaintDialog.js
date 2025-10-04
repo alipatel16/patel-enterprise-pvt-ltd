@@ -41,6 +41,31 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
   const { user } = useAuth();
   const { userType } = useUserType();
 
+  // Helper function to parse structured description
+  const parseDescription = (description) => {
+    if (!description) return { model: '', serialNumber: '', reason: '' };
+
+    const lines = description.split('\n');
+    let model = '';
+    let serialNumber = '';
+    let reason = '';
+
+    lines.forEach(line => {
+      if (line.startsWith('Model:')) {
+        model = line.replace('Model:', '').trim();
+      } else if (line.startsWith('Serial Number:')) {
+        serialNumber = line.replace('Serial Number:', '').trim();
+      } else if (line.startsWith('Reason/Problem:')) {
+        reason = line.replace('Reason/Problem:', '').trim();
+      } else if (!line.startsWith('Model:') && !line.startsWith('Serial Number:')) {
+        // If no structured format, treat entire content as reason
+        reason = description;
+      }
+    });
+
+    return { model, serialNumber, reason };
+  };
+
   // Form state
   const [formData, setFormData] = useState({
     customerId: '',
@@ -48,6 +73,8 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     customerPhone: '',
     customerAddress: '',
     title: '',
+    model: '',
+    serialNumber: '',
     description: '',
     category: '',
     severity: 'medium',
@@ -80,13 +107,17 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
   // Initialize form data when complaint changes
   useEffect(() => {
     if (complaint && open) {
+      const parsed = parseDescription(complaint.description);
+      
       setFormData({
         customerId: complaint.customerId || '',
         customerName: complaint.customerName || '',
         customerPhone: complaint.customerPhone || '',
         customerAddress: complaint.customerAddress || '',
         title: complaint.title || '',
-        description: complaint.description || '',
+        model: parsed.model,
+        serialNumber: parsed.serialNumber,
+        description: parsed.reason,
         category: complaint.category || '',
         severity: complaint.severity || 'medium',
         status: complaint.status || 'open',
@@ -102,19 +133,16 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
       });
       loadEmployees();
       
-      // Load brands for electronics
       if (userType === 'electronics') {
         loadBrands();
       }
       
-      // Check for next hierarchy level (electronics only)
       if (userType === 'electronics' && complaint.assigneeType === 'service_person') {
         checkHierarchyLevels(complaint);
       }
     }
   }, [complaint, open, userType]);
 
-  // Load brands (Electronics only)
   const loadBrands = async () => {
     if (userType !== 'electronics') return;
     
@@ -134,7 +162,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Check hierarchy levels (Electronics only)
   const checkHierarchyLevels = async (currentComplaint) => {
     if (userType !== 'electronics' || !currentComplaint.title || !currentComplaint.servicePersonContact) {
       setNextHierarchyLevel(null);
@@ -148,7 +175,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
       const detectedBrand = await brandHierarchyService.detectBrandFromTitle(userType, currentComplaint.title);
       
       if (detectedBrand) {
-        // Check if at last level of brand hierarchy
         const atLastLevel = await brandHierarchyService.isAtLastHierarchyLevel(
           userType,
           detectedBrand.brandName,
@@ -156,7 +182,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         );
         setIsAtLastLevel(atLastLevel);
 
-        // Get next level in brand hierarchy
         const nextLevel = await brandHierarchyService.getNextHierarchyLevel(
           userType,
           detectedBrand.brandName,
@@ -164,11 +189,9 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         );
         setNextHierarchyLevel(nextLevel);
 
-        // If at last level, load default hierarchy
         if (atLastLevel) {
           const defaultLevel = await brandHierarchyService.getDefaultHierarchy(userType);
           if (defaultLevel) {
-            // Check if already assigned to default
             const isAlreadyAtDefault = currentComplaint.servicePersonContact === defaultLevel.contact;
             setDefaultHierarchyLevel(isAlreadyAtDefault ? null : defaultLevel);
           } else {
@@ -192,7 +215,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle assign to next hierarchy level
   const handleAssignToNextLevel = () => {
     if (nextHierarchyLevel) {
       setFormData(prev => ({
@@ -202,7 +224,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         assigneeType: 'service_person'
       }));
       
-      // Re-check hierarchy after assignment
       const updatedComplaint = {
         ...complaint,
         servicePersonContact: nextHierarchyLevel.contact
@@ -211,7 +232,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle assign to default hierarchy level
   const handleAssignToDefaultLevel = () => {
     if (defaultHierarchyLevel) {
       setFormData(prev => ({
@@ -221,13 +241,11 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         assigneeType: 'service_person'
       }));
       
-      // Clear buttons since we're now at default
       setNextHierarchyLevel(null);
       setDefaultHierarchyLevel(null);
     }
   };
 
-  // Load employees
   const loadEmployees = async () => {
     try {
       setEmployeeLoading(true);
@@ -247,7 +265,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle customer search
   const handleCustomerSearch = async (searchTerm) => {
     if (!searchTerm || searchTerm.length < 2) {
       setCustomerOptions([]);
@@ -274,7 +291,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle customer selection
   const handleCustomerSelect = (event, customer) => {
     if (customer) {
       setFormData(prev => ({
@@ -295,7 +311,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle employee selection
   const handleEmployeeSelect = (event, employee) => {
     if (employee) {
       setFormData(prev => ({
@@ -312,7 +327,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle form field changes
   const handleChange = (field) => (event) => {
     const value = event.target.value;
     setFormData(prev => ({
@@ -320,7 +334,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
       [field]: value
     }));
 
-    // Clear related fields when assignee type changes
     if (field === 'assigneeType') {
       if (value === 'employee') {
         setFormData(prev => ({
@@ -340,7 +353,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle brand selection from dropdown (Electronics only)
   const handleBrandSelect = (event, brand) => {
     if (!brand) {
       setFormData(prev => ({
@@ -350,7 +362,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
       return;
     }
 
-    // If brand is a string (typed freely), just set the title
     if (typeof brand === 'string') {
       setFormData(prev => ({
         ...prev,
@@ -359,14 +370,12 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
       return;
     }
 
-    // Set title with brand name
     const titleWithBrand = brand.brandName;
     setFormData(prev => ({
       ...prev,
       title: titleWithBrand
     }));
 
-    // Auto-assign first level if hierarchy exists
     if (brand.hierarchy && brand.hierarchy.length > 0) {
       const firstLevel = brand.hierarchy[0];
       setFormData(prev => ({
@@ -376,7 +385,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         servicePersonContact: firstLevel.contact
       }));
       
-      // Re-check hierarchy after assignment
       const updatedComplaint = {
         ...complaint,
         title: titleWithBrand,
@@ -386,7 +394,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle manual title input (Electronics only)
   const handleTitleInputChange = (event, value, reason) => {
     if (reason === 'input') {
       setFormData(prev => ({
@@ -396,7 +403,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle date change
   const handleDateChange = (field) => (date) => {
     setFormData(prev => ({
       ...prev,
@@ -404,7 +410,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }));
   };
 
-  // Validate form
   const validateForm = () => {
     if (!formData.customerId) {
       return 'Please select a customer';
@@ -413,10 +418,10 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
       return 'Complaint title is required';
     }
     if (!formData.description.trim()) {
-      return 'Complaint description is required';
+      return 'Reason/Problem is required';
     }
     if (formData.description.length < 10) {
-      return 'Complaint description must be at least 10 characters';
+      return 'Reason/Problem must be at least 10 characters';
     }
     if (!formData.category) {
       return 'Please select a complaint category';
@@ -439,16 +444,14 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
       }
     }
 
-    // Validate status change remarks
     if (formData.status !== complaint.status && !formData.statusRemarks.trim()) {
       return 'Please provide remarks for status change';
     }
 
-    // Validate company recorded date if provided
     if (formData.companyRecordedDate) {
       const companyDate = new Date(formData.companyRecordedDate);
       const today = new Date();
-      today.setHours(23, 59, 59, 999); // Allow today
+      today.setHours(23, 59, 59, 999);
       if (companyDate > today) {
         return 'Company recorded date cannot be in the future';
       }
@@ -457,7 +460,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     return null;
   };
 
-  // Handle form submission
   const handleSubmit = async () => {
     try {
       setError('');
@@ -470,13 +472,20 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
 
       setLoading(true);
 
+      // Build structured description
+      const structuredDescription = [
+        formData.model ? `Model: ${formData.model.trim()}` : null,
+        formData.serialNumber ? `Serial Number: ${formData.serialNumber.trim()}` : null,
+        formData.description ? `Reason/Problem: ${formData.description.trim()}` : null
+      ].filter(Boolean).join('\n');
+
       const updateData = {
         customerId: formData.customerId,
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
         customerAddress: formData.customerAddress,
         title: formData.title.trim(),
-        description: formData.description.trim(),
+        description: structuredDescription,
         category: formData.category,
         severity: formData.severity,
         status: formData.status,
@@ -486,11 +495,9 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         updatedByName: user.name
       };
 
-      // Add assignee details based on type
       if (formData.assigneeType === 'employee') {
         updateData.assignedEmployeeId = formData.assignedEmployeeId;
         updateData.assignedEmployeeName = formData.assignedEmployeeName;
-        // Clear service person fields
         updateData.servicePersonName = '';
         updateData.servicePersonContact = '';
         updateData.companyComplaintNumber = '';
@@ -499,24 +506,20 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         updateData.servicePersonName = formData.servicePersonName.trim();
         updateData.servicePersonContact = formData.servicePersonContact.trim();
         
-        // Add company complaint details
         updateData.companyComplaintNumber = formData.companyComplaintNumber.trim();
         updateData.companyRecordedDate = formData.companyRecordedDate ? 
           formData.companyRecordedDate.toISOString() : '';
         
-        // Clear employee fields
         updateData.assignedEmployeeId = '';
         updateData.assignedEmployeeName = '';
       }
 
-      // Add status remarks if status changed
       if (formData.status !== complaint.status) {
         updateData.statusRemarks = formData.statusRemarks.trim();
       }
 
       await complaintService.updateComplaint(userType, complaint.id, updateData);
       
-      // Call the callback
       if (onComplaintUpdated) {
         onComplaintUpdated();
       }
@@ -529,7 +532,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle dialog close
   const handleClose = () => {
     if (!loading) {
       setError('');
@@ -671,7 +673,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
 
             <Grid item xs={12} md={6}>
               {userType === 'electronics' ? (
-                // Electronics: Autocomplete with brand suggestions
                 <Autocomplete
                   freeSolo
                   options={brandOptions}
@@ -716,7 +717,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
                   )}
                 />
               ) : (
-                // Furniture: Regular text field
                 <TextField
                   label="Complaint Title"
                   value={formData.title}
@@ -746,16 +746,46 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
               </FormControl>
             </Grid>
 
+            {/* NEW: Structured Description Fields */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" gutterBottom fontWeight={600} color="text.secondary">
+                Product Details & Issue
+              </Typography>
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <TextField
+                label="Model"
+                value={formData.model}
+                onChange={handleChange('model')}
+                fullWidth
+                placeholder="Enter product model number"
+                helperText="Optional - Product model number or name"
+              />
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <TextField
+                label="Serial Number"
+                value={formData.serialNumber}
+                onChange={handleChange('serialNumber')}
+                fullWidth
+                placeholder="Enter serial number"
+                helperText="Optional - Product serial number"
+              />
+            </Grid>
+
             <Grid item xs={12}>
               <TextField
-                label="Complaint Description"
+                label="Reason/Problem"
                 value={formData.description}
                 onChange={handleChange('description')}
                 fullWidth
                 multiline
                 rows={4}
                 required
-                helperText={`${formData.description.length}/1000 characters`}
+                placeholder="Describe the issue in detail..."
+                helperText={`${formData.description.length}/1000 characters - Describe the problem or reason for complaint`}
                 inputProps={{ maxLength: 1000 }}
               />
             </Grid>

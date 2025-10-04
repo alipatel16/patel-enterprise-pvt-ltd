@@ -454,7 +454,7 @@ const SalesHistory = () => {
 
   // Get remaining balance
   const getRemainingBalance = (sale) => {
-    const totalAmount = sale.grandTotal || sale.totalAmount || 0;
+    const totalAmount = sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
     const paidAmount = getActualAmountPaid(sale);
     return Math.max(0, totalAmount - paidAmount);
   };
