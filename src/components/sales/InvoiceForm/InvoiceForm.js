@@ -441,7 +441,8 @@ const InvoiceForm = ({
     ) {
       const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
       const downPayment = parseFloat(formData.paymentDetails?.downPayment || 0);
-      const emiAmount = calculations.grandTotal - downPayment; // FIX: Calculate on remaining amount
+      const baseAmount = calculations.netPayable || calculations.grandTotal; // ✓ Use netPayable (accounts for exchange)
+      const emiAmount = baseAmount - downPayment;
       const calculatedInstallments = Math.ceil(emiAmount / monthlyAmount); // FIX: Use emiAmount instead of grandTotal
 
       if (calculatedInstallments !== formData.emiDetails.numberOfInstallments) {
@@ -459,6 +460,7 @@ const InvoiceForm = ({
     formData.paymentStatus,
     formData.emiDetails.monthlyAmount,
     formData.paymentDetails?.downPayment, // ADD: Also watch for down payment changes
+    calculations.netPayable,
   ]);
 
   // Customer search and selection handlers
