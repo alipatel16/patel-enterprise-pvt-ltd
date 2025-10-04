@@ -75,6 +75,9 @@ import ComplaintsPage from "./pages/complaints/ComplaintsPage";
 import ViewComplaintPage from "./pages/complaints/ViewComplaintPage";
 import ComplaintSettingsPage from "./pages/complaints/ComplaintSettingsPage";
 
+// Pages - Deliveries
+import DeliveriesPage from "./pages/deliveries/DeliveriesPage";
+
 // Pages - Error
 import NotFoundPage from "./pages/NotFoundPage";
 
@@ -349,7 +352,7 @@ const AppContent = () => {
               </ProtectedRoute>
             }
           />
-          
+
           {/* Complaint routes */}
           <Route
             path="/complaints"
@@ -382,6 +385,16 @@ const AppContent = () => {
             element={
               <ProtectedRoute requiredRole="employee">
                 <EmployeeChecklistDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Deliveries routes */}
+          <Route
+            path="/deliveries"
+            element={
+              <ProtectedRoute>
+                <DeliveriesPage />
               </ProtectedRoute>
             }
           />
