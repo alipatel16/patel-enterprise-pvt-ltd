@@ -1044,280 +1044,296 @@ const PrintableInvoice = ({ invoice, onPrint, autoTriggerPrint = false }) => {
         </Box>
 
         {/* PAYMENT DETAILS SECTION - MOVED TO END */}
-        {(invoice.paymentStatus === "finance" ||
-          invoice.paymentStatus === "bank_transfer" ||
-          invoice.paymentStatus === "pending" ||
-          invoice.paymentStatus === "emi") && (invoice.paymentDetails?.downPayment) ? (
-            <Box
+        {invoice.paymentStatus === "paid" ||
+        invoice.fullyPaid ||
+        invoice.paymentStatus === "finance" ||
+        invoice.paymentStatus === "bank_transfer" ||
+        invoice.paymentStatus === "pending" ||
+        invoice.paymentStatus === "emi" ? (
+          <Box
+            style={{
+              // border: "2px solid #000",
+              padding: "15px",
+              backgroundColor: "#e3f2fd",
+              // borderRadius: "8px",
+              margin: "15px",
+              pageBreakInside: "avoid",
+            }}
+          >
+            <Typography
+              variant="h4"
               style={{
-                // border: "2px solid #000",
-                padding: "15px",
-                backgroundColor: "#e3f2fd",
-                // borderRadius: "8px",
-                margin: "15px",
-                pageBreakInside: "avoid",
-              }}>
-              <Typography
-                variant="h4"
-                style={{
-                  marginBottom: "10px",
-                  borderBottom: "1px solid #000",
-                  paddingBottom: "8px",
-                  color: "#e3f0002fd",
-                }}
-              >
-                Payment Details:
-              </Typography>
+                marginBottom: "10px",
+                borderBottom: "1px solid #000",
+                paddingBottom: "8px",
+                color: "#e3f0002fd",
+              }}
+            >
+              Payment Details:
+            </Typography>
 
-              <Box style={{ fontSize: "11px", lineHeight: "1.6" }}>
-                {/* Finance Details */}
-                {invoice.paymentStatus === "finance" && (
-                  <>
-                    <Box
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      <Typography variant="body2">
-                        <strong>Finance Company:</strong>
-                      </Typography>
-                      <Typography variant="body2">
-                        {invoice.paymentDetails?.financeCompany || "N/A"}
-                      </Typography>
-                    </Box>
-                    <Box
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      <Typography variant="body2">
-                        <strong>Down Payment:</strong>
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        style={{ fontWeight: "bold" }}
-                      >
-                        {formatCurrency(
-                          invoice.paymentDetails?.downPayment || 0
-                        )}
-                      </Typography>
-                    </Box>
-                    <Box
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      <Typography variant="body2">
-                        <strong>Remaining Balance:</strong>
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        style={{ fontWeight: "bold", color: "#f57c00" }}
-                      >
-                        {formatCurrency(
-                          invoice.paymentDetails?.remainingBalance || 0
-                        )}
-                      </Typography>
-                    </Box>
-                  </>
-                )}
-
-                {/* Bank Transfer Details */}
-                {invoice.paymentStatus === "bank_transfer" && (
-                  <>
-                    <Box
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      <Typography variant="body2">
-                        <strong>Bank Name:</strong>
-                      </Typography>
-                      <Typography variant="body2">
-                        {invoice.paymentDetails?.bankName || "N/A"}
-                      </Typography>
-                    </Box>
-                    <Box
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      <Typography variant="body2">
-                        <strong>Down Payment:</strong>
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        style={{ fontWeight: "bold" }}
-                      >
-                        {formatCurrency(
-                          invoice.paymentDetails?.downPayment || 0
-                        )}
-                      </Typography>
-                    </Box>
-                    <Box
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      <Typography variant="body2">
-                        <strong>Remaining Balance:</strong>
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        style={{ fontWeight: "bold", color: "#f57c00" }}
-                      >
-                        {formatCurrency(
-                          invoice.paymentDetails?.remainingBalance || 0
-                        )}
-                      </Typography>
-                    </Box>
-                  </>
-                )}
-
-                {/* Pending Payment Details */}
-                {invoice.paymentStatus === "pending" &&
-                  invoice.paymentDetails?.downPayment > 0 && (
-                    <>
-                      <Box
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: "5px",
-                        }}
-                      >
-                        <Typography variant="body2">
-                          <strong>Amount Paid:</strong>
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          style={{ fontWeight: "bold" }}
-                        >
-                          {formatCurrency(
-                            invoice.paymentDetails?.downPayment || 0
-                          )}
-                        </Typography>
-                      </Box>
-                      <Box
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: "5px",
-                        }}
-                      >
-                        <Typography variant="body2">
-                          <strong>Remaining Balance:</strong>
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          style={{ fontWeight: "bold", color: "#f57c00" }}
-                        >
-                          {formatCurrency(
-                            invoice.paymentDetails?.remainingBalance || 0
-                          )}
-                        </Typography>
-                      </Box>
-                    </>
-                  )}
-
-                {/* EMI Details */}
-                {invoice.paymentStatus === "emi" && invoice.emiDetails && (
-                  <>
-                    {invoice.emiDetails.downPayment > 0 && (
-                      <Box
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: "5px",
-                        }}
-                      >
-                        <Typography variant="body2">
-                          <strong>Down Payment:</strong>
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          style={{ fontWeight: "bold" }}
-                        >
-                          {formatCurrency(invoice.emiDetails.downPayment || 0)}
-                        </Typography>
-                      </Box>
-                    )}
-                    <Box
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      <Typography variant="body2">
-                        <strong>Monthly EMI:</strong>
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        style={{ fontWeight: "bold" }}
-                      >
-                        {formatCurrency(invoice.emiDetails.monthlyAmount || 0)}
-                      </Typography>
-                    </Box>
-                    <Box
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      <Typography variant="body2">
-                        <strong>Number of Installments:</strong>
-                      </Typography>
-                      <Typography variant="body2">
-                        {invoice.emiDetails.numberOfInstallments || 0} months
-                      </Typography>
-                    </Box>
-                    <Box
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      <Typography variant="body2">
-                        <strong>EMI Start Date:</strong>
-                      </Typography>
-                      <Typography variant="body2">
-                        {formatDate(invoice.emiDetails.startDate)}
-                      </Typography>
-                    </Box>
-                  </>
-                )}
-
-                {invoice.paymentDetails?.paymentReference && (
+            <Box style={{ fontSize: "11px", lineHeight: "1.6" }}>
+              {/* Finance Details */}
+              {invoice.paymentStatus === "finance" && (
+                <>
                   <Box
                     style={{
-                      marginTop: "8px",
-                      paddingTop: "8px",
-                      borderTop: "1px solid #90caf9",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
                     }}
                   >
-                    <Typography variant="body2" style={{ fontSize: "10px" }}>
-                      <strong>Reference:</strong>{" "}
-                      {invoice.paymentDetails.paymentReference}
+                    <Typography variant="body2">
+                      <strong>Finance Company:</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      {invoice.paymentDetails?.financeCompany || "N/A"}
                     </Typography>
                   </Box>
-                )}
-              </Box>
+                  <Box
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <Typography variant="body2">
+                      <strong>Down Payment:</strong>
+                    </Typography>
+                    <Typography variant="body2" style={{ fontWeight: "bold" }}>
+                      {formatCurrency(invoice.paymentDetails?.downPayment || 0)}
+                    </Typography>
+                  </Box>
+                  <Box
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <Typography variant="body2">
+                      <strong>Remaining Balance:</strong>
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      style={{ fontWeight: "bold", color: "#f57c00" }}
+                    >
+                      {formatCurrency(
+                        invoice.paymentDetails?.remainingBalance || 0
+                      )}
+                    </Typography>
+                  </Box>
+                </>
+              )}
+
+              {(invoice.paymentStatus === "paid" || invoice.fullyPaid) && (
+                <>
+                  <Box
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <Typography variant="body2">
+                      <strong>Payment Status:</strong>
+                    </Typography>
+                    <Typography variant="body2">{"Paid in Full"}</Typography>
+                  </Box>
+                  <Box
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <Typography variant="body2">
+                      <strong>Payment Method:</strong>
+                    </Typography>
+                    <Typography variant="body2" style={{ fontWeight: "bold" }}>
+                      {invoice.paymentDetails?.paymentMethod?.toUpperCase() ||
+                        "CASH"}
+                    </Typography>
+                  </Box>
+                </>
+              )}
+
+              {/* Bank Transfer Details */}
+              {invoice.paymentStatus === "bank_transfer" && (
+                <>
+                  <Box
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <Typography variant="body2">
+                      <strong>Bank Name:</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      {invoice.paymentDetails?.bankName || "N/A"}
+                    </Typography>
+                  </Box>
+                  <Box
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <Typography variant="body2">
+                      <strong>Down Payment:</strong>
+                    </Typography>
+                    <Typography variant="body2" style={{ fontWeight: "bold" }}>
+                      {formatCurrency(invoice.paymentDetails?.downPayment || 0)}
+                    </Typography>
+                  </Box>
+                  <Box
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <Typography variant="body2">
+                      <strong>Remaining Balance:</strong>
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      style={{ fontWeight: "bold", color: "#f57c00" }}
+                    >
+                      {formatCurrency(
+                        invoice.paymentDetails?.remainingBalance || 0
+                      )}
+                    </Typography>
+                  </Box>
+                </>
+              )}
+
+              {/* Pending Payment Details */}
+              {invoice.paymentStatus === "pending" && (
+                <>
+                  <Box
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <Typography variant="body2">
+                      <strong>Amount Paid:</strong>
+                    </Typography>
+                    <Typography variant="body2" style={{ fontWeight: "bold" }}>
+                      {formatCurrency(invoice.paymentDetails?.downPayment || 0)}
+                    </Typography>
+                  </Box>
+                  <Box
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <Typography variant="body2">
+                      <strong>Remaining Balance:</strong>
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      style={{ fontWeight: "bold", color: "#f57c00" }}
+                    >
+                      {formatCurrency(
+                        invoice.paymentDetails?.remainingBalance || 0
+                      )}
+                    </Typography>
+                  </Box>
+                </>
+              )}
+
+              {/* EMI Details */}
+              {invoice.paymentStatus === "emi" && invoice.emiDetails && (
+                <>
+                  {invoice.emiDetails.downPayment > 0 && (
+                    <Box
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginBottom: "5px",
+                      }}
+                    >
+                      <Typography variant="body2">
+                        <strong>Down Payment:</strong>
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        style={{ fontWeight: "bold" }}
+                      >
+                        {formatCurrency(invoice.emiDetails.downPayment || 0)}
+                      </Typography>
+                    </Box>
+                  )}
+                  <Box
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <Typography variant="body2">
+                      <strong>Monthly EMI:</strong>
+                    </Typography>
+                    <Typography variant="body2" style={{ fontWeight: "bold" }}>
+                      {formatCurrency(invoice.emiDetails.monthlyAmount || 0)}
+                    </Typography>
+                  </Box>
+                  <Box
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <Typography variant="body2">
+                      <strong>Number of Installments:</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      {invoice.emiDetails.numberOfInstallments || 0} months
+                    </Typography>
+                  </Box>
+                  <Box
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <Typography variant="body2">
+                      <strong>EMI Start Date:</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      {formatDate(invoice.emiDetails.startDate)}
+                    </Typography>
+                  </Box>
+                </>
+              )}
+
+              {invoice.paymentDetails?.paymentReference && (
+                <Box
+                  style={{
+                    marginTop: "8px",
+                    paddingTop: "8px",
+                    borderTop: "1px solid #90caf9",
+                  }}
+                >
+                  <Typography variant="body2" style={{ fontSize: "10px" }}>
+                    <strong>Reference:</strong>{" "}
+                    {invoice.paymentDetails.paymentReference}
+                  </Typography>
+                </Box>
+              )}
             </Box>
-          ) : null}
+          </Box>
+        ) : null}
 
         {/* PAYMENT HISTORY SECTION - NEW */}
         {invoice.paymentDetails?.paymentHistory &&

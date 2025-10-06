@@ -219,34 +219,52 @@ const InvoicePreview = forwardRef(
 
     // Calculate actual amount paid and remaining balance
     const getActualAmountPaid = () => {
-      if (invoiceData.paymentStatus === PAYMENT_STATUS.PENDING) {
-        return invoiceData.paymentDetails?.downPayment || 0;
-      }
-      if (
-        invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE ||
-        invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
-      ) {
-        return invoiceData.paymentDetails?.downPayment || 0;
-      }
       if (
         invoiceData.paymentStatus === PAYMENT_STATUS.PAID ||
         invoiceData.fullyPaid
       ) {
-        return invoiceData.netPayable || invoiceData.grandTotal || invoiceData.totalAmount || 0;
+        return (
+          invoiceData.netPayable ||
+          invoiceData.grandTotal ||
+          invoiceData.totalAmount ||
+          0
+        );
       }
+
+      // CRITICAL FIX: Calculate from downPayment + all additional payments in history
+      const downPayment = parseFloat(
+        invoiceData.paymentDetails?.downPayment || 0
+      );
+
+      // Sum all additional payments (excluding initial down payment record)
+      const additionalPayments = (
+        invoiceData.paymentDetails?.paymentHistory || []
+      )
+        .filter((payment) => payment.type !== "down_payment") // Exclude down payment record
+        .reduce((sum, payment) => sum + (payment.amount || 0), 0);
+
+      const totalPaid = downPayment + additionalPayments;
+
+      // For EMI, also add paid installments
       if (
         invoiceData.paymentStatus === PAYMENT_STATUS.EMI &&
         invoiceData.emiDetails?.schedule
       ) {
-        return invoiceData.emiDetails.schedule
+        const installmentsPaid = invoiceData.emiDetails.schedule
           .filter((emi) => emi.paid)
           .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
+        return totalPaid + installmentsPaid;
       }
-      return 0;
+
+      return totalPaid;
     };
 
     const getRemainingBalance = () => {
-      const totalAmount = invoiceData.netPayable || invoiceData.grandTotal || invoiceData.totalAmount || 0;
+      const totalAmount =
+        invoiceData.netPayable ||
+        invoiceData.grandTotal ||
+        invoiceData.totalAmount ||
+        0;
       const paidAmount = getActualAmountPaid();
       return Math.max(0, totalAmount - paidAmount);
     };
@@ -436,10 +454,7 @@ const InvoicePreview = forwardRef(
                           {formatDate(invoiceData.saleDate)}
                         </Typography>
                         {invoiceData.dueDate && (
-                          <Typography
-                            variant="body2"
-                            sx={{ fontSize: "11px" }}
-                          >
+                          <Typography variant="body2" sx={{ fontSize: "11px" }}>
                             <strong>{t.dueDate}:</strong>{" "}
                             {formatDate(invoiceData.dueDate)}
                           </Typography>
@@ -751,8 +766,7 @@ const InvoicePreview = forwardRef(
                           <TableCell align="right">
                             {isBulkPricingInvoice
                               ? `${
-                                  invoiceData.bulkPricingDetails?.gstSlab ||
-                                  18
+                                  invoiceData.bulkPricingDetails?.gstSlab || 18
                                 }%`
                               : `${item.gstSlab || 18}%`}
                           </TableCell>
@@ -910,7 +924,10 @@ const InvoicePreview = forwardRef(
                       invoiceData.exchangeDetails?.exchangeAmount > 0 && (
                         <>
                           <Box
-                            sx={{ display: "flex", justifyContent: "space-between" }}
+                            sx={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                            }}
                           >
                             <Typography
                               variant="body2"
@@ -936,7 +953,10 @@ const InvoicePreview = forwardRef(
                           <Divider />
 
                           <Box
-                            sx={{ display: "flex", justifyContent: "space-between" }}
+                            sx={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                            }}
                           >
                             <Typography
                               variant="h6"
@@ -1004,7 +1024,9 @@ const InvoicePreview = forwardRef(
                       fontWeight={600}
                       sx={{ fontSize: "12px", color: "success.main" }}
                     >
-                      {formatCurrency(invoiceData.exchangeDetails.exchangeAmount)}
+                      {formatCurrency(
+                        invoiceData.exchangeDetails.exchangeAmount
+                      )}
                     </Typography>
                   </Grid>
 
@@ -1065,14 +1087,24 @@ const InvoicePreview = forwardRef(
 
             {/* Payment Details Section */}
             {(isPartialPayment ||
-              invoiceData.paymentStatus === PAYMENT_STATUS.EMI) && (
+              invoiceData.paymentStatus === PAYMENT_STATUS.EMI ||
+              invoiceData.paymentStatus === PAYMENT_STATUS.PAID ||
+              invoiceData.fullyPaid) && (
               <Paper
                 elevation={0}
                 sx={{
                   mb: 3,
                   p: 2,
-                  backgroundColor: alpha("#1976d2", 0.05),
-                  border: `1px solid ${alpha("#1976d2", 0.2)}`,
+                  backgroundColor:
+                    invoiceData.paymentStatus === PAYMENT_STATUS.PAID ||
+                    invoiceData.fullyPaid
+                      ? alpha("#4caf50", 0.05) // Green for paid
+                      : alpha("#1976d2", 0.05), // Blue for partial/EMI
+                  border:
+                    invoiceData.paymentStatus === PAYMENT_STATUS.PAID ||
+                    invoiceData.fullyPaid
+                      ? `1px solid ${alpha("#4caf50", 0.2)}`
+                      : `1px solid ${alpha("#1976d2", 0.2)}`,
                   borderRadius: 1,
                   pageBreakInside: "avoid",
                 }}
@@ -1089,7 +1121,11 @@ const InvoicePreview = forwardRef(
                     variant="subtitle1"
                     fontWeight={600}
                     sx={{
-                      color: "#1976d2",
+                      color:
+                        invoiceData.paymentStatus === PAYMENT_STATUS.PAID ||
+                        invoiceData.fullyPaid
+                          ? "#2e7d32" // Green for paid
+                          : "#1976d2", // Blue for partial/EMI
                       display: "flex",
                       alignItems: "center",
                       gap: 1,
@@ -1116,6 +1152,106 @@ const InvoicePreview = forwardRef(
                     </Button>
                   )}
                 </Box>
+
+                {/* PAID Status - Show payment method and date */}
+                {(invoiceData.paymentStatus === PAYMENT_STATUS.PAID ||
+                  invoiceData.fullyPaid) && (
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontSize: "11px", color: "text.secondary" }}
+                      >
+                        {t.paymentMethod}:
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        fontWeight={500}
+                        sx={{ fontSize: "11px" }}
+                      >
+                        {PAYMENT_METHOD_DISPLAY[
+                          invoiceData.paymentDetails?.paymentMethod
+                        ] ||
+                          invoiceData.paymentDetails?.paymentMethod ||
+                          "Cash"}
+                      </Typography>
+                    </Grid>
+
+                    {invoiceData.paymentDate && (
+                      <Grid item xs={12} sm={6}>
+                        <Typography
+                          variant="body2"
+                          sx={{ fontSize: "11px", color: "text.secondary" }}
+                        >
+                          Payment Date:
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          fontWeight={500}
+                          sx={{ fontSize: "11px" }}
+                        >
+                          {formatDate(invoiceData.paymentDate)}
+                        </Typography>
+                      </Grid>
+                    )}
+
+                    {invoiceData.paymentDetails?.paymentReference && (
+                      <Grid item xs={12} sm={6}>
+                        <Typography
+                          variant="body2"
+                          sx={{ fontSize: "11px", color: "text.secondary" }}
+                        >
+                          {t.paymentReference}:
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          fontWeight={500}
+                          sx={{ fontSize: "11px" }}
+                        >
+                          {invoiceData.paymentDetails.paymentReference}
+                        </Typography>
+                      </Grid>
+                    )}
+
+                    <Grid item xs={12}>
+                      <Box
+                        sx={{
+                          p: 1.5,
+                          backgroundColor: alpha("#4caf50", 0.08),
+                          borderRadius: 1,
+                          border: `1px solid ${alpha("#4caf50", 0.2)}`,
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            fontWeight={600}
+                            sx={{ fontSize: "12px", color: "success.main" }}
+                          >
+                            ✓ Paid in Full
+                          </Typography>
+                          <Typography
+                            variant="h6"
+                            fontWeight={700}
+                            sx={{ fontSize: "14px", color: "success.main" }}
+                          >
+                            {formatCurrency(
+                              invoiceData.netPayable ||
+                                invoiceData.grandTotal ||
+                                0
+                            )}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                )}
 
                 {/* PENDING Payment Details */}
                 {invoiceData.paymentStatus === PAYMENT_STATUS.PENDING && (
@@ -1188,8 +1324,7 @@ const InvoicePreview = forwardRef(
                             sx={{ fontSize: "11px" }}
                           >
                             {formatCurrency(
-                              invoiceData.paymentDetails?.remainingBalance ||
-                                0
+                              invoiceData.paymentDetails?.remainingBalance || 0
                             )}
                           </Typography>
                         </Grid>
@@ -1278,8 +1413,7 @@ const InvoicePreview = forwardRef(
                 )}
 
                 {/* Bank Transfer Payment Details */}
-                {invoiceData.paymentStatus ===
-                  PAYMENT_STATUS.BANK_TRANSFER && (
+                {invoiceData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER && (
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
                       <Typography
@@ -1400,7 +1534,8 @@ const InvoicePreview = forwardRef(
                             >
                               {formatCurrency(
                                 invoiceData.emiDetails.emiAmount ||
-                                  (invoiceData.netPayable || invoiceData.grandTotal)
+                                  invoiceData.netPayable ||
+                                  invoiceData.grandTotal
                               )}
                             </Typography>
                           </Grid>
@@ -1419,9 +1554,7 @@ const InvoicePreview = forwardRef(
                           fontWeight={500}
                           sx={{ fontSize: "11px" }}
                         >
-                          {formatCurrency(
-                            invoiceData.emiDetails.monthlyAmount
-                          )}
+                          {formatCurrency(invoiceData.emiDetails.monthlyAmount)}
                         </Typography>
                       </Grid>
                       <Grid item xs={12} sm={6}>
@@ -1466,96 +1599,109 @@ const InvoicePreview = forwardRef(
                           fontWeight={500}
                           sx={{ fontSize: "11px" }}
                         >
-                          {formatCurrency(invoiceData.netPayable || invoiceData.grandTotal || 0)}
+                          {formatCurrency(
+                            invoiceData.netPayable ||
+                              invoiceData.grandTotal ||
+                              0
+                          )}
                         </Typography>
                       </Grid>
                     </Grid>
                   )}
 
-                {/* Payment Breakdown for Partial Payments */}
-                {isPartialPayment && (
-                  <Box
-                    sx={{
-                      mt: 2,
-                      p: 1.5,
-                      backgroundColor: alpha("#1976d2", 0.03),
-                      borderRadius: 1,
-                      border: `1px solid ${alpha("#1976d2", 0.1)}`,
-                    }}
-                  >
-                    <Typography
-                      variant="body2"
-                      sx={{ fontSize: "11px", fontWeight: 600, mb: 1 }}
+                {/* Payment Breakdown for Partial Payments (NOT for PAID) */}
+                {isPartialPayment &&
+                  invoiceData.paymentStatus !== PAYMENT_STATUS.PAID &&
+                  !invoiceData.fullyPaid && (
+                    <Box
+                      sx={{
+                        mt: 2,
+                        p: 1.5,
+                        backgroundColor: alpha("#1976d2", 0.03),
+                        borderRadius: 1,
+                        border: `1px solid ${alpha("#1976d2", 0.1)}`,
+                      }}
                     >
-                      {t.paymentBreakdown}:
-                    </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontSize: "11px", fontWeight: 600, mb: 1 }}
+                      >
+                        {t.paymentBreakdown}:
+                      </Typography>
 
-                    <Stack spacing={0.5}>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Typography
-                          variant="body2"
-                          sx={{ fontSize: "11px", color: "text.secondary" }}
+                      <Stack spacing={0.5}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                          }}
                         >
-                          {t.amountPaid}:
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          fontWeight={500}
-                          sx={{ fontSize: "11px", color: "success.main" }}
+                          <Typography
+                            variant="body2"
+                            sx={{ fontSize: "11px", color: "text.secondary" }}
+                          >
+                            {t.amountPaid}:
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            fontWeight={500}
+                            sx={{ fontSize: "11px", color: "success.main" }}
+                          >
+                            {formatCurrency(actualPaid)}
+                          </Typography>
+                        </Box>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                          }}
                         >
-                          {formatCurrency(actualPaid)}
-                        </Typography>
-                      </Box>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Typography
-                          variant="body2"
-                          sx={{ fontSize: "11px", color: "text.secondary" }}
+                          <Typography
+                            variant="body2"
+                            sx={{ fontSize: "11px", color: "text.secondary" }}
+                          >
+                            {t.remainingBalance}:
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            fontWeight={500}
+                            sx={{ fontSize: "11px", color: "warning.main" }}
+                          >
+                            {formatCurrency(remainingBalance)}
+                          </Typography>
+                        </Box>
+                        <Divider sx={{ my: 0.5 }} />
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                          }}
                         >
-                          {t.remainingBalance}:
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          fontWeight={500}
-                          sx={{ fontSize: "11px", color: "warning.main" }}
-                        >
-                          {formatCurrency(remainingBalance)}
-                        </Typography>
-                      </Box>
-                      <Divider sx={{ my: 0.5 }} />
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Typography
-                          variant="body2"
-                          fontWeight={600}
-                          sx={{ fontSize: "11px" }}
-                        >
-                          {invoiceData.exchangeDetails?.hasExchange ? t.netPayable : t.totalInvoice}:
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          fontWeight={600}
-                          sx={{ fontSize: "11px", color: "primary.main" }}
-                        >
-                          {formatCurrency(invoiceData.netPayable || invoiceData.grandTotal || 0)}
-                        </Typography>
-                      </Box>
-                    </Stack>
-                  </Box>
-                )}
+                          <Typography
+                            variant="body2"
+                            fontWeight={600}
+                            sx={{ fontSize: "11px" }}
+                          >
+                            {invoiceData.exchangeDetails?.hasExchange
+                              ? t.netPayable
+                              : t.totalInvoice}
+                            :
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            fontWeight={600}
+                            sx={{ fontSize: "11px", color: "primary.main" }}
+                          >
+                            {formatCurrency(
+                              invoiceData.netPayable ||
+                                invoiceData.grandTotal ||
+                                0
+                            )}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </Box>
+                  )}
               </Paper>
             )}
 
@@ -1836,8 +1982,7 @@ const InvoicePreview = forwardRef(
                     fontStyle: "italic",
                   }}
                 >
-                  This is a {invoiceData.includeGST ? "GST" : "Non-GST"}{" "}
-                  invoice
+                  This is a {invoiceData.includeGST ? "GST" : "Non-GST"} invoice
                   {invoiceData.customerGSTNumber &&
                     " for GST registered customer"}
                   {invoiceData.includeGST &&

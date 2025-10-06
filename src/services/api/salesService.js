@@ -182,9 +182,9 @@ class SalesService extends BaseService {
       );
 
       const grandTotal = Math.round(subtotal + totalGST);
-      
+
       // Calculate net payable (after exchange)
-      const exchangeAmount = invoiceData.exchangeDetails?.hasExchange 
+      const exchangeAmount = invoiceData.exchangeDetails?.hasExchange
         ? parseFloat(invoiceData.exchangeDetails.exchangeAmount || 0)
         : 0;
       const netPayable = Math.max(0, grandTotal - exchangeAmount);
@@ -245,6 +245,18 @@ class SalesService extends BaseService {
           invoiceData.scheduledDeliveryDate;
       }
 
+      if (invoiceData.paymentStatus === PAYMENT_STATUS.PAID) {
+        cleanInvoiceData.paymentDetails = {
+          downPayment: netPayable, // Full amount paid
+          remainingBalance: 0,
+          paymentMethod:
+            invoiceData.paymentDetails?.paymentMethod || PAYMENT_METHODS.CASH,
+          paymentReference: invoiceData.paymentDetails?.paymentReference || "",
+          paymentHistory: [],
+        };
+        cleanInvoiceData.paymentDate = new Date().toISOString();
+      }
+
       // CRITICAL FIX: Use netPayable for all payment calculations
       if (
         invoiceData.paymentStatus === PAYMENT_STATUS.FINANCE ||
@@ -255,7 +267,7 @@ class SalesService extends BaseService {
           const downPaymentAmount = parseFloat(
             invoiceData.paymentDetails.downPayment || 0
           );
-          
+
           cleanInvoiceData.paymentDetails = {
             downPayment: downPaymentAmount,
             remainingBalance: Math.max(0, netPayable - downPaymentAmount),
@@ -264,22 +276,25 @@ class SalesService extends BaseService {
             bankName: invoiceData.paymentDetails.bankName || "",
             financeCompany: invoiceData.paymentDetails.financeCompany || "",
             paymentReference: invoiceData.paymentDetails.paymentReference || "",
-            paymentHistory: downPaymentAmount > 0 ? [
-              {
-                amount: downPaymentAmount,
-                date: new Date().toISOString(),
-                method:
-                  invoiceData.paymentDetails.paymentMethod ||
-                  PAYMENT_METHODS.CASH,
-                reference: invoiceData.paymentDetails.paymentReference || "",
-                recordedBy: invoiceData.createdBy,
-                recordedByName: invoiceData.createdByName,
-                type: "down_payment",
-              },
-            ] : [],
+            paymentHistory:
+              downPaymentAmount > 0
+                ? [
+                    {
+                      amount: downPaymentAmount,
+                      date: new Date().toISOString(),
+                      method:
+                        invoiceData.paymentDetails.paymentMethod ||
+                        PAYMENT_METHODS.CASH,
+                      reference:
+                        invoiceData.paymentDetails.paymentReference || "",
+                      recordedBy: invoiceData.createdBy,
+                      recordedByName: invoiceData.createdByName,
+                      type: "down_payment",
+                    },
+                  ]
+                : [],
           };
-        }
-        else {
+        } else {
           // If no payment details provided, initialize with netPayable as remaining balance
           cleanInvoiceData.paymentDetails = {
             downPayment: 0,
@@ -517,7 +532,10 @@ class SalesService extends BaseService {
           cleanUpdates.exchangeDetails?.exchangeAmount ||
           existingInvoice.exchangeDetails?.exchangeAmount ||
           0;
-        cleanUpdates.netPayable = Math.max(0, cleanUpdates.grandTotal - exchangeAmount);
+        cleanUpdates.netPayable = Math.max(
+          0,
+          cleanUpdates.grandTotal - exchangeAmount
+        );
 
         // CRITICAL FIX: Preserve EMI schedule with net payable
         if (hasExistingEmiSchedule && existingInvoice.paymentStatus === "emi") {
@@ -585,12 +603,12 @@ class SalesService extends BaseService {
         const downPaymentAmount = parseFloat(
           cleanUpdates.paymentDetails.downPayment || 0
         );
-        const netPayableAmount = 
-          cleanUpdates.netPayable || 
-          existingInvoice.netPayable || 
-          cleanUpdates.grandTotal || 
+        const netPayableAmount =
+          cleanUpdates.netPayable ||
+          existingInvoice.netPayable ||
+          cleanUpdates.grandTotal ||
           existingInvoice.grandTotal;
-        
+
         cleanUpdates.paymentDetails = {
           downPayment: downPaymentAmount,
           remainingBalance: Math.max(0, netPayableAmount - downPaymentAmount),
@@ -625,10 +643,10 @@ class SalesService extends BaseService {
           }
 
           const totalAmount =
-            cleanUpdates.netPayable || 
+            cleanUpdates.netPayable ||
             existingInvoice.netPayable ||
-            cleanUpdates.grandTotal || 
-            existingInvoice.grandTotal || 
+            cleanUpdates.grandTotal ||
+            existingInvoice.grandTotal ||
             0;
           const existingSchedule =
             cleanUpdates.emiDetails.schedule ||
@@ -723,8 +741,8 @@ class SalesService extends BaseService {
           const totalAmount =
             cleanUpdates.netPayable ||
             existingInvoice.netPayable ||
-            cleanUpdates.grandTotal || 
-            existingInvoice.grandTotal || 
+            cleanUpdates.grandTotal ||
+            existingInvoice.grandTotal ||
             0;
           const downPayment = parseFloat(
             cleanUpdates.emiDetails.downPayment ||
@@ -948,7 +966,8 @@ class SalesService extends BaseService {
       const stats = {
         totalSales: sales.length,
         totalAmount: sales.reduce(
-          (sum, sale) => sum + (sale.netPayable || sale.grandTotal || sale.totalAmount || 0),
+          (sum, sale) =>
+            sum + (sale.netPayable || sale.grandTotal || sale.totalAmount || 0),
           0
         ),
         totalAmountPaid: sales.reduce(
@@ -957,7 +976,8 @@ class SalesService extends BaseService {
         ),
         todaysSales: todaysSales.length,
         todaysAmount: todaysSales.reduce(
-          (sum, sale) => sum + (sale.netPayable || sale.grandTotal || sale.totalAmount || 0),
+          (sum, sale) =>
+            sum + (sale.netPayable || sale.grandTotal || sale.totalAmount || 0),
           0
         ),
         todaysAmountPaid: todaysSales.reduce(
@@ -983,7 +1003,8 @@ class SalesService extends BaseService {
           (sale) => sale.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
         ).length,
         outstandingAmount: sales.reduce((sum, sale) => {
-          const totalAmount = sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
+          const totalAmount =
+            sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
           const paidAmount = calculateActualAmountPaid(sale);
           return sum + Math.max(0, totalAmount - paidAmount);
         }, 0),
@@ -1024,7 +1045,7 @@ class SalesService extends BaseService {
   }
 
   /**
-   * CRITICAL FIX: Record additional payment using netPayable
+   * FIXED: Record additional payment - keeps downPayment separate from additional payments
    */
   async recordAdditionalPayment(
     userType,
@@ -1035,7 +1056,8 @@ class SalesService extends BaseService {
     try {
       const invoice = await this.getById(userType, invoiceId);
 
-      const totalAmount = invoice.netPayable || invoice.grandTotal || invoice.totalAmount || 0;
+      const totalAmount =
+        invoice.netPayable || invoice.grandTotal || invoice.totalAmount || 0;
 
       if (!invoice.paymentDetails) {
         invoice.paymentDetails = {
@@ -1046,9 +1068,19 @@ class SalesService extends BaseService {
         };
       }
 
-      const currentPaid = parseFloat(invoice.paymentDetails.downPayment || 0);
+      // CRITICAL FIX: Don't add to downPayment - track separately in history
+      const originalDownPayment = parseFloat(
+        invoice.paymentDetails.downPayment || 0
+      );
+
+      // Calculate total paid from downPayment + payment history
+      const paidFromHistory = (invoice.paymentDetails.paymentHistory || [])
+        .filter((p) => p.type !== "down_payment") // Exclude the initial down payment record
+        .reduce((sum, payment) => sum + (payment.amount || 0), 0);
+
+      const currentTotalPaid = originalDownPayment + paidFromHistory;
       const additionalAmount = parseFloat(paymentAmount);
-      const newTotalPaid = currentPaid + additionalAmount;
+      const newTotalPaid = currentTotalPaid + additionalAmount;
       const newRemainingBalance = Math.max(0, totalAmount - newTotalPaid);
 
       const paymentDate =
@@ -1061,17 +1093,14 @@ class SalesService extends BaseService {
         reference: paymentDetails.reference || "",
         recordedBy: paymentDetails.recordedBy,
         recordedByName: paymentDetails.recordedByName,
-        type:
-          invoice.paymentStatus === PAYMENT_STATUS.PENDING
-            ? "pending_payment"
-            : "additional_payment",
+        type: "additional_payment", // Always mark as additional payment
         notes: paymentDetails.notes || "",
       };
 
       const updates = {
         paymentDetails: {
           ...invoice.paymentDetails,
-          downPayment: newTotalPaid,
+          downPayment: originalDownPayment, // CRITICAL: Keep original downPayment unchanged
           remainingBalance: newRemainingBalance,
           paymentHistory: [
             ...(invoice.paymentDetails.paymentHistory || []),
@@ -1081,6 +1110,7 @@ class SalesService extends BaseService {
         updatedAt: new Date().toISOString(),
       };
 
+      // Mark as fully paid if balance is zero
       if (newRemainingBalance === 0) {
         updates.fullyPaid = true;
         updates.paymentDate = paymentDate;
@@ -1351,7 +1381,8 @@ class SalesService extends BaseService {
       }
 
       const downPayment = invoice.emiDetails?.downPayment || 0;
-      const originalTotal = invoice.netPayable || invoice.grandTotal || invoice.totalAmount;
+      const originalTotal =
+        invoice.netPayable || invoice.grandTotal || invoice.totalAmount;
 
       const totalPaid =
         downPayment +
@@ -1541,7 +1572,8 @@ class SalesService extends BaseService {
       const paidInstallments = schedule.filter((emi) => emi.paid).length;
       const pendingInstallments = totalInstallments - paidInstallments;
 
-      const totalAmount = invoice.netPayable || invoice.grandTotal || invoice.totalAmount;
+      const totalAmount =
+        invoice.netPayable || invoice.grandTotal || invoice.totalAmount;
       const downPayment = invoice.emiDetails?.downPayment || 0;
 
       const installmentsPaid = schedule

@@ -426,35 +426,40 @@ const SalesHistory = () => {
     return iconMap[status] || <PaymentIcon />;
   };
 
-  // Calculate actual amount paid for partial payments
+  // FIXED: Replace the getActualAmountPaid function in SalesHistory.jsx with this:
   const getActualAmountPaid = (sale) => {
-    if (sale.paymentStatus === PAYMENT_STATUS.PENDING) {
-      // For pending payments, check if there's any payment history
-      return sale.paymentDetails?.downPayment || 0;
-    }
-    if (
-      sale.paymentStatus === PAYMENT_STATUS.FINANCE ||
-      sale.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
-    ) {
-      return sale.paymentDetails?.downPayment || 0;
-    }
     if (sale.paymentStatus === PAYMENT_STATUS.PAID || sale.fullyPaid) {
-      return sale.grandTotal || sale.totalAmount || 0;
+      return sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
     }
+
+    // CRITICAL FIX: Calculate from downPayment + all additional payments in history
+    const downPayment = parseFloat(sale.paymentDetails?.downPayment || 0);
+
+    // Sum all additional payments (excluding initial down payment record)
+    const additionalPayments = (sale.paymentDetails?.paymentHistory || [])
+      .filter((payment) => payment.type !== "down_payment") // Exclude down payment record
+      .reduce((sum, payment) => sum + (payment.amount || 0), 0);
+
+    const totalPaid = downPayment + additionalPayments;
+
+    // For EMI, also add paid installments
     if (
       sale.paymentStatus === PAYMENT_STATUS.EMI &&
       sale.emiDetails?.schedule
     ) {
-      return sale.emiDetails.schedule
+      const installmentsPaid = sale.emiDetails.schedule
         .filter((emi) => emi.paid)
         .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
+      return totalPaid + installmentsPaid;
     }
-    return 0;
+
+    return totalPaid;
   };
 
   // Get remaining balance
   const getRemainingBalance = (sale) => {
-    const totalAmount = sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
+    const totalAmount =
+      sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
     const paidAmount = getActualAmountPaid(sale);
     return Math.max(0, totalAmount - paidAmount);
   };
