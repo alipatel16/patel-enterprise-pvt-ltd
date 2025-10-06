@@ -30,7 +30,7 @@ import {
   Receipt as ReceiptIcon,
   CheckCircle as CompleteIcon,
 } from "@mui/icons-material";
-import { format } from "date-fns";
+import { format, differenceInDays } from "date-fns";
 import { useSales } from "../../contexts/SalesContext/SalesContext";
 import { useUserType } from "../../contexts/UserTypeContext/UserTypeContext";
 import { DELIVERY_STATUS } from "../../utils/constants/appConstants";
@@ -48,23 +48,18 @@ const PendingDeliveriesTab = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [markingDelivered, setMarkingDelivered] = useState(false);
 
-  // Filter deliveries: pending + scheduled (next 7 days)
+  // Filter deliveries: ALL pending + ALL scheduled
   useEffect(() => {
     if (sales && sales.length > 0) {
-      const today = new Date();
-      const next7Days = new Date();
-      next7Days.setDate(today.getDate() + 7);
-
       let filtered = sales.filter((sale) => {
-        // Include pending deliveries
+        // Include ALL pending deliveries
         if (sale.deliveryStatus === DELIVERY_STATUS.PENDING) {
           return true;
         }
 
-        // Include scheduled deliveries within next 7 days
-        if (sale.deliveryStatus === DELIVERY_STATUS.SCHEDULED && sale.scheduledDeliveryDate) {
-          const scheduledDate = new Date(sale.scheduledDeliveryDate);
-          return scheduledDate >= today && scheduledDate <= next7Days;
+        // Include ALL scheduled deliveries (no date restriction)
+        if (sale.deliveryStatus === DELIVERY_STATUS.SCHEDULED) {
+          return true;
         }
 
         return false;
@@ -81,17 +76,30 @@ const PendingDeliveriesTab = () => {
         );
       }
 
-      // Sort: pending first, then by scheduled date
+      // Sort: pending first, then by scheduled date (earliest first), then by creation date
       filtered.sort((a, b) => {
+        // Pending items come first
         if (a.deliveryStatus === DELIVERY_STATUS.PENDING && b.deliveryStatus !== DELIVERY_STATUS.PENDING) {
           return -1;
         }
         if (a.deliveryStatus !== DELIVERY_STATUS.PENDING && b.deliveryStatus === DELIVERY_STATUS.PENDING) {
           return 1;
         }
+        
+        // For scheduled items, sort by scheduled date
         if (a.scheduledDeliveryDate && b.scheduledDeliveryDate) {
           return new Date(a.scheduledDeliveryDate) - new Date(b.scheduledDeliveryDate);
         }
+        
+        // If only one has scheduled date, prioritize it
+        if (a.scheduledDeliveryDate && !b.scheduledDeliveryDate) {
+          return -1;
+        }
+        if (!a.scheduledDeliveryDate && b.scheduledDeliveryDate) {
+          return 1;
+        }
+        
+        // Finally sort by creation date (newest first)
         return new Date(b.createdAt) - new Date(a.createdAt);
       });
 
@@ -130,10 +138,10 @@ const PendingDeliveriesTab = () => {
   const getDaysUntilDelivery = (scheduledDate) => {
     if (!scheduledDate) return null;
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const scheduled = new Date(scheduledDate);
-    const diffTime = scheduled - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+    scheduled.setHours(0, 0, 0, 0);
+    return differenceInDays(scheduled, today);
   };
 
   const getDeliveryUrgency = (delivery) => {
@@ -142,21 +150,41 @@ const PendingDeliveriesTab = () => {
     }
 
     const daysUntil = getDaysUntilDelivery(delivery.scheduledDeliveryDate);
+    
+    if (daysUntil === null) {
+      return { color: "info", label: "Scheduled", icon: ScheduleIcon };
+    }
+    
+    if (daysUntil < 0) {
+      const daysOverdue = Math.abs(daysUntil);
+      return { color: "error", label: `Overdue (${daysOverdue} day${daysOverdue > 1 ? 's' : ''})`, icon: DeliveryIcon };
+    }
+    
     if (daysUntil === 0) {
       return { color: "error", label: "Today", icon: DeliveryIcon };
     }
+    
     if (daysUntil === 1) {
       return { color: "warning", label: "Tomorrow", icon: ScheduleIcon };
     }
+    
     if (daysUntil <= 3) {
       return { color: "warning", label: `In ${daysUntil} days`, icon: ScheduleIcon };
     }
-    return { color: "info", label: `In ${daysUntil} days`, icon: ScheduleIcon };
+    
+    if (daysUntil <= 7) {
+      return { color: "info", label: `In ${daysUntil} days`, icon: ScheduleIcon };
+    }
+    
+    return { color: "default", label: `In ${daysUntil} days`, icon: ScheduleIcon };
   };
 
   if (loading) {
     return <LoadingSpinner />;
   }
+
+  const pendingCount = filteredDeliveries.filter(d => d.deliveryStatus === DELIVERY_STATUS.PENDING).length;
+  const scheduledCount = filteredDeliveries.filter(d => d.deliveryStatus === DELIVERY_STATUS.SCHEDULED).length;
 
   return (
     <Box>
@@ -174,6 +202,22 @@ const PendingDeliveriesTab = () => {
               </InputAdornment>
             ),
           }}
+        />
+      </Box>
+
+      {/* Summary */}
+      <Box sx={{ mb: 3, display: "flex", gap: 2, flexWrap: "wrap" }}>
+        <Chip
+          icon={<DeliveryIcon />}
+          label={`${pendingCount} pending`}
+          color="error"
+          variant="outlined"
+        />
+        <Chip
+          icon={<ScheduleIcon />}
+          label={`${scheduledCount} scheduled`}
+          color="primary"
+          variant="outlined"
         />
       </Box>
 

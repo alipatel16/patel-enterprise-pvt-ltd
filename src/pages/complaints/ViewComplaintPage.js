@@ -1,3 +1,4 @@
+// src/pages/complaints/ViewComplaintPage.js - Updated with all new fields
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -25,6 +26,12 @@ import {
   Business as BusinessIcon,
   Warning as WarningIcon,
   Assignment as CompanyIcon,
+  CalendarToday as CalendarIcon,
+  ShoppingCart as PurchaseIcon,
+  Build as ModelIcon,
+  Fingerprint as SerialIcon,
+  Description as DescriptionIcon,
+  Place as PincodeIcon,
 } from '@mui/icons-material';
 
 import Layout from '../../components/common/Layout/Layout';
@@ -52,6 +59,33 @@ const ViewComplaintPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+
+  // Helper function to parse structured description
+  const parseDescription = (description) => {
+    if (!description) return { model: '', serialNumber: '', reason: '' };
+
+    const lines = description.split('\n');
+    let model = '';
+    let serialNumber = '';
+    let reason = '';
+
+    lines.forEach(line => {
+      if (line.startsWith('Model:')) {
+        model = line.replace('Model:', '').trim();
+      } else if (line.startsWith('Serial Number:')) {
+        serialNumber = line.replace('Serial Number:', '').trim();
+      } else if (line.startsWith('Reason/Problem:')) {
+        reason = line.replace('Reason/Problem:', '').trim();
+      } else if (!line.startsWith('Model:') && !line.startsWith('Serial Number:') && line.trim()) {
+        // If no structured format, treat content as reason
+        if (!reason) {
+          reason = description;
+        }
+      }
+    });
+
+    return { model, serialNumber, reason };
+  };
 
   // Load complaint data
   useEffect(() => {
@@ -121,11 +155,16 @@ const ViewComplaintPage = () => {
   }
 
   const isOverdue = isComplaintOverdue(complaint.expectedResolutionDate, complaint.status);
+  const parsedDescription = parseDescription(complaint.description);
 
   const breadcrumbs = [
     {
-      label: "View Complaint",
-      path: "/complaint",
+      label: "Complaints",
+      path: "/complaints",
+    },
+    {
+      label: complaint.complaintNumber,
+      path: `/complaints/view/${id}`,
     },
   ];
 
@@ -218,8 +257,74 @@ const ViewComplaintPage = () => {
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     Category: {COMPLAINT_CATEGORY_DISPLAY[complaint.category]}
                   </Typography>
-                  <Typography variant="body1">
-                    {complaint.description}
+                </Box>
+
+                {/* Product Details Section */}
+                <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" fontWeight={600} gutterBottom color="primary">
+                    Product Details
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {parsedDescription.model && (
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <ModelIcon fontSize="small" color="action" />
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">
+                              Model
+                            </Typography>
+                            <Typography variant="body2" fontWeight={500}>
+                              {parsedDescription.model}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Grid>
+                    )}
+
+                    {parsedDescription.serialNumber && (
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <SerialIcon fontSize="small" color="action" />
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">
+                              Serial Number
+                            </Typography>
+                            <Typography variant="body2" fontWeight={500}>
+                              {parsedDescription.serialNumber}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Grid>
+                    )}
+
+                    {complaint.purchaseDate && (
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <PurchaseIcon fontSize="small" color="action" />
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">
+                              Purchase Date
+                            </Typography>
+                            <Typography variant="body2" fontWeight={500}>
+                              {formatDate(complaint.purchaseDate)}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Grid>
+                    )}
+                  </Grid>
+                </Box>
+
+                {/* Problem/Reason */}
+                <Box sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <DescriptionIcon fontSize="small" color="action" />
+                    <Typography variant="subtitle2" fontWeight={600}>
+                      Problem/Reason
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" sx={{ pl: 4 }}>
+                    {parsedDescription.reason || complaint.description}
                   </Typography>
                 </Box>
 
@@ -242,6 +347,16 @@ const ViewComplaintPage = () => {
                       {formatDate(complaint.createdAt)}
                     </Typography>
                   </Grid>
+                  {complaint.updatedAt && complaint.updatedAt !== complaint.createdAt && (
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Last Updated
+                      </Typography>
+                      <Typography variant="body1" fontWeight={500}>
+                        {formatDate(complaint.updatedAt)}
+                      </Typography>
+                    </Grid>
+                  )}
                 </Grid>
               </CardContent>
             </Card>
@@ -307,39 +422,53 @@ const ViewComplaintPage = () => {
                 <Stack spacing={2}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <PersonIcon color="action" />
-                    <Box>
-                      <Typography variant="body2" fontWeight={500}>
-                        {complaint.customerName}
-                      </Typography>
+                    <Box sx={{ flex: 1 }}>
                       <Typography variant="caption" color="text.secondary">
                         Customer Name
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500}>
+                        {complaint.customerName}
                       </Typography>
                     </Box>
                   </Box>
 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <PhoneIcon color="action" />
-                    <Box>
-                      <Typography variant="body2" fontWeight={500}>
-                        {complaint.customerPhone}
-                      </Typography>
+                    <Box sx={{ flex: 1 }}>
                       <Typography variant="caption" color="text.secondary">
                         Phone Number
+                      </Typography>
+                      <Typography variant="body2" fontWeight={500}>
+                        {complaint.customerPhone}
                       </Typography>
                     </Box>
                   </Box>
 
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                     <LocationIcon color="action" />
-                    <Box>
-                      <Typography variant="body2" fontWeight={500}>
-                        {complaint.customerAddress}
-                      </Typography>
+                    <Box sx={{ flex: 1 }}>
                       <Typography variant="caption" color="text.secondary">
                         Address
                       </Typography>
+                      <Typography variant="body2" fontWeight={500}>
+                        {complaint.customerAddress}
+                      </Typography>
                     </Box>
                   </Box>
+
+                  {complaint.customerPincode && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <PincodeIcon color="action" />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          Pincode
+                        </Typography>
+                        <Typography variant="body2" fontWeight={500}>
+                          {complaint.customerPincode}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
                 </Stack>
               </CardContent>
             </Card>
@@ -411,19 +540,13 @@ const ViewComplaintPage = () => {
                         </Typography>
                       </Box>
                       
-                      {complaint.companyComplaintNumber && (
+                      {complaint.companyComplaintNumber && complaint.companyRecordedDate && (
                         <Box>
                           <Typography variant="body2" color="text.secondary">
                             Company Recorded Date
                           </Typography>
                           <Typography variant="body1" fontWeight={500}>
-                            {complaint.companyRecordedDate ? 
-                              formatDate(complaint.companyRecordedDate) : (
-                                <span style={{ color: 'gray', fontStyle: 'italic' }}>
-                                  Date not provided
-                                </span>
-                              )
-                            }
+                            {formatDate(complaint.companyRecordedDate)}
                           </Typography>
                         </Box>
                       )}

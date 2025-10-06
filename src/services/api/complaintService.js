@@ -1,3 +1,4 @@
+// src/services/api/complaintService.js - Updated with pincode and purchase date
 import { ref, push, set, get, update, remove } from 'firebase/database';
 import { database } from '../../services/firebase/config';
 import { getComplaintsPath } from '../../utils/helpers/firebasePathHelper';
@@ -95,7 +96,7 @@ class EnhancedComplaintService {
       snapshot.forEach((childSnapshot) => {
         const complaintData = childSnapshot.val();
         complaints.push({
-          id: childSnapshot.key, // Firebase key as ID
+          id: childSnapshot.key,
           ...complaintData,
           // Add computed fields
           isOverdue: isComplaintOverdue(complaintData.expectedResolutionDate, complaintData.status)
@@ -112,7 +113,7 @@ class EnhancedComplaintService {
             complaint.customerName?.toLowerCase().includes(searchTerm) ||
             complaint.customerPhone?.includes(searchTerm) ||
             complaint.description?.toLowerCase().includes(searchTerm) ||
-            // Add company complaint number to search
+            complaint.customerPincode?.includes(searchTerm) ||
             complaint.companyComplaintNumber?.toLowerCase().includes(searchTerm)
           );
         });
@@ -143,7 +144,7 @@ class EnhancedComplaintService {
           bValue = bValue.toLowerCase();
         }
         
-        if (sortBy === 'createdAt' || sortBy === 'updatedAt' || sortBy === 'expectedResolutionDate') {
+        if (sortBy === 'createdAt' || sortBy === 'updatedAt' || sortBy === 'expectedResolutionDate' || sortBy === 'purchaseDate') {
           aValue = new Date(aValue).getTime() || 0;
           bValue = new Date(bValue).getTime() || 0;
         }
@@ -211,7 +212,7 @@ class EnhancedComplaintService {
       
       const complaintData = snapshot.val();
       const complaint = {
-        id: complaintId, // Firebase key as ID
+        id: complaintId,
         ...complaintData,
         isOverdue: isComplaintOverdue(complaintData.expectedResolutionDate, complaintData.status)
       };
@@ -256,7 +257,9 @@ class EnhancedComplaintService {
           changedByName: complaintData.createdByName,
           remarks: 'Complaint created'
         }],
-        // Ensure company complaint fields are included even if empty
+        // Ensure all fields are included even if empty
+        customerPincode: complaintData.customerPincode || '',
+        purchaseDate: complaintData.purchaseDate || '',
         companyComplaintNumber: complaintData.companyComplaintNumber || '',
         companyRecordedDate: complaintData.companyRecordedDate || ''
       };
@@ -322,7 +325,9 @@ class EnhancedComplaintService {
       const updateData = {
         ...updates,
         updatedAt: new Date().toISOString(),
-        // Ensure company complaint fields are handled properly
+        // Ensure all fields are handled properly
+        customerPincode: updates.customerPincode || '',
+        purchaseDate: updates.purchaseDate || '',
         companyComplaintNumber: updates.companyComplaintNumber || '',
         companyRecordedDate: updates.companyRecordedDate || ''
       };
@@ -354,7 +359,7 @@ class EnhancedComplaintService {
         isOverdue: isComplaintOverdue(updatedSnapshot.val().expectedResolutionDate, updatedSnapshot.val().status)
       };
 
-      // 🔥 CRITICAL: Handle notification updates when due date changes
+      // Handle notification updates when due date changes
       const newDueDate = updates.expectedResolutionDate;
       if (newDueDate && newDueDate !== originalDueDate) {
         console.log('🚨 Due date changed - updating notifications');
@@ -374,18 +379,16 @@ class EnhancedComplaintService {
           
         } catch (notificationError) {
           console.error('⚠️ Failed to update notifications for due date change:', notificationError);
-          // Don't fail the complaint update, but log the warning
         }
       }
 
-      // Also handle status changes that might affect notifications
+      // Handle status changes that might affect notifications
       if (updates.status && updates.status !== existingComplaint.status) {
         console.log('🚨 Status changed - may need notification cleanup');
         
         if (updates.status === COMPLAINT_STATUS.RESOLVED || 
             updates.status === COMPLAINT_STATUS.CLOSED) {
           try {
-            // Trigger cleanup for this specific complaint
             await this.cleanupNotificationsForResolvedComplaint(userType, complaintId);
             console.log('✅ Cleaned up notifications for resolved/closed complaint');
           } catch (notificationError) {
@@ -463,7 +466,6 @@ class EnhancedComplaintService {
         
         console.log('🔔 Creating immediate notification for due/overdue complaint');
         
-        // Create individual notifications for this specific complaint
         await this.createImmediateComplaintNotification(userType, complaint);
         
         console.log('✅ Immediate notification created successfully');
@@ -472,7 +474,6 @@ class EnhancedComplaintService {
       }
     } catch (error) {
       console.warn('⚠️ Failed to create immediate notification:', error);
-      // Don't fail the complaint creation/update
     }
   }
 
@@ -493,14 +494,12 @@ class EnhancedComplaintService {
       let notificationType, title, message, priority;
       
       if (daysDiff < 0) {
-        // Overdue
         const daysOverdue = Math.abs(daysDiff);
         notificationType = 'complaint_overdue';
         title = 'Complaint Overdue';
         message = `Complaint #${complaint.complaintNumber} from ${complaint.customerName} is ${daysOverdue} day${daysOverdue > 1 ? 's' : ''} overdue`;
         priority = 'high';
       } else {
-        // Due today
         notificationType = 'complaint_due_today';
         title = 'Complaint Due Today';
         message = `Complaint #${complaint.complaintNumber} from ${complaint.customerName} is due for resolution today`;
@@ -512,10 +511,12 @@ class EnhancedComplaintService {
         complaintNumber: complaint.complaintNumber || '',
         customerName: complaint.customerName || '',
         customerPhone: complaint.customerPhone || '',
+        customerPincode: complaint.customerPincode || '',
         title: complaint.title || '',
         severity: complaint.severity || 'medium',
         status: complaint.status || 'open',
         expectedResolutionDate: complaint.expectedResolutionDate || '',
+        purchaseDate: complaint.purchaseDate || '',
         assigneeType: complaint.assigneeType || '',
         assignedEmployeeName: complaint.assignedEmployeeName || '',
         assignedEmployeeId: complaint.assignedEmployeeId || '',
@@ -533,12 +534,10 @@ class EnhancedComplaintService {
       // Get all users who should be notified
       const usersToNotify = new Set();
 
-      // Add creator/admin
       if (complaint.createdBy) {
         usersToNotify.add(complaint.createdBy);
       }
 
-      // Add assigned employee if different from creator
       if (complaint.assigneeType === ASSIGNEE_TYPE.EMPLOYEE && 
           complaint.assignedEmployeeId && 
           complaint.assignedEmployeeId !== complaint.createdBy) {
@@ -589,14 +588,12 @@ class EnhancedComplaintService {
    */
   async cleanupNotificationsForResolvedComplaint(userType, complaintId) {
     try {
-      // Get all notifications for this complaint
       const allNotifications = await independentComplaintNotificationService.getAllComplaintNotifications(userType);
       const complaintNotifications = allNotifications.filter(n => 
         n.data?.complaintId === complaintId &&
         (n.type === 'complaint_due_today' || n.type === 'complaint_overdue')
       );
 
-      // Delete them
       for (const notification of complaintNotifications) {
         await independentComplaintNotificationService.deleteNotification(userType, notification.id);
       }
@@ -644,8 +641,8 @@ class EnhancedComplaintService {
           complaint.title?.toLowerCase().includes(searchLower) ||
           complaint.customerName?.toLowerCase().includes(searchLower) ||
           complaint.customerPhone?.includes(searchTerm) ||
+          complaint.customerPincode?.includes(searchTerm) ||
           complaint.description?.toLowerCase().includes(searchLower) ||
-          // Add company complaint number to search
           complaint.companyComplaintNumber?.toLowerCase().includes(searchLower)
         ) {
           complaints.push(complaint);
@@ -658,7 +655,6 @@ class EnhancedComplaintService {
         const bExact = b.complaintNumber?.toLowerCase().startsWith(searchTerm.toLowerCase()) ? 1 : 0;
         if (aExact !== bExact) return bExact - aExact;
         
-        // Also consider company complaint number for relevance
         const aCompanyExact = a.companyComplaintNumber?.toLowerCase().startsWith(searchTerm.toLowerCase()) ? 1 : 0;
         const bCompanyExact = b.companyComplaintNumber?.toLowerCase().startsWith(searchTerm.toLowerCase()) ? 1 : 0;
         if (aCompanyExact !== bCompanyExact) return bCompanyExact - aCompanyExact;
@@ -740,20 +736,17 @@ class EnhancedComplaintService {
         const complaint = childSnapshot.val();
         stats.total++;
 
-        // Count by status
         if (complaint.status === COMPLAINT_STATUS.OPEN) stats.open++;
         else if (complaint.status === COMPLAINT_STATUS.IN_PROGRESS) stats.inProgress++;
         else if (complaint.status === COMPLAINT_STATUS.RESOLVED) stats.resolved++;
         else if (complaint.status === COMPLAINT_STATUS.CLOSED) stats.closed++;
         else if (complaint.status === COMPLAINT_STATUS.ESCALATED) stats.escalated++;
 
-        // Count by severity
         if (complaint.severity === COMPLAINT_SEVERITY.LOW) stats.bySeverity.low++;
         else if (complaint.severity === COMPLAINT_SEVERITY.MEDIUM) stats.bySeverity.medium++;
         else if (complaint.severity === COMPLAINT_SEVERITY.HIGH) stats.bySeverity.high++;
         else if (complaint.severity === COMPLAINT_SEVERITY.CRITICAL) stats.bySeverity.critical++;
 
-        // Count overdue
         if (isComplaintOverdue(complaint.expectedResolutionDate, complaint.status)) {
           stats.overdue++;
         }
@@ -784,7 +777,6 @@ class EnhancedComplaintService {
     const rules = COMPLAINT_VALIDATION_RULES;
 
     if (isCreate) {
-      // Required fields for creation
       if (!complaintData.customerId || complaintData.customerId.trim() === '') {
         throw new Error('Customer is required');
       }
@@ -798,17 +790,14 @@ class EnhancedComplaintService {
       }
     }
 
-    // Validate title length
     if (complaintData.title && complaintData.title.length > rules.TITLE.MAX_LENGTH) {
       throw new Error(`Title cannot exceed ${rules.TITLE.MAX_LENGTH} characters`);
     }
 
-    // Validate description length
     if (complaintData.description && complaintData.description.length > rules.DESCRIPTION.MAX_LENGTH) {
       throw new Error(`Description cannot exceed ${rules.DESCRIPTION.MAX_LENGTH} characters`);
     }
 
-    // Validate expected resolution date
     if (complaintData.expectedResolutionDate) {
       const expectedDate = new Date(complaintData.expectedResolutionDate);
       const today = new Date();
@@ -819,7 +808,6 @@ class EnhancedComplaintService {
       }
     }
 
-    // Validate assignee type and related fields
     if (complaintData.assigneeType === ASSIGNEE_TYPE.SERVICE_PERSON) {
       if (!complaintData.servicePersonName || complaintData.servicePersonName.trim().length < rules.SERVICE_PERSON_NAME.MIN_LENGTH) {
         throw new Error(`Service person name must be at least ${rules.SERVICE_PERSON_NAME.MIN_LENGTH} characters`);
@@ -830,17 +818,29 @@ class EnhancedComplaintService {
       }
     }
 
-    // Validate severity
     if (complaintData.severity && !Object.values(COMPLAINT_SEVERITY).includes(complaintData.severity)) {
       throw new Error('Invalid severity level');
     }
 
-    // Validate status
     if (complaintData.status && !Object.values(COMPLAINT_STATUS).includes(complaintData.status)) {
       throw new Error('Invalid complaint status');
     }
 
-    // Validate company recorded date if provided
+    // Validate pincode if provided
+    if (complaintData.customerPincode && !/^\d{6}$/.test(complaintData.customerPincode)) {
+      throw new Error('Pincode must be 6 digits');
+    }
+
+    // Validate purchase date if provided
+    if (complaintData.purchaseDate) {
+      const purchaseDate = new Date(complaintData.purchaseDate);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (purchaseDate > today) {
+        throw new Error('Purchase date cannot be in the future');
+      }
+    }
+
     if (complaintData.companyRecordedDate) {
       const companyDate = new Date(complaintData.companyRecordedDate);
       const today = new Date();

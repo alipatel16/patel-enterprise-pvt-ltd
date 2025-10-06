@@ -1,3 +1,4 @@
+// src/components/complaints/EditComplaintDialog.js - Updated with Pincode & Purchase Date
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -72,9 +73,11 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     customerName: '',
     customerPhone: '',
     customerAddress: '',
+    customerPincode: '',
     title: '',
     model: '',
     serialNumber: '',
+    purchaseDate: null,
     description: '',
     category: '',
     severity: 'medium',
@@ -114,9 +117,11 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         customerName: complaint.customerName || '',
         customerPhone: complaint.customerPhone || '',
         customerAddress: complaint.customerAddress || '',
+        customerPincode: complaint.customerPincode || '',
         title: complaint.title || '',
         model: parsed.model,
         serialNumber: parsed.serialNumber,
+        purchaseDate: complaint.purchaseDate ? new Date(complaint.purchaseDate) : null,
         description: parsed.reason,
         category: complaint.category || '',
         severity: complaint.severity || 'medium',
@@ -280,6 +285,7 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         name: customer.name,
         phone: customer.phone,
         address: customer.address,
+        pincode: customer.pincode || '',
         customerType: customer.customerType,
         category: customer.category
       }));
@@ -298,7 +304,8 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         customerId: customer.id,
         customerName: customer.name,
         customerPhone: customer.phone,
-        customerAddress: customer.address
+        customerAddress: customer.address,
+        customerPincode: customer.pincode || ''
       }));
     } else {
       setFormData(prev => ({
@@ -306,7 +313,8 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         customerId: '',
         customerName: '',
         customerPhone: '',
-        customerAddress: ''
+        customerAddress: '',
+        customerPincode: ''
       }));
     }
   };
@@ -448,6 +456,21 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
       return 'Please provide remarks for status change';
     }
 
+    // Validate pincode if provided
+    if (formData.customerPincode && !/^\d{6}$/.test(formData.customerPincode)) {
+      return 'Pincode must be 6 digits';
+    }
+
+    // Validate purchase date if provided
+    if (formData.purchaseDate) {
+      const purchaseDate = new Date(formData.purchaseDate);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (purchaseDate > today) {
+        return 'Purchase date cannot be in the future';
+      }
+    }
+
     if (formData.companyRecordedDate) {
       const companyDate = new Date(formData.companyRecordedDate);
       const today = new Date();
@@ -484,8 +507,10 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
         customerAddress: formData.customerAddress,
+        customerPincode: formData.customerPincode.trim(),
         title: formData.title.trim(),
         description: structuredDescription,
+        purchaseDate: formData.purchaseDate ? formData.purchaseDate.toISOString() : '',
         category: formData.category,
         severity: formData.severity,
         status: formData.status,
@@ -627,7 +652,8 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
                   label: `${formData.customerName} (${formData.customerPhone})`,
                   name: formData.customerName,
                   phone: formData.customerPhone,
-                  address: formData.customerAddress
+                  address: formData.customerAddress,
+                  pincode: formData.customerPincode
                 } : null}
                 onInputChange={(event, value) => handleCustomerSearch(value)}
                 onChange={handleCustomerSelect}
@@ -656,12 +682,28 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {option.phone} • {option.address}
+                        {option.pincode && ` • PIN: ${option.pincode}`}
                       </Typography>
                     </Box>
                   </Box>
                 )}
               />
             </Grid>
+
+            {/* Customer Pincode field */}
+            {formData.customerId && (
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Customer Pincode"
+                  value={formData.customerPincode}
+                  onChange={handleChange('customerPincode')}
+                  fullWidth
+                  placeholder="Enter 6-digit pincode"
+                  helperText="Enter or update customer pincode"
+                  inputProps={{ maxLength: 6 }}
+                />
+              </Grid>
+            )}
 
             {/* Complaint Details */}
             <Grid item xs={12}>
@@ -753,25 +795,36 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
               </Typography>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} md={4}>
               <TextField
                 label="Model"
                 value={formData.model}
                 onChange={handleChange('model')}
                 fullWidth
                 placeholder="Enter product model number"
-                helperText="Optional - Product model number or name"
+                helperText="Optional - Product model"
               />
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} md={4}>
               <TextField
                 label="Serial Number"
                 value={formData.serialNumber}
                 onChange={handleChange('serialNumber')}
                 fullWidth
                 placeholder="Enter serial number"
-                helperText="Optional - Product serial number"
+                helperText="Optional - Serial number"
+              />
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <DatePicker
+                label="Purchase Date"
+                value={formData.purchaseDate}
+                onChange={handleDateChange('purchaseDate')}
+                format='dd/MM/yyyy'
+                renderInput={(params) => <TextField {...params} fullWidth />}
+                maxDate={new Date()}
               />
             </Grid>
 

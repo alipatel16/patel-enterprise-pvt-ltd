@@ -1,3 +1,4 @@
+// src/components/complaints/RecordComplaintDialog.js
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -44,9 +45,11 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     customerName: '',
     customerPhone: '',
     customerAddress: '',
+    customerPincode: '',
     title: '',
     model: '',
     serialNumber: '',
+    purchaseDate: null,
     description: '',
     category: '',
     severity: 'medium',
@@ -141,6 +144,7 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
         name: customer.name,
         phone: customer.phone,
         address: customer.address,
+        pincode: customer.pincode || '',
         customerType: customer.customerType,
         category: customer.category
       }));
@@ -159,7 +163,8 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
         customerId: customer.id,
         customerName: customer.name,
         customerPhone: customer.phone,
-        customerAddress: customer.address
+        customerAddress: customer.address,
+        customerPincode: customer.pincode || ''
       }));
     } else {
       setFormData(prev => ({
@@ -167,7 +172,8 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
         customerId: '',
         customerName: '',
         customerPhone: '',
-        customerAddress: ''
+        customerAddress: '',
+        customerPincode: ''
       }));
     }
   };
@@ -326,11 +332,26 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
       }
     }
 
+    // Validate pincode if provided
+    if (formData.customerPincode && !/^\d{6}$/.test(formData.customerPincode)) {
+      return 'Pincode must be 6 digits';
+    }
+
     const expectedDate = new Date(formData.expectedResolutionDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (expectedDate < today) {
       return 'Expected resolution date cannot be in the past';
+    }
+
+    // Validate purchase date if provided
+    if (formData.purchaseDate) {
+      const purchaseDate = new Date(formData.purchaseDate);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (purchaseDate > today) {
+        return 'Purchase date cannot be in the future';
+      }
     }
 
     if (formData.companyRecordedDate) {
@@ -387,8 +408,10 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
         customerAddress: formData.customerAddress,
+        customerPincode: formData.customerPincode.trim(),
         title: formData.title.trim(),
         description: structuredDescription,
+        purchaseDate: formData.purchaseDate ? formData.purchaseDate.toISOString() : '',
         category: formData.category,
         severity: formData.severity,
         assigneeType: formData.assigneeType,
@@ -435,9 +458,11 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
       customerName: '',
       customerPhone: '',
       customerAddress: '',
+      customerPincode: '',
       title: '',
       model: '',
       serialNumber: '',
+      purchaseDate: null,
       description: '',
       category: '',
       severity: 'medium',
@@ -522,6 +547,7 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {option.phone} • {option.address}
+                        {option.pincode && ` • PIN: ${option.pincode}`}
                       </Typography>
                     </Box>
                   </Box>
@@ -533,16 +559,42 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
             {formData.customerName && (
               <Grid item xs={12}>
                 <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                  <Typography variant="body2" fontWeight={500}>
-                    Selected Customer: {formData.customerName}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Phone: {formData.customerPhone}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Address: {formData.customerAddress}
-                  </Typography>
+                  <Grid container spacing={1}>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="body2" fontWeight={500}>
+                        {formData.customerName}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Phone: {formData.customerPhone}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Address: {formData.customerAddress}
+                      </Typography>
+                      {formData.customerPincode && (
+                        <Typography variant="body2" color="text.secondary">
+                          Pincode: {formData.customerPincode}
+                        </Typography>
+                      )}
+                    </Grid>
+                  </Grid>
                 </Box>
+              </Grid>
+            )}
+
+            {/* Pincode Entry - Always visible when customer is selected */}
+            {formData.customerId && (
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Customer Pincode"
+                  value={formData.customerPincode}
+                  onChange={handleChange('customerPincode')}
+                  fullWidth
+                  placeholder="Enter 6-digit pincode"
+                  helperText={formData.customerPincode ? "Pincode entered" : "Optional - Enter customer pincode"}
+                  inputProps={{ maxLength: 6 }}
+                />
               </Grid>
             )}
 
@@ -640,25 +692,36 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
               </Typography>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} md={4}>
               <TextField
                 label="Model"
                 value={formData.model}
                 onChange={handleChange('model')}
                 fullWidth
                 placeholder="Enter product model number"
-                helperText="Optional - Product model number or name"
+                helperText="Optional - Product model"
               />
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} md={4}>
               <TextField
                 label="Serial Number"
                 value={formData.serialNumber}
                 onChange={handleChange('serialNumber')}
                 fullWidth
                 placeholder="Enter serial number"
-                helperText="Optional - Product serial number"
+                helperText="Optional - Serial number"
+              />
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <DatePicker
+                label="Purchase Date"
+                value={formData.purchaseDate}
+                onChange={handleDateChange('purchaseDate')}
+                renderInput={(params) => <TextField {...params} fullWidth />}
+                maxDate={new Date()}
+                format='dd/MM/yyyy'
               />
             </Grid>
 
