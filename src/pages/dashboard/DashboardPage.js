@@ -430,8 +430,7 @@ const DashboardPage = () => {
               <Badge
                 badgeContent={
                   dashboardData.sales.pendingPayments +
-                  dashboardData.sales.pendingDeliveries +
-                  dashboardData.checklists.todayPending
+                  dashboardData.sales.pendingDeliveries
                 }
                 color="error"
               >
