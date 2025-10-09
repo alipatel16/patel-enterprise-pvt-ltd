@@ -165,95 +165,78 @@ const InvoiceForm = ({
   const [selectedEmployee, setSelectedEmployee] = useState(null);
 
   // Initialize form data for edit
-  useEffect(() => {
-    if (isEdit && invoice) {
-      const saleDate = parseDate(invoice.saleDate) || new Date();
-      const scheduledDeliveryDate = parseDate(invoice.scheduledDeliveryDate);
-      const emiStartDate = parseDate(invoice.emiDetails?.startDate);
+ useEffect(() => {
+  if (isEdit && invoice) {
+    const saleDate = parseDate(invoice.saleDate) || new Date();
+    const scheduledDeliveryDate = parseDate(invoice.scheduledDeliveryDate);
+    const emiStartDate = parseDate(invoice.emiDetails?.startDate);
 
-      setFormData({
-        saleDate,
-        company: invoice.company || null, // ADD this field
-        customerId: invoice.customerId || "",
-        customerName: invoice.customerName || "",
-        customerPhone: invoice.customerPhone || "",
-        customerAddress: invoice.customerAddress || "",
-        customerState: invoice.customerState || "",
-        customerGSTNumber: invoice.customerGSTNumber || "",
-        salesPersonId: invoice.salesPersonId || "",
-        salesPersonName: invoice.salesPersonName || "",
-        items: (invoice.items || []).map((item) => ({
-          name: item.name || "",
-          description: item.description || "",
-          quantity: item.quantity || 1,
-          rate: item.rate || 0,
-          gstSlab: item.gstSlab || 18,
-          isPriceInclusive: item.isPriceInclusive || false,
-          hsnCode: item.hsnCode || "",
-        })),
-        includeGST: invoice.includeGST !== false,
-        paymentStatus: invoice.paymentStatus || PAYMENT_STATUS.PAID,
-        deliveryStatus: invoice.deliveryStatus || DELIVERY_STATUS.DELIVERED,
-        scheduledDeliveryDate,
-        remarks: invoice.remarks || "",
-        exchangeDetails: invoice.exchangeDetails || {
-          hasExchange: false,
-          exchangeAmount: 0,
-          itemReceived: false,
-          exchangeDescription: "",
-        },
-        paymentDetails: {
-          downPayment: invoice.paymentDetails?.downPayment || 0,
-          remainingBalance: invoice.paymentDetails?.remainingBalance || 0,
-          paymentMethod:
-            invoice.paymentDetails?.paymentMethod || PAYMENT_METHODS.CASH,
-          bankName: invoice.paymentDetails?.bankName || "",
-          financeCompany: invoice.paymentDetails?.financeCompany || "",
-          paymentReference: invoice.paymentDetails?.paymentReference || "",
-        },
-        emiDetails: {
-          monthlyAmount: invoice.emiDetails?.monthlyAmount || 0,
-          startDate: emiStartDate,
-          numberOfInstallments: invoice.emiDetails?.numberOfInstallments || 1,
-        },
-        // FIX: Check for bulk pricing details and set them
-        bulkPricingDetails: invoice.bulkPricingDetails || null,
-      });
+    setFormData({
+      saleDate,
+      company: invoice.company || null,
+      customerId: invoice.customerId || "",
+      customerName: invoice.customerName || "",
+      customerPhone: invoice.customerPhone || "",
+      customerAddress: invoice.customerAddress || "",
+      customerState: invoice.customerState || "",
+      customerGSTNumber: invoice.customerGSTNumber || "",
+      salesPersonId: invoice.salesPersonId || "",
+      salesPersonName: invoice.salesPersonName || "",
+      items: invoice.items || [],
+      includeGST: invoice.includeGST !== false,
+      paymentStatus: invoice.paymentStatus || PAYMENT_STATUS.PENDING,
+      originalPaymentStatus: invoice.paymentStatus, // 🆕 Track original status
+      deliveryStatus: invoice.deliveryStatus || DELIVERY_STATUS.PENDING,
+      scheduledDeliveryDate: scheduledDeliveryDate,
+      remarks: invoice.remarks || "",
+      exchangeDetails: {
+        hasExchange: invoice.exchangeDetails?.hasExchange || false,
+        exchangeAmount: invoice.exchangeDetails?.exchangeAmount || 0,
+        itemReceived: invoice.exchangeDetails?.itemReceived || false,
+        exchangeDescription: invoice.exchangeDetails?.exchangeDescription || "",
+      },
+      paymentDetails: {
+        downPayment: invoice.paymentDetails?.downPayment || 0,
+        remainingBalance: invoice.paymentDetails?.remainingBalance || 0,
+        paymentMethod: invoice.paymentDetails?.paymentMethod || PAYMENT_METHODS.CASH,
+        bankName: invoice.paymentDetails?.bankName || "",
+        financeCompany: invoice.paymentDetails?.financeCompany || "",
+        paymentReference: invoice.paymentDetails?.paymentReference || "",
+      },
+      emiDetails: {
+        monthlyAmount: invoice.emiDetails?.monthlyAmount || 0,
+        startDate: emiStartDate,
+        numberOfInstallments: invoice.emiDetails?.numberOfInstallments || 1,
+        schedule: invoice.emiDetails?.schedule || [], // 🆕 Preserve schedule
+      },
+      bulkPricingDetails: invoice.bulkPricingDetails || null,
+    });
 
-      // FIX: Auto-populate bulk pricing if it exists in the invoice
-      if (invoice.bulkPricingDetails || invoice.bulkPricingApplied) {
-        const bulkDetails = invoice.bulkPricingDetails;
-        if (bulkDetails) {
-          setBulkPricing({
-            totalPrice: bulkDetails.totalPrice || 0,
-            gstSlab: bulkDetails.gstSlab || 18,
-            isPriceInclusive: bulkDetails.isPriceInclusive || false,
-          });
-          setBulkPricingApplied(true);
-        }
-      }
-
-      // Set up autocomplete selections for edit mode
-      if (invoice.customerId && invoice.customerName) {
-        setSelectedCustomer({
-          id: invoice.customerId,
-          name: invoice.customerName,
-          phone: invoice.customerPhone,
-          address: invoice.customerAddress,
-          state: invoice.customerState,
-          label: `${invoice.customerName} - ${invoice.customerPhone}`,
-        });
-      }
-
-      if (invoice.salesPersonId && invoice.salesPersonName) {
-        setSelectedEmployee({
-          id: invoice.salesPersonId,
-          name: invoice.salesPersonName,
-          label: invoice.salesPersonName,
-        });
-      }
+    // Set bulk pricing state if applicable
+    if (invoice.bulkPricingApplied && invoice.bulkPricingDetails) {
+      setBulkPricingApplied(true);
+      setBulkPricing(invoice.bulkPricingDetails);
+      setShowBulkPricing(true);
     }
-  }, [isEdit, invoice]);
+
+    // Set autocomplete selections
+    if (invoice.customerId && invoice.customerName) {
+      setSelectedCustomer({
+        id: invoice.customerId,
+        label: invoice.customerName,
+        ...invoice,
+      });
+    }
+
+    if (invoice.salesPersonId && invoice.salesPersonName) {
+      setSelectedEmployee({
+        id: invoice.salesPersonId,
+        label: invoice.salesPersonName,
+        name: invoice.salesPersonName,
+      });
+    }
+  }
+}, [isEdit, invoice]);
 
   const handleExchangeChange = (exchangeDetails) => {
     setFormData((prev) => ({
@@ -847,46 +830,49 @@ const InvoiceForm = ({
 
   // Form submission - INCLUDE company in submission
   const handleSubmit = async (event) => {
-    event.preventDefault();
+  event.preventDefault();
 
-    const errors = validateForm();
-    setFormErrors(errors);
+  const errors = validateForm();
+  setFormErrors(errors);
 
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
+  if (Object.keys(errors).length > 0) {
+    return;
+  }
 
-    const invoiceData = {
-      ...formData,
-      saleDate: formData.saleDate.toISOString(),
-      scheduledDeliveryDate: formData.scheduledDeliveryDate?.toISOString(),
-      exchangeDetails: formData.exchangeDetails?.hasExchange
-        ? formData.exchangeDetails
+  const invoiceData = {
+    ...formData,
+    saleDate: formData.saleDate.toISOString(),
+    scheduledDeliveryDate: formData.scheduledDeliveryDate?.toISOString(),
+    exchangeDetails: formData.exchangeDetails?.hasExchange
+      ? formData.exchangeDetails
+      : null,
+    emiDetails:
+      formData.paymentStatus === PAYMENT_STATUS.EMI
+        ? {
+            ...formData.emiDetails,
+            startDate: formData.emiDetails.startDate?.toISOString(),
+            // 🆕 CRITICAL: Preserve existing schedule in edit mode
+            schedule:
+              isEdit && invoice?.emiDetails?.schedule
+                ? invoice.emiDetails.schedule // Keep existing schedule
+                : generateEMISchedule(), // Generate new for create
+          }
         : null,
-      emiDetails:
-        formData.paymentStatus === PAYMENT_STATUS.EMI
-          ? {
-              ...formData.emiDetails,
-              startDate: formData.emiDetails.startDate?.toISOString(),
-              // CRITICAL FIX: Only generate schedule for NEW invoices, not edits
-              schedule:
-                isEdit && invoice?.emiDetails?.schedule
-                  ? invoice.emiDetails.schedule // Preserve existing schedule when editing
-                  : generateEMISchedule(), // Generate new schedule only for new invoices
-            }
-          : null,
-      bulkPricingApplied,
-      bulkPricingDetails: bulkPricingApplied
-        ? formData.bulkPricingDetails
-        : null,
-      customerGSTNumber: formData?.customerGSTNumber,
-      company: formData.company,
-    };
-
-    if (onSubmit) {
-      await onSubmit(invoiceData);
-    }
+    bulkPricingApplied,
+    bulkPricingDetails: bulkPricingApplied
+      ? formData.bulkPricingDetails
+      : null,
+    customerGSTNumber: formData?.customerGSTNumber,
+    company: formData.company,
   };
+
+  // Don't send originalPaymentStatus to backend, it's just for UI warning
+  delete invoiceData.originalPaymentStatus;
+
+  if (onSubmit) {
+    await onSubmit(invoiceData);
+  }
+};
 
   return (
     <Box component="form" onSubmit={handleSubmit}>
@@ -1160,11 +1146,11 @@ const InvoiceForm = ({
                 <Button
                   startIcon={<AddIcon />}
                   onClick={handleAddItem}
-                  disabled={loading || isEdit}
+                  disabled={loading}
                   variant="contained"
                   size={isMobile ? "small" : "medium"}
                 >
-                  Add Item
+                  {isEdit ? "Add More Items" : "Add Item"}
                 </Button>
               </Box>
 

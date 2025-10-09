@@ -70,8 +70,7 @@ const DashboardPage = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const { user, signOut, canManageEmployees } = useAuth();
-  const { getDisplayName, getAppTitle, getThemeColors, userType } =
-    useUserType();
+  const { getDisplayName, getAppTitle, getThemeColors, userType } = useUserType();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -81,7 +80,6 @@ const DashboardPage = () => {
   const [error, setError] = useState("");
 
   const [dashboardData, setDashboardData] = useState({
-    // Customer Stats
     customers: {
       total: 0,
       wholesalers: 0,
@@ -91,7 +89,6 @@ const DashboardPage = () => {
       schools: 0,
       trend: 0,
     },
-    // Employee Stats
     employees: {
       total: 0,
       active: 0,
@@ -99,7 +96,6 @@ const DashboardPage = () => {
       byRole: {},
       byDepartment: {},
     },
-    // Sales Stats
     sales: {
       totalSales: 0,
       totalAmount: 0,
@@ -114,9 +110,7 @@ const DashboardPage = () => {
       statsByCategory: {},
       monthlyGrowth: 0,
     },
-    // Recent Activity
     recentSales: [],
-    // Checklist Stats
     checklists: {
       todayTotal: 0,
       todayPending: 0,
@@ -128,17 +122,13 @@ const DashboardPage = () => {
 
   const themeColors = getThemeColors();
 
-  // Load dashboard data on component mount
   useEffect(() => {
-    // Only load data when userType is available
     if (userType && user) {
       loadDashboardData();
     }
   }, [userType, user]);
 
-  // ENHANCED: Load all dashboard data with real analytics
   const loadDashboardData = async () => {
-    // Guard: Don't load if userType or user is not available yet
     if (!userType || !user) {
       console.log("Waiting for userType and user to be available...");
       return;
@@ -148,23 +138,20 @@ const DashboardPage = () => {
       setLoading(true);
       console.log("Loading comprehensive dashboard analytics...");
 
-      // Load data in parallel for better performance
       const promises = [];
 
-      // Always load customer and sales data
       promises.push(customerService.getCustomerStats(userType));
       promises.push(salesService.getSalesStats(userType));
-      promises.push(salesService.getSales(userType, {})); // Get recent sales
+      promises.push(salesService.getSales(userType, {}));
 
-      // Load employee data if admin
       if (canManageEmployees()) {
         promises.push(employeeService.getEmployeeStats(userType));
         promises.push(checklistService.getDashboardStats(userType, user));
         promises.push(checklistService.getGenerationStatus(userType));
       } else {
-        promises.push(Promise.resolve(null)); // Placeholder for employee stats
+        promises.push(Promise.resolve(null));
         promises.push(checklistService.getDashboardStats(userType, user));
-        promises.push(Promise.resolve(null)); // Placeholder for generation status
+        promises.push(Promise.resolve(null));
       }
 
       const [
@@ -176,25 +163,39 @@ const DashboardPage = () => {
         generationStatus,
       ] = await Promise.all(promises);
 
-      // Calculate trends and additional metrics
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
+      console.log("Raw salesStats:", salesStats);
+      console.log("Raw customerStats:", customerStats);
 
       const recentSales = allSales
         .filter((sale) => sale.saleDate)
         .sort((a, b) => new Date(b.saleDate) - new Date(a.saleDate))
         .slice(0, 10);
 
-      // Calculate monthly growth (simple approximation)
-      const monthlyGrowth = salesStats.totalAmount > 0 
-        ? ((salesStats.todaysAmount / 30) / (salesStats.totalAmount / 30)) * 100 - 100
+      const monthlyGrowth = salesStats.todaysRevenue > 0 && salesStats.totalRevenue > 0
+        ? ((salesStats.todaysRevenue / 30) / (salesStats.totalRevenue / 365)) * 100 - 100
         : 0;
 
-      // Set comprehensive dashboard data
+      const mappedSalesData = {
+        totalSales: salesStats.totalSales || 0,
+        totalAmount: salesStats.totalRevenue || 0,
+        totalAmountPaid: salesStats.statsByCategory?.paid?.paidAmount || 0,
+        todaysSales: salesStats.todaysSales || 0,
+        todaysAmount: salesStats.todaysRevenue || 0,
+        todaysAmountPaid: salesStats.statsByCategory?.paid?.paidAmount || 0,
+        pendingPayments: salesStats.pendingInvoices || 0,
+        pendingDeliveries: allSales.filter(s => s.deliveryStatus !== 'delivered').length,
+        paidInvoices: salesStats.paidInvoices || 0,
+        outstandingAmount: salesStats.outstandingAmount || 0,
+        statsByCategory: salesStats.statsByCategory || {},
+        monthlyGrowth: monthlyGrowth.toFixed(1),
+      };
+
+      console.log("Mapped sales data:", mappedSalesData);
+
       setDashboardData({
         customers: {
           ...customerStats,
-          trend: 0, // Can be calculated if you have historical data
+          trend: 0,
         },
         employees: employeeStats || {
           total: 0,
@@ -203,10 +204,7 @@ const DashboardPage = () => {
           byRole: {},
           byDepartment: {},
         },
-        sales: {
-          ...salesStats,
-          monthlyGrowth: monthlyGrowth.toFixed(1),
-        },
+        sales: mappedSalesData,
         recentSales,
         checklists: checklistStats || {
           todayTotal: 0,
@@ -217,13 +215,7 @@ const DashboardPage = () => {
 
       setChecklistGenerationInfo(generationStatus);
 
-      console.log("Dashboard data loaded successfully:", {
-        customerStats,
-        salesStats,
-        employeeStats,
-        checklistStats,
-        recentSalesCount: recentSales.length,
-      });
+      console.log("Dashboard data loaded successfully");
     } catch (error) {
       console.error("Error loading dashboard data:", error);
       setError("Failed to load dashboard data. Please refresh the page.");
@@ -232,7 +224,6 @@ const DashboardPage = () => {
     }
   };
 
-  // Manual generation handler for admins
   const handleManualGeneration = async () => {
     try {
       setRefreshing(true);
@@ -248,7 +239,6 @@ const DashboardPage = () => {
 
       console.log("Manual generation result:", result);
 
-      // Reload dashboard data
       await loadDashboardData();
 
       setSuccess(
@@ -265,12 +255,10 @@ const DashboardPage = () => {
     }
   };
 
-  // Handle drawer toggle
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  // Handle profile menu
   const handleProfileMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
   };
@@ -279,7 +267,6 @@ const DashboardPage = () => {
     setAnchorEl(null);
   };
 
-  // Handle logout
   const handleLogout = async () => {
     try {
       await signOut();
@@ -289,7 +276,6 @@ const DashboardPage = () => {
     }
   };
 
-  // ENHANCED: Stats cards with real data
   const getStatsCards = () => {
     const data = dashboardData;
     
@@ -333,7 +319,6 @@ const DashboardPage = () => {
       },
     ];
 
-    // Add employees card for admin users
     if (canManageEmployees()) {
       baseCards.splice(1, 0, {
         title: "Total Employees",
@@ -344,7 +329,6 @@ const DashboardPage = () => {
         action: () => navigate("/employees"),
       });
 
-      // Enhanced admin checklist stats
       baseCards.push({
         title: "Today's Checklists",
         value: `${data.checklists.todayCompleted}/${data.checklists.todayTotal}`,
@@ -370,7 +354,6 @@ const DashboardPage = () => {
         action: () => navigate("/sales/history?filter=pending-delivery"),
       });
     } else {
-      // Enhanced employee checklist stats
       baseCards.push({
         title: "My Checklists",
         value: `${data.checklists.todayCompleted}/${data.checklists.todayTotal}`,
@@ -390,16 +373,15 @@ const DashboardPage = () => {
     return baseCards;
   };
 
-  // Show loading spinner
   if (loading) {
     return <LoadingSpinner />;
   }
 
   const statsCards = getStatsCards();
+  const notificationCount = (dashboardData.sales.pendingPayments || 0) + (dashboardData.sales.pendingDeliveries || 0);
 
   return (
     <Box sx={{ display: "flex" }}>
-      {/* App Bar */}
       <AppBar
         position="fixed"
         sx={{
@@ -428,10 +410,7 @@ const DashboardPage = () => {
               onClick={() => navigate("/notifications")}
             >
               <Badge
-                badgeContent={
-                  dashboardData.sales.pendingPayments +
-                  dashboardData.sales.pendingDeliveries
-                }
+                badgeContent={notificationCount}
                 color="error"
               >
                 <NotificationsIcon />
@@ -454,7 +433,6 @@ const DashboardPage = () => {
         </Toolbar>
       </AppBar>
 
-      {/* Navigation Drawer */}
       <Box
         component="nav"
         sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}
@@ -481,7 +459,6 @@ const DashboardPage = () => {
         </Drawer>
       </Box>
 
-      {/* Main Content */}
       <Box
         component="main"
         sx={{
@@ -492,7 +469,6 @@ const DashboardPage = () => {
         }}
       >
         <Container maxWidth="xl">
-          {/* Error/Success Alerts */}
           {error && (
             <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
               {error}
@@ -509,7 +485,6 @@ const DashboardPage = () => {
             </Alert>
           )}
 
-          {/* Welcome Section */}
           <Box mb={4}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
               <Box>
@@ -558,7 +533,6 @@ const DashboardPage = () => {
             {refreshing && <LinearProgress sx={{ mb: 2 }} />}
           </Box>
 
-          {/* Check-in Based System Info (Admin Only) */}
           {canManageEmployees() && (
             <Box mb={4}>
               <Card
@@ -657,7 +631,6 @@ const DashboardPage = () => {
             </Box>
           )}
 
-          {/* Stats Cards */}
           <Grid container spacing={3} mb={4}>
             {statsCards.map((card, index) => {
               const Icon = card.icon;
@@ -765,9 +738,7 @@ const DashboardPage = () => {
             })}
           </Grid>
 
-          {/* Recent Sales & Quick Actions */}
           <Grid container spacing={3}>
-            {/* Recent Sales */}
             <Grid item xs={12} lg={8}>
               <Card sx={{ height: '100%' }}>
                 <CardContent>
@@ -857,7 +828,6 @@ const DashboardPage = () => {
               </Card>
             </Grid>
 
-            {/* Quick Actions */}
             <Grid item xs={12} lg={4}>
               <Card sx={{ height: '100%' }}>
                 <CardContent>
@@ -997,7 +967,6 @@ const DashboardPage = () => {
                     </Grid>
                   </Grid>
 
-                  {/* Business Summary */}
                   <Box mt={3} p={2} sx={{ bgcolor: alpha(themeColors.primary, 0.05), borderRadius: 1 }}>
                     <Typography variant="subtitle2" fontWeight={600} gutterBottom>
                       Business Summary
@@ -1044,7 +1013,6 @@ const DashboardPage = () => {
         </Container>
       </Box>
 
-      {/* Profile Menu */}
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
@@ -1066,7 +1034,6 @@ const DashboardPage = () => {
         </MenuItem>
       </Menu>
 
-      {/* Mobile FAB */}
       {isMobile && (
         <Fab
           color="primary"

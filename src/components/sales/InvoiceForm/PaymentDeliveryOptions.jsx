@@ -1,3 +1,6 @@
+// src/components/sales/InvoiceForm/PaymentDeliveryOptions.jsx
+// COMPLETE UPDATED VERSION - Now fully editable in edit mode
+
 import React from "react";
 import {
   Box,
@@ -17,6 +20,7 @@ import {
   AccountBalance as BankIcon,
   AttachMoney as MoneyIcon,
   CreditCard as CreditCardIcon,
+  Warning as WarningIcon,
 } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 
@@ -30,9 +34,11 @@ import {
 } from "../../../utils/constants/appConstants";
 
 /**
- * PaymentDeliveryOptions Component
- * Handles payment and delivery options for invoice forms
- * UPDATED: All payment calculations now use netPayable (after exchange deduction)
+ * PaymentDeliveryOptions Component - FULLY EDITABLE VERSION
+ * ✅ Allows payment status changes in edit mode
+ * ✅ Allows all payment details editing
+ * ✅ Shows warnings when changing from PAID/EMI to PENDING
+ * ✅ Works seamlessly with enhanced salesService
  */
 const PaymentDeliveryOptions = ({
   formData,
@@ -55,6 +61,13 @@ const PaymentDeliveryOptions = ({
   // CRITICAL: Use netPayable for all payment calculations (accounts for exchange)
   const basePaymentAmount = calculations.netPayable || calculations.grandTotal;
 
+  // Check if user is changing FROM a paid status TO pending (show warning)
+  const isChangingToPending = isEdit && 
+    formData.paymentStatus === PAYMENT_STATUS.PENDING &&
+    formData.originalPaymentStatus &&
+    [PAYMENT_STATUS.PAID, PAYMENT_STATUS.EMI, PAYMENT_STATUS.FINANCE, PAYMENT_STATUS.BANK_TRANSFER]
+      .includes(formData.originalPaymentStatus);
+
   return (
     <>
       {/* Payment Options */}
@@ -69,16 +82,41 @@ const PaymentDeliveryOptions = ({
             Payment Options
           </Typography>
 
+          {/* ⚠️ WARNING: Show when changing to PENDING from paid status */}
+          {isChangingToPending && (
+            <Alert severity="warning" icon={<WarningIcon />} sx={{ mb: 2 }}>
+              <Typography variant="body2" fontWeight="bold">
+                Payment Status Change Warning
+              </Typography>
+              <Typography variant="body2">
+                Changing from {PAYMENT_STATUS_DISPLAY[formData.originalPaymentStatus]} to Pending 
+                will automatically clear all payment history and reset balances. This action will be 
+                logged in the audit trail.
+              </Typography>
+            </Alert>
+          )}
+
+          {/* ✅ PAYMENT STATUS - ALWAYS EDITABLE */}
           <FormControl fullWidth sx={{ mb: 2 }}>
             <TextField
               select
               label="Payment Status"
               value={formData.paymentStatus}
               onChange={onPaymentStatusChange}
-              disabled={loading}
+              disabled={loading}  // ✅ Removed isEdit from disabled condition
+              error={!!formErrors.paymentStatus}
+              helperText={
+                formErrors.paymentStatus ||
+                (isEdit 
+                  ? "You can change payment status - changes will be tracked" 
+                  : "Select how the customer will pay")
+              }
             >
               <MenuItem value={PAYMENT_STATUS.PAID}>
                 {PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.PAID]}
+              </MenuItem>
+              <MenuItem value={PAYMENT_STATUS.PENDING}>
+                {PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.PENDING]}
               </MenuItem>
               <MenuItem value={PAYMENT_STATUS.EMI}>
                 {PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.EMI]}
@@ -89,326 +127,63 @@ const PaymentDeliveryOptions = ({
               <MenuItem value={PAYMENT_STATUS.BANK_TRANSFER}>
                 {PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.BANK_TRANSFER]}
               </MenuItem>
-              <MenuItem value={PAYMENT_STATUS.PENDING}>
-                {PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.PENDING]}
-              </MenuItem>
-              <MenuItem value={PAYMENT_STATUS.CREDIT_CARD}>
-                {PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.CREDIT_CARD]}
-              </MenuItem>
             </TextField>
           </FormControl>
 
-          {currentPaymentCategory && (
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Payment Category:
-              </Typography>
-              <Chip
-                label={currentPaymentCategory.replace(/_/g, " ").toUpperCase()}
-                size="small"
-                color="primary"
-                variant="outlined"
-              />
-            </Box>
-          )}
+          <Divider sx={{ my: 2 }} />
 
-          {/* PAID Status */}
+          {/* Payment Method */}
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <TextField
+              select
+              label="Payment Method"
+              value={formData.paymentDetails.paymentMethod}
+              onChange={onPaymentDetailsChange("paymentMethod")}
+              disabled={loading}  // ✅ Editable in edit mode
+              helperText={isEdit ? "You can change payment method" : "Select payment method"}
+            >
+              {Object.entries(PAYMENT_METHOD_DISPLAY).map(([value, label]) => (
+                <MenuItem key={value} value={value}>
+                  {label}
+                </MenuItem>
+              ))}
+            </TextField>
+          </FormControl>
+
+          {/* PAID IN FULL - Show info */}
           {formData.paymentStatus === PAYMENT_STATUS.PAID && (
-            <Box>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  Select payment method for full payment
-                </Typography>
-              </Alert>
-
-              <TextField
-                fullWidth
-                select
-                label="Payment Method"
-                value={formData.paymentDetails.paymentMethod}
-                onChange={onPaymentDetailsChange("paymentMethod")}
-                disabled={loading}
-                sx={{ mb: 2 }}
-                SelectProps={{
-                  native: true,
-                }}
-              >
-                <option value={PAYMENT_METHODS.CASH}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CASH]}
-                </option>
-                <option value={PAYMENT_METHODS.CARD}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CARD]}
-                </option>
-                <option value={PAYMENT_METHODS.CREDIT_CARD}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CREDIT_CARD]}
-                </option>
-                <option value={PAYMENT_METHODS.UPI}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.UPI]}
-                </option>
-                <option value={PAYMENT_METHODS.NET_BANKING}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.NET_BANKING]}
-                </option>
-                <option value={PAYMENT_METHODS.CHEQUE}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CHEQUE]}
-                </option>
-                <option value={PAYMENT_METHODS.BANK_TRANSFER}>
-                  {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.BANK_TRANSFER]}
-                </option>
-              </TextField>
-
-              <Box
-                sx={{
-                  mt: 2,
-                  p: 2,
-                  backgroundColor: "rgba(76, 175, 80, 0.1)",
-                  borderRadius: 1,
-                  border: "1px solid rgba(76, 175, 80, 0.2)",
-                }}
-              >
-                <Typography
-                  variant="subtitle2"
-                  color="success.main"
-                  gutterBottom
-                >
-                  Full Payment -{" "}
-                  {
-                    PAYMENT_METHOD_DISPLAY[
-                      formData.paymentDetails.paymentMethod
-                    ]
-                  }
-                </Typography>
-                <Box display="flex" alignItems="center" gap={1}>
-                  {formData.paymentDetails.paymentMethod ===
-                    PAYMENT_METHODS.CREDIT_CARD && (
-                    <CreditCardIcon color="success" />
-                  )}
-                  {formData.paymentDetails.paymentMethod ===
-                    PAYMENT_METHODS.CASH && <MoneyIcon color="success" />}
-                  <Typography variant="body2" fontWeight={600}>
-                    Amount: ₹{basePaymentAmount.toFixed(2)}
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
+            <Alert severity="success" icon={<MoneyIcon />} sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                <strong>Paid in Full:</strong> Complete payment of ₹
+                {basePaymentAmount.toFixed(2)} received.
+                {isEdit && " You can change this if needed."}
+              </Typography>
+            </Alert>
           )}
 
-          {/* Finance Payment Details */}
-          {formData.paymentStatus === PAYMENT_STATUS.FINANCE && (
-            <Box>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  Configure finance payment with down payment amount
-                </Typography>
-              </Alert>
-
-              <TextField
-                fullWidth
-                label="Finance Company"
-                placeholder="e.g., ICICI Bank, HDFC Bank"
-                value={formData.paymentDetails.financeCompany}
-                onChange={onPaymentDetailsChange("financeCompany")}
-                error={!!formErrors.financeCompany}
-                helperText={formErrors.financeCompany}
-                disabled={loading}
-                sx={{ mb: 2 }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <BankIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-
-              <TextField
-                fullWidth
-                label="Down Payment Amount"
-                type="number"
-                value={formData.paymentDetails.downPayment}
-                onChange={onPaymentDetailsChange("downPayment")}
-                error={!!formErrors.downPayment}
-                helperText={
-                  formErrors.downPayment ||
-                  `Remaining: ₹${formData.paymentDetails.remainingBalance.toFixed(2)} | Max: ₹${basePaymentAmount.toFixed(2)}`
-                }
-                disabled={loading || isEdit}
-                sx={{ mb: 2 }}
-                inputProps={{
-                  min: 0,
-                  max: basePaymentAmount,
-                  step: 0.01,
-                }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">₹</InputAdornment>
-                  ),
-                }}
-              />
-
-              <TextField
-                fullWidth
-                label="Payment Reference"
-                placeholder="Finance application number or reference"
-                value={formData.paymentDetails.paymentReference}
-                onChange={onPaymentDetailsChange("paymentReference")}
-                disabled={loading}
-                sx={{ mb: 2 }}
-              />
-
-              <Box
-                sx={{
-                  mt: 2,
-                  p: 2,
-                  backgroundColor: "rgba(76, 175, 80, 0.1)",
-                  borderRadius: 1,
-                  border: "1px solid rgba(76, 175, 80, 0.2)",
-                }}
-              >
-                <Typography
-                  variant="subtitle2"
-                  color="success.main"
-                  gutterBottom
-                >
-                  Finance Payment Breakdown:
-                </Typography>
-                <Box display="flex" justifyContent="space-between" mb={1}>
-                  <Typography variant="body2">Down Payment:</Typography>
-                  <Typography variant="body2" fontWeight={600}>
-                    ₹{parseFloat(formData.paymentDetails.downPayment || 0).toFixed(2)}
-                  </Typography>
-                </Box>
-                <Box display="flex" justifyContent="space-between" mb={1}>
-                  <Typography variant="body2">Remaining (Finance):</Typography>
-                  <Typography variant="body2" fontWeight={600}>
-                    ₹{formData.paymentDetails.remainingBalance.toFixed(2)}
-                  </Typography>
-                </Box>
-                <Divider sx={{ my: 1 }} />
-                <Box display="flex" justifyContent="space-between">
-                  <Typography variant="body2" fontWeight={600}>
-                    Total:
-                  </Typography>
-                  <Typography variant="body2" fontWeight={600}>
-                    ₹{basePaymentAmount.toFixed(2)}
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
+          {/* PENDING - Show balance */}
+          {formData.paymentStatus === PAYMENT_STATUS.PENDING && (
+            <Alert severity="info" icon={<WarningIcon />}>
+              <Typography variant="body2">
+                <strong>Pending Payment:</strong> Amount to be collected: ₹
+                {basePaymentAmount.toFixed(2)}
+              </Typography>
+            </Alert>
           )}
 
-          {/* Bank Transfer Payment Details */}
-          {formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER && (
-            <Box>
-              <Alert severity="info" sx={{ mb: 2 }}>
+          {/* FINANCE/BANK TRANSFER - Down payment option */}
+          {(formData.paymentStatus === PAYMENT_STATUS.FINANCE ||
+            formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER) && (
+            <>
+              <Alert severity="info" icon={<BankIcon />} sx={{ mb: 2 }}>
                 <Typography variant="body2">
-                  Configure bank transfer payment with down payment amount
+                  {formData.paymentStatus === PAYMENT_STATUS.FINANCE
+                    ? "Finance payment selected. You can record a down payment."
+                    : "Bank transfer selected. You can record an advance payment."}
                 </Typography>
               </Alert>
 
-              <TextField
-                fullWidth
-                label="Bank Name"
-                placeholder="e.g., State Bank of India, ICICI Bank"
-                value={formData.paymentDetails.bankName}
-                onChange={onPaymentDetailsChange("bankName")}
-                error={!!formErrors.bankName}
-                helperText={formErrors.bankName}
-                disabled={loading}
-                sx={{ mb: 2 }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <BankIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-
-              <TextField
-                fullWidth
-                label="Down Payment Amount"
-                type="number"
-                value={formData.paymentDetails.downPayment}
-                onChange={onPaymentDetailsChange("downPayment")}
-                error={!!formErrors.downPayment}
-                helperText={
-                  formErrors.downPayment ||
-                  `Remaining: ₹${formData.paymentDetails.remainingBalance.toFixed(2)} | Max: ₹${basePaymentAmount.toFixed(2)}`
-                }
-                disabled={loading || isEdit}
-                sx={{ mb: 2 }}
-                inputProps={{
-                  min: 0,
-                  max: basePaymentAmount,
-                  step: 0.01,
-                }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">₹</InputAdornment>
-                  ),
-                }}
-              />
-
-              <TextField
-                fullWidth
-                label="Payment Reference"
-                placeholder="Transaction ID or reference number"
-                value={formData.paymentDetails.paymentReference}
-                onChange={onPaymentDetailsChange("paymentReference")}
-                disabled={loading}
-                sx={{ mb: 2 }}
-              />
-
-              <Box
-                sx={{
-                  mt: 2,
-                  p: 2,
-                  backgroundColor: "rgba(33, 150, 243, 0.1)",
-                  borderRadius: 1,
-                  border: "1px solid rgba(33, 150, 243, 0.2)",
-                }}
-              >
-                <Typography
-                  variant="subtitle2"
-                  color="primary.main"
-                  gutterBottom
-                >
-                  Bank Transfer Payment Breakdown:
-                </Typography>
-                <Box display="flex" justifyContent="space-between" mb={1}>
-                  <Typography variant="body2">Down Payment:</Typography>
-                  <Typography variant="body2" fontWeight={600}>
-                    ₹{parseFloat(formData.paymentDetails.downPayment || 0).toFixed(2)}
-                  </Typography>
-                </Box>
-                <Box display="flex" justifyContent="space-between" mb={1}>
-                  <Typography variant="body2">Remaining (Transfer):</Typography>
-                  <Typography variant="body2" fontWeight={600}>
-                    ₹{formData.paymentDetails.remainingBalance.toFixed(2)}
-                  </Typography>
-                </Box>
-                <Divider sx={{ my: 1 }} />
-                <Box display="flex" justifyContent="space-between">
-                  <Typography variant="body2" fontWeight={600}>
-                    Total:
-                  </Typography>
-                  <Typography variant="body2" fontWeight={600}>
-                    ₹{basePaymentAmount.toFixed(2)}
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
-          )}
-
-          {/* EMI Details */}
-          {formData.paymentStatus === PAYMENT_STATUS.EMI && (
-            <Box>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  Configure EMI payment. You can optionally set a down payment amount.
-                </Typography>
-              </Alert>
-
+              {/* ✅ DOWN PAYMENT - EDITABLE */}
               <TextField
                 fullWidth
                 label="Down Payment (Optional)"
@@ -418,9 +193,9 @@ const PaymentDeliveryOptions = ({
                 error={!!formErrors.downPayment}
                 helperText={
                   formErrors.downPayment ||
-                  `EMI will be calculated on remaining amount after down payment. Max: ₹${basePaymentAmount.toFixed(2)}`
+                  `Optional down payment. Max: ₹${basePaymentAmount.toFixed(2)}`
                 }
-                disabled={loading || isEdit}
+                disabled={loading}  // ✅ Editable in edit mode
                 sx={{ mb: 2 }}
                 inputProps={{
                   min: 0,
@@ -434,6 +209,83 @@ const PaymentDeliveryOptions = ({
                 }}
               />
 
+              {/* Finance Company / Bank Name */}
+              {formData.paymentStatus === PAYMENT_STATUS.FINANCE && (
+                <TextField
+                  fullWidth
+                  label="Finance Company Name"
+                  value={formData.paymentDetails?.financeCompany || ""}
+                  onChange={onPaymentDetailsChange("financeCompany")}
+                  disabled={loading}  // ✅ Editable
+                  sx={{ mb: 2 }}
+                  helperText="Name of the finance company"
+                />
+              )}
+
+              {formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER && (
+                <TextField
+                  fullWidth
+                  label="Bank Name"
+                  value={formData.paymentDetails?.bankName || ""}
+                  onChange={onPaymentDetailsChange("bankName")}
+                  disabled={loading}  // ✅ Editable
+                  sx={{ mb: 2 }}
+                  helperText="Customer's bank name"
+                />
+              )}
+
+              <TextField
+                fullWidth
+                label="Payment Reference"
+                value={formData.paymentDetails?.paymentReference || ""}
+                onChange={onPaymentDetailsChange("paymentReference")}
+                disabled={loading}  // ✅ Editable
+                helperText="Transaction ID or reference number"
+              />
+            </>
+          )}
+
+          {/* EMI - Full details with edit capability */}
+          {formData.paymentStatus === PAYMENT_STATUS.EMI && (
+            <>
+              <Alert severity="info" icon={<CreditCardIcon />} sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  <strong>EMI Payment Plan:</strong>
+                  {isEdit 
+                    ? " You can modify EMI details. Paid installments will be preserved automatically."
+                    : " Set up monthly installment plan. You can optionally set a down payment."}
+                </Typography>
+              </Alert>
+
+              {/* ✅ DOWN PAYMENT - EDITABLE IN EDIT MODE */}
+              <TextField
+                fullWidth
+                label="Down Payment (Optional)"
+                type="number"
+                value={formData.paymentDetails?.downPayment || 0}
+                onChange={onPaymentDetailsChange("downPayment")}
+                error={!!formErrors.downPayment}
+                helperText={
+                  formErrors.downPayment ||
+                  (isEdit
+                    ? `Change down payment - EMI will recalculate automatically. Max: ₹${basePaymentAmount.toFixed(2)}`
+                    : `EMI will be calculated on remaining amount after down payment. Max: ₹${basePaymentAmount.toFixed(2)}`)
+                }
+                disabled={loading}  // ✅ Editable in edit mode!
+                sx={{ mb: 2 }}
+                inputProps={{
+                  min: 0,
+                  max: basePaymentAmount,
+                  step: 0.01,
+                }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">₹</InputAdornment>
+                  ),
+                }}
+              />
+
+              {/* ✅ MONTHLY EMI - EDITABLE (with warning in edit mode) */}
               <TextField
                 fullWidth
                 label="Monthly EMI Amount"
@@ -441,173 +293,119 @@ const PaymentDeliveryOptions = ({
                 value={formData.emiDetails.monthlyAmount}
                 onChange={onEMIChange("monthlyAmount")}
                 error={!!formErrors.emiAmount}
-                helperText={formErrors.emiAmount}
-                disabled={loading || isEdit}
+                helperText={
+                  formErrors.emiAmount ||
+                  (isEdit
+                    ? "⚠️ Changing monthly amount will recalculate all unpaid installments"
+                    : "Enter the monthly installment amount")
+                }
+                disabled={loading}  // ✅ Editable in edit mode!
                 sx={{ mb: 2 }}
                 inputProps={{ min: 1, step: 0.01 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">₹</InputAdornment>
+                  ),
+                }}
               />
 
+              {/* ✅ START DATE - EDITABLE */}
               <DatePicker
                 label="EMI Start Date"
                 format="dd/MM/yyyy"
                 value={formData.emiDetails.startDate}
                 onChange={onEMIStartDateChange}
-                disabled={loading || isEdit}
+                disabled={loading}  // ✅ Editable in edit mode
                 sx={{ mb: 2 }}
                 slotProps={{
                   textField: {
                     fullWidth: true,
                     error: !!formErrors.emiStartDate,
-                    helperText: formErrors.emiStartDate,
+                    helperText: formErrors.emiStartDate || 
+                      (isEdit ? "Change start date if needed" : "Select when EMI payments start"),
                   },
                 }}
               />
 
-              {formData.emiDetails.monthlyAmount > 0 && basePaymentAmount > 0 && (
-                <Box
-                  sx={{
-                    mt: 2,
-                    p: 2,
-                    backgroundColor: "rgba(25, 118, 210, 0.1)",
-                    borderRadius: 1,
-                    border: "1px solid rgba(25, 118, 210, 0.2)",
-                  }}
-                >
-                  <Typography variant="subtitle2" color="primary" gutterBottom>
-                    EMI Calculation Summary:
+              {/* Show calculated number of installments */}
+              {formData.emiDetails.numberOfInstallments > 0 && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Installments:</strong>{" "}
+                    {formData.emiDetails.numberOfInstallments} months
+                    {isEdit && formData.emiDetails.schedule?.filter(e => e.paid).length > 0 && (
+                      <>
+                        <br />
+                        <strong>Paid:</strong> {formData.emiDetails.schedule.filter(e => e.paid).length} installments 
+                        (will be preserved)
+                      </>
+                    )}
                   </Typography>
-
-                  {/* Show breakdown if exchange exists */}
-                  {calculations.netPayable && calculations.netPayable !== calculations.grandTotal && (
-                    <>
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        <strong>Items Total:</strong> ₹{calculations.grandTotal.toFixed(2)}
-                      </Typography>
-                      <Typography variant="body2" sx={{ mb: 1 }} color="success.main">
-                        <strong>Less: Exchange Credit:</strong> -₹{(calculations.grandTotal - calculations.netPayable).toFixed(2)}
-                      </Typography>
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        <strong>Net Payable:</strong> ₹{basePaymentAmount.toFixed(2)}
-                      </Typography>
-                      <Divider sx={{ my: 1 }} />
-                    </>
-                  )}
-
-                  {!calculations.netPayable || calculations.netPayable === calculations.grandTotal ? (
-                    <Typography variant="body2" sx={{ mb: 1 }}>
-                      <strong>Invoice Total:</strong> ₹{basePaymentAmount.toFixed(2)}
-                    </Typography>
-                  ) : null}
-
-                  {formData.paymentDetails?.downPayment > 0 && (
-                    <>
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        <strong>Down Payment:</strong> ₹{parseFloat(formData.paymentDetails.downPayment).toFixed(2)}
-                      </Typography>
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        <strong>EMI Amount (After Down Payment):</strong> ₹
-                        {(basePaymentAmount - parseFloat(formData.paymentDetails.downPayment || 0)).toFixed(2)}
-                      </Typography>
-                      <Divider sx={{ my: 1 }} />
-                    </>
-                  )}
-
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    <strong>Monthly EMI:</strong> ₹{parseFloat(formData.emiDetails.monthlyAmount).toFixed(2)}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    <strong>Number of Installments:</strong> {formData.emiDetails.numberOfInstallments} months
-                  </Typography>
-
-                  {(() => {
-                    const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
-                    const numberOfInstallments = formData.emiDetails.numberOfInstallments;
-                    const totalAmount = basePaymentAmount - parseFloat(formData.paymentDetails?.downPayment || 0);
-
-                    if (numberOfInstallments > 1) {
-                      const regularInstallments = numberOfInstallments - 1;
-                      const regularInstallmentTotal = monthlyAmount * regularInstallments;
-                      const lastInstallmentAmount = totalAmount - regularInstallmentTotal;
-
-                      return (
-                        <>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{ display: "block", mb: 1 }}
-                          >
-                            • First {regularInstallments} installments: ₹{monthlyAmount.toFixed(2)} each = ₹
-                            {regularInstallmentTotal.toFixed(2)}
-                          </Typography>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{ display: "block", mb: 1 }}
-                          >
-                            • Last installment: ₹{lastInstallmentAmount.toFixed(2)}
-                          </Typography>
-                        </>
-                      );
-                    }
-                    return null;
-                  })()}
-
-                  <Divider sx={{ my: 1 }} />
-                  <Typography variant="body2" color="success.main" fontWeight={600}>
-                    <strong>Total EMI Amount:</strong> ₹
-                    {(basePaymentAmount - parseFloat(formData.paymentDetails?.downPayment || 0)).toFixed(2)}
-                  </Typography>
-
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ display: "block", mt: 1, fontStyle: "italic" }}
-                  >
-                    Note: Last installment amount is adjusted to match exact total
-                  </Typography>
-                </Box>
+                </Alert>
               )}
-            </Box>
+            </>
           )}
         </CardContent>
       </Card>
 
-      {/* Delivery Options */}
+      {/* Delivery Options - Always editable */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>
+          <Typography
+            variant="h6"
+            gutterBottom
+            sx={{ display: "flex", alignItems: "center", gap: 1 }}
+          >
+            <BankIcon />
             Delivery Options
           </Typography>
 
+          {/* ✅ DELIVERY STATUS - EDITABLE */}
           <FormControl fullWidth sx={{ mb: 2 }}>
             <TextField
               select
               label="Delivery Status"
               value={formData.deliveryStatus}
               onChange={onDeliveryChange}
-              disabled={loading}
+              disabled={loading}  // ✅ Editable in edit mode
+              helperText={isEdit ? "You can change delivery status" : "Select delivery status"}
             >
-              <MenuItem value={DELIVERY_STATUS.DELIVERED}>Delivered</MenuItem>
-              <MenuItem value={DELIVERY_STATUS.SCHEDULED}>Schedule Later</MenuItem>
-              <MenuItem value={DELIVERY_STATUS.PENDING}>Pending</MenuItem>
+              <MenuItem value={DELIVERY_STATUS.DELIVERED}>
+                Delivered
+              </MenuItem>
+              <MenuItem value={DELIVERY_STATUS.SCHEDULED}>
+                Scheduled
+              </MenuItem>
+              <MenuItem value={DELIVERY_STATUS.PENDING}>
+                Pending
+              </MenuItem>
             </TextField>
           </FormControl>
 
+          {/* Scheduled Delivery Date - Editable */}
           {formData.deliveryStatus === DELIVERY_STATUS.SCHEDULED && (
-            <DatePicker
-              label="Scheduled Delivery Date"
-              format="dd/MM/yyyy"
-              value={formData.scheduledDeliveryDate}
-              onChange={onDeliveryDateChange}
-              disabled={loading}
-              slotProps={{
-                textField: {
-                  fullWidth: true,
-                  error: !!formErrors.deliveryDate,
-                  helperText: formErrors.deliveryDate,
+            <>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  Delivery scheduled - please select date
+                </Typography>
+              </Alert>
+
+              <DatePicker
+                label="Scheduled Delivery Date"
+                format="dd/MM/yyyy"
+                value={formData.scheduledDeliveryDate}
+                onChange={onDeliveryDateChange}
+                disabled={loading}  // ✅ Editable
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    error: !!formErrors.deliveryDate,
+                    helperText: formErrors.deliveryDate,
+                  },
                 }}
-              }
-            />
+              />
+            </>
           )}
         </CardContent>
       </Card>
