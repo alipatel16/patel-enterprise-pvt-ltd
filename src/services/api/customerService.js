@@ -5,6 +5,55 @@ import { CUSTOMER_TYPES, CUSTOMER_CATEGORIES } from '../../utils/constants/appCo
 
 class CustomerService {
   /**
+   * Check if phone number already exists for another customer
+   * @param {string} userType 
+   * @param {string} phoneNumber 
+   * @param {string} excludeCustomerId - Customer ID to exclude from check (for updates)
+   * @returns {Promise<boolean>}
+   */
+  async isPhoneNumberDuplicate(userType, phoneNumber, excludeCustomerId = null) {
+    try {
+      if (!phoneNumber || phoneNumber.trim() === '') {
+        return false;
+      }
+
+      // Clean phone number for comparison
+      const cleanPhone = phoneNumber.replace(/\D/g, '');
+      
+      const customersPath = getCustomersPath(userType);
+      const customersRef = ref(database, customersPath);
+      const snapshot = await get(customersRef);
+      
+      if (!snapshot.exists()) {
+        return false;
+      }
+
+      let isDuplicate = false;
+      
+      snapshot.forEach((childSnapshot) => {
+        const customerData = childSnapshot.val();
+        const firebaseKey = childSnapshot.key;
+        
+        // Skip the customer we're updating
+        if (excludeCustomerId && firebaseKey === excludeCustomerId) {
+          return;
+        }
+        
+        // Compare cleaned phone numbers
+        const existingCleanPhone = (customerData.phone || '').replace(/\D/g, '');
+        if (existingCleanPhone === cleanPhone) {
+          isDuplicate = true;
+        }
+      });
+
+      return isDuplicate;
+    } catch (error) {
+      console.error('Error checking phone number duplication:', error);
+      throw new Error('Failed to check phone number');
+    }
+  }
+
+  /**
    * Get all customers for a specific user type
    * @param {string} userType - 'electronics' or 'furniture'
    * @param {Object} options - Query options (limit, offset, search, etc.)
@@ -13,7 +62,7 @@ class CustomerService {
   async getCustomers(userType, options = {}) {
     try {
       const { 
-        limit = null, // ← Changed: No default limit
+        limit = null,
         offset = 0, 
         search = '', 
         sortBy = 'name', 
@@ -40,11 +89,9 @@ class CustomerService {
       let customers = [];
       snapshot.forEach((childSnapshot) => {
         const customerData = childSnapshot.val();
-        // ALWAYS use Firebase key as the customer ID
         customers.push({
-          id: childSnapshot.key, // ← This is the ONLY ID we use
+          id: childSnapshot.key,
           ...customerData,
-          // Remove any internal ID fields to avoid confusion
           internalId: undefined
         });
       });
@@ -95,7 +142,6 @@ class CustomerService {
         return 0;
       });
 
-      // ✅ NEW: Only apply pagination if limit is specified
       if (limit && limit > 0) {
         const total = customers.length;
         const startIndex = offset;
@@ -110,9 +156,8 @@ class CustomerService {
           totalPages: Math.ceil(total / limit)
         };
       } else {
-        // ✅ NEW: Return ALL customers when no limit specified
         return {
-          customers: customers, // Return ALL customers
+          customers: customers,
           total: customers.length,
           hasMore: false,
           currentPage: 1,
@@ -128,7 +173,7 @@ class CustomerService {
   /**
    * Get customer by Firebase key
    * @param {string} userType 
-   * @param {string} firebaseKey - Firebase document key (e.g., "OZJ_EVl0yo5kKM7rAc6")
+   * @param {string} firebaseKey - Firebase document key
    * @returns {Promise<Object|null>}
    */
   async getCustomerById(userType, firebaseKey) {
@@ -146,7 +191,6 @@ class CustomerService {
       if (!snapshot.exists()) {
         console.log('❌ Customer not found at path:', customerPath);
         
-        // Fallback: Search by internal ID if someone is using old URLs
         console.log('🔍 Searching for customer by internal ID...');
         const allCustomersPath = getCustomersPath(userType);
         const allCustomersRef = ref(database, allCustomersPath);
@@ -156,12 +200,11 @@ class CustomerService {
           let foundCustomer = null;
           allSnapshot.forEach((childSnapshot) => {
             const customerData = childSnapshot.val();
-            // Check if internal ID matches (legacy support)
             if (customerData.id === firebaseKey || customerData.internalId === firebaseKey) {
               foundCustomer = {
-                id: childSnapshot.key, // Use Firebase key as ID
+                id: childSnapshot.key,
                 ...customerData,
-                internalId: undefined // Remove internal ID
+                internalId: undefined
               };
               console.log('✅ Found via internal ID search. Firebase key:', childSnapshot.key);
             }
@@ -178,9 +221,9 @@ class CustomerService {
       
       const customerData = snapshot.val();
       const customer = {
-        id: firebaseKey, // Use Firebase key as ID
+        id: firebaseKey,
         ...customerData,
-        internalId: undefined // Remove any internal ID confusion
+        internalId: undefined
       };
       
       console.log('✅ Customer found:', customer.name);
@@ -193,7 +236,7 @@ class CustomerService {
   }
 
   /**
-   * Create new customer (without internal ID)
+   * Create new customer (with duplicate phone check)
    * @param {string} userType 
    * @param {Object} customerData 
    * @returns {Promise<Object>}
@@ -203,7 +246,14 @@ class CustomerService {
       console.log('=== CREATE CUSTOMER ===');
       console.log('Input data:', customerData);
       
-      this.validateCustomerData(customerData);
+      // Validate customer data
+      this.validateCustomerData(customerData, true);
+
+      // Check for duplicate phone number
+      const isDuplicate = await this.isPhoneNumberDuplicate(userType, customerData.phone);
+      if (isDuplicate) {
+        throw new Error('A customer with this phone number already exists. Please use a different phone number.');
+      }
 
       const customersPath = getCustomersPath(userType);
       const customersRef = ref(database, customersPath);
@@ -226,7 +276,7 @@ class CustomerService {
       console.log('✅ Customer created with Firebase key:', firebaseKey);
       
       return {
-        id: firebaseKey, // Firebase key as ID
+        id: firebaseKey,
         ...customerWithMeta
       };
     } catch (error) {
@@ -236,7 +286,7 @@ class CustomerService {
   }
 
   /**
-   * Update customer using Firebase key
+   * Update customer using Firebase key (with duplicate phone check)
    * @param {string} userType 
    * @param {string} firebaseKey - Firebase document key
    * @param {Object} updates 
@@ -259,6 +309,17 @@ class CustomerService {
         console.log('❌ Customer not found for update at:', customerPath);
         throw new Error('Customer not found');
       }
+
+      // If phone number is being updated, check for duplicates
+      if (updates.phone) {
+        const isDuplicate = await this.isPhoneNumberDuplicate(userType, updates.phone, firebaseKey);
+        if (isDuplicate) {
+          throw new Error('A customer with this phone number already exists. Please use a different phone number.');
+        }
+      }
+
+      // Validate update data
+      this.validateCustomerData(updates, false);
       
       // Clean updates - remove any ID fields
       const { id, internalId, ...cleanUpdates } = updates;
@@ -276,9 +337,9 @@ class CustomerService {
       // Return updated customer
       const snapshot = await get(customerRef);
       return {
-        id: firebaseKey, // Firebase key as ID
+        id: firebaseKey,
         ...snapshot.val(),
-        internalId: undefined // Remove any internal ID
+        internalId: undefined
       };
     } catch (error) {
       console.error('Error updating customer:', error);
@@ -335,9 +396,9 @@ class CustomerService {
       snapshot.forEach((childSnapshot) => {
         const customerData = childSnapshot.val();
         const customer = {
-          id: childSnapshot.key, // Firebase key as ID
+          id: childSnapshot.key,
           ...customerData,
-          internalId: undefined // Remove internal ID
+          internalId: undefined
         };
         
         const searchLower = searchTerm.toLowerCase();
@@ -357,7 +418,6 @@ class CustomerService {
         return bExact - aExact;
       });
 
-      // Only apply limit if specified
       return limit ? customers.slice(0, limit) : customers;
     } catch (error) {
       console.error('Error searching customers:', error);
@@ -377,9 +437,9 @@ class CustomerService {
       const customers = await this.searchCustomers(userType, searchTerm, limit);
       
       return customers.map(customer => ({
-        id: customer.id, // Firebase key
+        id: customer.id,
         label: `${customer.name} (${customer.phone})`,
-        value: customer.id, // Firebase key
+        value: customer.id,
         name: customer.name,
         phone: customer.phone,
         address: customer.address,
@@ -404,7 +464,6 @@ class CustomerService {
     try {
       const allCustomers = await this.getCustomers(userType, { 
         customerType
-        // No limit - get all customers of this type
       });
       return allCustomers.customers;
     } catch (error) {
@@ -491,8 +550,16 @@ class CustomerService {
           throw new Error(`${field} is required`);
         }
       }
+    } else {
+      // For updates, only validate phone if it's being updated
+      if (customerData.phone !== undefined) {
+        if (!customerData.phone || customerData.phone.toString().trim() === '') {
+          throw new Error('phone is required');
+        }
+      }
     }
 
+    // Validate email format
     if (customerData.email && customerData.email.trim() !== '') {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(customerData.email)) {
@@ -500,18 +567,26 @@ class CustomerService {
       }
     }
 
+    // Validate phone format - MANDATORY
     if (customerData.phone) {
       const phoneRegex = /^[6-9]\d{9}$/;
       const cleanPhone = customerData.phone.replace(/\D/g, '');
-      if (cleanPhone.length === 10 && !phoneRegex.test(cleanPhone)) {
-        throw new Error('Invalid phone number format');
+      
+      if (cleanPhone.length !== 10) {
+        throw new Error('Phone number must be exactly 10 digits');
+      }
+      
+      if (!phoneRegex.test(cleanPhone)) {
+        throw new Error('Invalid phone number format. Must start with 6-9 and be 10 digits');
       }
     }
 
+    // Validate customer type
     if (customerData.customerType && !Object.values(CUSTOMER_TYPES).includes(customerData.customerType)) {
       throw new Error('Invalid customer type');
     }
 
+    // Validate category
     if (customerData.category && !Object.values(CUSTOMER_CATEGORIES).includes(customerData.category)) {
       throw new Error('Invalid customer category');
     }
@@ -542,7 +617,6 @@ class CustomerService {
         const customerData = childSnapshot.val();
         const firebaseKey = childSnapshot.key;
         
-        // If customer has internal ID fields, remove them
         if (customerData.id || customerData.internalId) {
           const { id, internalId, ...cleanData } = customerData;
           updates[firebaseKey] = cleanData;

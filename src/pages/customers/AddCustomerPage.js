@@ -107,13 +107,6 @@ const AddCustomerPageContent = () => {
       breadcrumbs={breadcrumbs}
     >
       <Box>
-        {/* Debug Info (remove in production) */}
-        {process.env.NODE_ENV === 'development' && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Debug: User Type = {userType || 'Not Available'}
-          </Alert>
-        )}
-
         {/* Success Message */}
         {successMessage && (
           <Alert severity="success" sx={{ mb: 3 }}>
