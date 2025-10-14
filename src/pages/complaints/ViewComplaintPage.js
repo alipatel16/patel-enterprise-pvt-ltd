@@ -1,4 +1,4 @@
-// src/pages/complaints/ViewComplaintPage.js - Updated with all new fields
+// src/pages/complaints/ViewComplaintPage.js - Updated with Share functionality
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -15,7 +15,8 @@ import {
   IconButton,
   Paper,
   Stack,
-  alpha
+  alpha,
+  Snackbar
 } from '@mui/material';
 import {
   ArrowBack as BackIcon,
@@ -32,6 +33,8 @@ import {
   Fingerprint as SerialIcon,
   Description as DescriptionIcon,
   Place as PincodeIcon,
+  Share as ShareIcon,
+  ContentCopy as CopyIcon,
 } from '@mui/icons-material';
 
 import Layout from '../../components/common/Layout/Layout';
@@ -59,6 +62,8 @@ const ViewComplaintPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   // Helper function to parse structured description
   const parseDescription = (description) => {
@@ -85,6 +90,98 @@ const ViewComplaintPage = () => {
     });
 
     return { model, serialNumber, reason };
+  };
+
+  // Generate shareable text
+  const generateShareableText = () => {
+    const parsedDescription = parseDescription(complaint.description);
+    
+    let shareText = `📋 *Complaint Details*\n\n`;
+    shareText += `*Complaint Number:* ${complaint.complaintNumber}\n`;
+    
+    if (complaint.assigneeType === 'service_person' && complaint.companyComplaintNumber) {
+      shareText += `*Company Complaint Number:* ${complaint.companyComplaintNumber}\n`;
+    }
+    
+    shareText += `\n👤 *Customer Information*\n`;
+    shareText += `*Name:* ${complaint.customerName}\n`;
+    shareText += `*Phone:* ${complaint.customerPhone}\n`;
+    shareText += `*Address:* ${complaint.customerAddress}\n`;
+    
+    if (complaint.customerPincode) {
+      shareText += `*Pincode:* ${complaint.customerPincode}\n`;
+    }
+    
+    shareText += `\n📦 *Product Details*\n`;
+    
+    if (parsedDescription.model) {
+      shareText += `*Model:* ${parsedDescription.model}\n`;
+    }
+    
+    if (parsedDescription.serialNumber) {
+      shareText += `*Serial Number:* ${parsedDescription.serialNumber}\n`;
+    }
+    
+    if (complaint.purchaseDate) {
+      shareText += `*Purchase Date:* ${formatDate(complaint.purchaseDate)}\n`;
+    }
+    
+    shareText += `\n⚠️ *Problem Description*\n`;
+    shareText += `${parsedDescription.reason || complaint.description}\n`;
+    
+    shareText += `\n📅 *Timeline*\n`;
+    shareText += `*Created Date:* ${formatDate(complaint.createdAt)}\n`;
+    shareText += `*Expected Resolution:* ${formatDate(complaint.expectedResolutionDate)}\n`;
+    
+    shareText += `\n*Status:* ${COMPLAINT_STATUS_DISPLAY[complaint.status]}\n`;
+    shareText += `*Severity:* ${COMPLAINT_SEVERITY_DISPLAY[complaint.severity]}`;
+    
+    return shareText;
+  };
+
+  // Handle share functionality
+  const handleShare = async () => {
+    const shareText = generateShareableText();
+    
+    // Check if Web Share API is available
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Complaint ${complaint.complaintNumber}`,
+          text: shareText,
+        });
+      } catch (error) {
+        // User cancelled or share failed
+        if (error.name !== 'AbortError') {
+          console.error('Error sharing:', error);
+          // Fallback to copy to clipboard
+          handleCopyToClipboard(shareText);
+        }
+      }
+    } else {
+      // Fallback to copy to clipboard
+      handleCopyToClipboard(shareText);
+    }
+  };
+
+  // Handle WhatsApp share
+  const handleWhatsAppShare = () => {
+    const shareText = generateShareableText();
+    const encodedText = encodeURIComponent(shareText);
+    const whatsappUrl = `https://wa.me/?text=${encodedText}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  // Copy to clipboard fallback
+  const handleCopyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setSnackbarMessage('Complaint details copied to clipboard!');
+      setSnackbarOpen(true);
+    }).catch((error) => {
+      console.error('Error copying to clipboard:', error);
+      setSnackbarMessage('Failed to copy. Please try again.');
+      setSnackbarOpen(true);
+    });
   };
 
   // Load complaint data
@@ -564,6 +661,45 @@ const ViewComplaintPage = () => {
                 </Typography>
 
                 <Stack spacing={1}>
+                  {/* Share Button */}
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    color="success"
+                    startIcon={<ShareIcon />}
+                    onClick={handleShare}
+                  >
+                    Share Complaint
+                  </Button>
+
+                  {/* WhatsApp Share Button */}
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    color="success"
+                    startIcon={<ShareIcon />}
+                    onClick={handleWhatsAppShare}
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: 'rgba(37, 211, 102, 0.08)'
+                      }
+                    }}
+                  >
+                    Share on WhatsApp
+                  </Button>
+
+                  {/* Copy Button */}
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    startIcon={<CopyIcon />}
+                    onClick={() => handleCopyToClipboard(generateShareableText())}
+                  >
+                    Copy Details
+                  </Button>
+
+                  <Divider sx={{ my: 1 }} />
+
                   <Button
                     variant="outlined"
                     fullWidth
@@ -619,6 +755,15 @@ const ViewComplaintPage = () => {
             onComplaintUpdated={handleComplaintUpdated}
           />
         )}
+
+        {/* Snackbar for notifications */}
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={3000}
+          onClose={() => setSnackbarOpen(false)}
+          message={snackbarMessage}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        />
       </Box>
     </Layout>
   );
