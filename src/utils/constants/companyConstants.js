@@ -33,7 +33,7 @@ export const COMPANIES = {
   FURNITURE_1: {
     id: "furniture_1",
     code: "FN1", 
-    name: "M-Raj Steel Sydicate",
+    name: "M-Raj Steel Syndicate",
     address: "Opposite Dinesh Farsal Mandal Road Viramgam",
     city: "Ahmedabad",
     state: "Gujarat",
