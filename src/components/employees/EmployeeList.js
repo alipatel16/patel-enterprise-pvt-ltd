@@ -1,3 +1,4 @@
+// src/components/employees/EmployeeList.js - UPDATED with Reassignment Modal
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -37,8 +38,11 @@ import {
 
 import { useEmployee } from '../../contexts/EmployeeContext/EmployeeContext';
 import { useAuth } from '../../contexts/AuthContext/AuthContext';
+import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 import SearchBar from '../common/UI/SearchBar';
 import Pagination from '../common/UI/Pagination';
+import EmployeeReassignmentModal from './EmployeeReassignmentModal';
+import checklistService from '../../services/checklistService';
 import { 
   formatEmployeeForDisplay,
   EMPLOYEE_ROLES,
@@ -48,6 +52,7 @@ import {
 const EmployeeList = () => {
   const navigate = useNavigate();
   const theme = useTheme();
+  const { userType } = useUserType();
 
   const {
     employees,
@@ -60,7 +65,7 @@ const EmployeeList = () => {
 
   const { canDelete } = useAuth();
 
-  // Local state for search and filters (no debouncing to avoid focus loss)
+  // Local state for search and filters
   const [searchValue, setSearchValue] = useState('');
   const [localFilters, setLocalFilters] = useState({
     role: '',
@@ -76,8 +81,15 @@ const EmployeeList = () => {
   // Action menu state
   const [actionMenuAnchor, setActionMenuAnchor] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  
+  // Simple delete dialog (for employees with no checklist assignments)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // NEW: Reassignment modal state
+  const [reassignmentModalOpen, setReassignmentModalOpen] = useState(false);
+  const [checklistsForEmployee, setChecklistsForEmployee] = useState([]);
+  const [loadingChecklists, setLoadingChecklists] = useState(false);
 
   // Load employees on component mount
   useEffect(() => {
@@ -134,7 +146,6 @@ const EmployeeList = () => {
       let aValue = a[localFilters.sortBy] || '';
       let bValue = b[localFilters.sortBy] || '';
 
-      // Handle different data types
       if (typeof aValue === 'string') {
         aValue = aValue.toLowerCase();
         bValue = bValue.toLowerCase();
@@ -178,7 +189,7 @@ const EmployeeList = () => {
     };
   }, [filteredAndSortedEmployees.length, currentPage, pageSize]);
 
-  // Handle search input change (no debouncing)
+  // Handle search input change
   const handleSearchChange = (value) => {
     setSearchValue(value);
   };
@@ -217,13 +228,41 @@ const EmployeeList = () => {
     setActionMenuAnchor(null);
   };
 
-  // Handle delete
-  const handleDeleteClick = () => {
-    setDeleteDialogOpen(true);
+  // NEW: Handle delete with checklist check
+  const handleDeleteClick = async () => {
     handleActionMenuClose();
+    
+    if (!selectedEmployee) return;
+
+    try {
+      setLoadingChecklists(true);
+
+      // Check if employee has any checklist assignments
+      const allChecklists = await checklistService.getChecklists(userType);
+      const employeeChecklists = allChecklists.filter(checklist => 
+        checklist.assignedEmployees?.includes(selectedEmployee.id) ||
+        checklist.backupEmployees?.includes(selectedEmployee.id)
+      );
+
+      if (employeeChecklists.length > 0) {
+        // Employee has checklists - show reassignment modal
+        setChecklistsForEmployee(employeeChecklists);
+        setReassignmentModalOpen(true);
+      } else {
+        // No checklists - show simple delete confirmation
+        setDeleteDialogOpen(true);
+      }
+    } catch (error) {
+      console.error('Error checking checklists:', error);
+      // If error, still allow simple delete
+      setDeleteDialogOpen(true);
+    } finally {
+      setLoadingChecklists(false);
+    }
   };
 
-  const handleDeleteConfirm = async () => {
+  // Handle simple delete (no checklists)
+  const handleSimpleDeleteConfirm = async () => {
     if (!selectedEmployee) return;
 
     setDeleting(true);
@@ -232,7 +271,6 @@ const EmployeeList = () => {
       if (success) {
         setDeleteDialogOpen(false);
         setSelectedEmployee(null);
-        // Reload employees
         loadEmployees();
       }
     } catch (error) {
@@ -242,19 +280,52 @@ const EmployeeList = () => {
     }
   };
 
-  const handleDeleteCancel = () => {
+  const handleSimpleDeleteCancel = () => {
     setDeleteDialogOpen(false);
     setSelectedEmployee(null);
   };
 
-  // Handle pagination change - now works with client-side data
+  // NEW: Handle reassignment confirmation
+  const handleReassignmentConfirm = async (reassignmentData) => {
+    try {
+      console.log('Processing reassignment:', reassignmentData);
+
+      // Process all checklist updates
+      await checklistService.reassignEmployeeChecklists(
+        userType,
+        reassignmentData
+      );
+
+      // After successful reassignment, delete the employee
+      const success = await deleteEmployee(selectedEmployee.id);
+      
+      if (success) {
+        setReassignmentModalOpen(false);
+        setSelectedEmployee(null);
+        setChecklistsForEmployee([]);
+        loadEmployees();
+      }
+    } catch (error) {
+      console.error('Reassignment error:', error);
+      throw error; // Re-throw to show error in modal
+    }
+  };
+
+  // Handle reassignment cancel
+  const handleReassignmentCancel = () => {
+    setReassignmentModalOpen(false);
+    setSelectedEmployee(null);
+    setChecklistsForEmployee([]);
+  };
+
+  // Handle pagination change
   const handlePageChange = (page) => {
     setCurrentPage(page);
   };
 
   const handlePageSizeChange = (newPageSize) => {
     setPageSize(newPageSize);
-    setCurrentPage(1); // Reset to first page when page size changes
+    setCurrentPage(1);
   };
 
   // Get role color
@@ -319,6 +390,11 @@ const EmployeeList = () => {
     name: 'Name',
     joinedDate: 'Recently Joined',
     role: 'Role'
+  };
+
+  // Get available employees for reassignment (excluding the one being deleted)
+  const getAvailableEmployeesForReassignment = () => {
+    return employees.filter(emp => emp.id !== selectedEmployee?.id && emp.isActive);
   };
 
   // Render loading skeletons
@@ -418,7 +494,7 @@ const EmployeeList = () => {
                     sx={{
                       cursor: 'pointer',
                       transition: 'all 0.2s ease-in-out',
-                      height: 280, // Fixed height for consistency
+                      height: 280,
                       display: 'flex',
                       flexDirection: 'column',
                       '&:hover': {
@@ -489,7 +565,7 @@ const EmployeeList = () => {
                         </IconButton>
                       </Box>
 
-                      {/* Contact and Role Info - Fixed height section */}
+                      {/* Contact and Role Info */}
                       <Box mb={2} sx={{ flex: 1, minHeight: 120 }}>
                         <Box display="flex" alignItems="center" gap={1} mb={1}>
                           <WorkIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
@@ -525,7 +601,7 @@ const EmployeeList = () => {
                         </Box>
                       </Box>
 
-                      {/* Tags - Fixed bottom section */}
+                      {/* Tags */}
                       <Box display="flex" gap={1} flexWrap="wrap" mt="auto">
                         <Chip
                           label={formattedEmployee.roleDisplay}
@@ -556,7 +632,7 @@ const EmployeeList = () => {
             })}
           </Grid>
 
-          {/* Pagination - Now using client-side pagination info */}
+          {/* Pagination */}
           <Box mt={4}>
             <Pagination
               currentPage={paginationInfo.currentPage}
@@ -605,7 +681,7 @@ const EmployeeList = () => {
         </MenuItem>
 
         {canDelete() && (
-          <MenuItem onClick={handleDeleteClick}>
+          <MenuItem onClick={handleDeleteClick} disabled={loadingChecklists}>
             <ListItemIcon>
               <DeleteIcon fontSize="small" />
             </ListItemIcon>
@@ -614,10 +690,10 @@ const EmployeeList = () => {
         )}
       </Menu>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Simple Delete Confirmation Dialog (No Checklists) */}
       <Dialog
         open={deleteDialogOpen}
-        onClose={handleDeleteCancel}
+        onClose={handleSimpleDeleteCancel}
         maxWidth="sm"
         fullWidth
       >
@@ -629,11 +705,11 @@ const EmployeeList = () => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDeleteCancel} disabled={deleting}>
+          <Button onClick={handleSimpleDeleteCancel} disabled={deleting}>
             Cancel
           </Button>
           <Button
-            onClick={handleDeleteConfirm}
+            onClick={handleSimpleDeleteConfirm}
             color="error"
             variant="contained"
             disabled={deleting}
@@ -642,6 +718,17 @@ const EmployeeList = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* NEW: Employee Reassignment Modal (With Checklists) */}
+      <EmployeeReassignmentModal
+        open={reassignmentModalOpen}
+        onClose={handleReassignmentCancel}
+        onConfirm={handleReassignmentConfirm}
+        employee={selectedEmployee}
+        checklists={checklistsForEmployee}
+        availableEmployees={getAvailableEmployeesForReassignment()}
+        loading={loadingChecklists}
+      />
     </Box>
   );
 };

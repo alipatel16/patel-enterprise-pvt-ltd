@@ -242,18 +242,18 @@ export const SalesProvider = ({ children }) => {
         );
 
         if (newInvoice) {
-          console.log('Invoice created successfully:', {
+          console.log("Invoice created successfully:", {
             invoiceNumber: newInvoice.invoiceNumber,
             includeGST: newInvoice.includeGST,
-            customerGSTNumber: newInvoice.customerGSTNumber
+            customerGSTNumber: newInvoice.customerGSTNumber,
           });
-          
+
           dispatch({ type: SALES_ACTIONS.ADD_SALE, payload: newInvoice });
         }
 
         return newInvoice;
       } catch (error) {
-        console.error('Error creating invoice in context:', error);
+        console.error("Error creating invoice in context:", error);
         dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
         return null;
       }
@@ -289,7 +289,10 @@ export const SalesProvider = ({ children }) => {
         );
 
         if (updatedInvoice) {
-          dispatch({ type: SALES_ACTIONS.UPDATE_SALE, payload: updatedInvoice });
+          dispatch({
+            type: SALES_ACTIONS.UPDATE_SALE,
+            payload: updatedInvoice,
+          });
         }
 
         return updatedInvoice;
@@ -343,9 +346,12 @@ export const SalesProvider = ({ children }) => {
           paymentStatus,
           paymentDetails
         );
-        
+
         if (updatedInvoice) {
-          dispatch({ type: SALES_ACTIONS.UPDATE_SALE, payload: updatedInvoice });
+          dispatch({
+            type: SALES_ACTIONS.UPDATE_SALE,
+            payload: updatedInvoice,
+          });
         }
 
         return updatedInvoice;
@@ -375,7 +381,10 @@ export const SalesProvider = ({ children }) => {
         );
 
         if (updatedInvoice) {
-          dispatch({ type: SALES_ACTIONS.UPDATE_SALE, payload: updatedInvoice });
+          dispatch({
+            type: SALES_ACTIONS.UPDATE_SALE,
+            payload: updatedInvoice,
+          });
         }
 
         return updatedInvoice;
@@ -405,7 +414,10 @@ export const SalesProvider = ({ children }) => {
         );
 
         if (updatedInvoice) {
-          dispatch({ type: SALES_ACTIONS.UPDATE_SALE, payload: updatedInvoice });
+          dispatch({
+            type: SALES_ACTIONS.UPDATE_SALE,
+            payload: updatedInvoice,
+          });
         }
 
         return updatedInvoice;
@@ -546,7 +558,10 @@ export const SalesProvider = ({ children }) => {
         );
 
         if (updatedInvoice) {
-          dispatch({ type: SALES_ACTIONS.UPDATE_SALE, payload: updatedInvoice });
+          dispatch({
+            type: SALES_ACTIONS.UPDATE_SALE,
+            payload: updatedInvoice,
+          });
 
           // IMPORTANT: Auto-cleanup notifications for this paid installment
           try {
@@ -616,6 +631,66 @@ export const SalesProvider = ({ children }) => {
     },
     [userType]
   );
+
+  /**
+   * Update exchange item received status
+   * @param {string} invoiceId - Invoice ID
+   * @param {boolean} itemReceived - Whether item is received
+   * @returns {Promise<Object>} Updated invoice
+   */
+  const updateExchangeItemStatus = useCallback(
+    async (invoiceId, itemReceived) => {
+      if (!userType || !invoiceId) {
+        dispatch({
+          type: SALES_ACTIONS.SET_ERROR,
+          payload: "Invalid parameters",
+        });
+        return null;
+      }
+
+      try {
+        dispatch({ type: SALES_ACTIONS.SET_LOADING, payload: true });
+
+        const updatedInvoice = await salesService.updateExchangeItemStatus(
+          userType,
+          invoiceId,
+          itemReceived,
+          user?.uid,
+          user?.name || user?.displayName
+        );
+
+        if (updatedInvoice) {
+          dispatch({
+            type: SALES_ACTIONS.UPDATE_SALE,
+            payload: updatedInvoice,
+          });
+        }
+
+        return updatedInvoice;
+      } catch (error) {
+        dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
+        return null;
+      }
+    },
+    [userType, user]
+  );
+
+  /**
+   * Get pending exchange items
+   * @returns {Promise<Array>} Invoices with pending exchanges
+   */
+  const getPendingExchanges = useCallback(async () => {
+    if (!userType) {
+      return [];
+    }
+
+    try {
+      return await salesService.getPendingExchanges(userType);
+    } catch (error) {
+      dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
+      return [];
+    }
+  }, [userType]);
 
   // Get EMI summary
   const getEMISummary = useCallback(
@@ -715,7 +790,7 @@ export const SalesProvider = ({ children }) => {
           changedByName: user?.name || user?.displayName,
         };
 
-        console.log('🔄 Updating due date for installment', installmentNumber);
+        console.log("🔄 Updating due date for installment", installmentNumber);
 
         const updatedInvoice = await salesService.updateInstallmentDueDate(
           userType,
@@ -726,75 +801,96 @@ export const SalesProvider = ({ children }) => {
         );
 
         if (updatedInvoice) {
-          dispatch({ type: SALES_ACTIONS.UPDATE_SALE, payload: updatedInvoice });
+          dispatch({
+            type: SALES_ACTIONS.UPDATE_SALE,
+            payload: updatedInvoice,
+          });
 
-          console.log('✅ Due date updated successfully');
+          console.log("✅ Due date updated successfully");
 
           // CRITICAL FIX: Proper notification regeneration with error handling
           try {
-            console.log('🔔 Starting notification regeneration...');
-            
+            console.log("🔔 Starting notification regeneration...");
+
             // Dynamic import with proper error handling
-            const enhancedEMIGenerator = await import('../../services/cleanEMINotificationGenerator');
+            const enhancedEMIGenerator = await import(
+              "../../services/cleanEMINotificationGenerator"
+            );
             const generator = enhancedEMIGenerator.default;
-            
+
             if (!generator) {
-              throw new Error('Enhanced EMI generator not found');
+              throw new Error("Enhanced EMI generator not found");
             }
-            
+
             // First, clear old notifications to ensure fresh data
-            console.log('🧹 Clearing old notifications...');
+            console.log("🧹 Clearing old notifications...");
             await generator.clearAllNotifications(userType, user?.uid);
-            
+
             // Then generate fresh notifications with updated due dates
-            console.log('🚀 Generating fresh notifications...');
-            const result = await generator.generateAllNotifications(userType, user?.uid);
-            
-            console.log('✅ Notification regeneration completed:', {
+            console.log("🚀 Generating fresh notifications...");
+            const result = await generator.generateAllNotifications(
+              userType,
+              user?.uid
+            );
+
+            console.log("✅ Notification regeneration completed:", {
               created: result.total,
               emiNotifications: result.emi?.created || 0,
-              deliveryNotifications: result.delivery?.created || 0
+              deliveryNotifications: result.delivery?.created || 0,
             });
 
             // CRITICAL FIX: Force refresh notifications in the UI
             // Dispatch a custom action to trigger notification refresh
             if (window.dispatchEvent) {
-              const notificationUpdateEvent = new CustomEvent('emi-notification-update', {
-                detail: {
-                  type: 'due-date-change',
-                  invoiceId,
-                  installmentNumber,
-                  result
+              const notificationUpdateEvent = new CustomEvent(
+                "emi-notification-update",
+                {
+                  detail: {
+                    type: "due-date-change",
+                    invoiceId,
+                    installmentNumber,
+                    result,
+                  },
                 }
-              });
+              );
               window.dispatchEvent(notificationUpdateEvent);
-              console.log('📡 Notification update event dispatched');
+              console.log("📡 Notification update event dispatched");
             }
 
             // Additional fallback: Direct notification context refresh if available
-            if (window.refreshNotifications && typeof window.refreshNotifications === 'function') {
-              console.log('🔄 Triggering direct notification refresh...');
+            if (
+              window.refreshNotifications &&
+              typeof window.refreshNotifications === "function"
+            ) {
+              console.log("🔄 Triggering direct notification refresh...");
               await window.refreshNotifications();
             }
-            
           } catch (notificationError) {
-            console.error('❌ Notification regeneration failed:', notificationError);
-            
+            console.error(
+              "❌ Notification regeneration failed:",
+              notificationError
+            );
+
             // Don't fail the due date update, but show warning
-            console.warn('Due date was updated but notifications may not reflect the change immediately');
-            console.warn('Please manually refresh notifications or the page to see updated due dates');
-            
+            console.warn(
+              "Due date was updated but notifications may not reflect the change immediately"
+            );
+            console.warn(
+              "Please manually refresh notifications or the page to see updated due dates"
+            );
+
             // Optionally, you could dispatch an error or warning action here
             dispatch({
               type: SALES_ACTIONS.SET_ERROR,
-              payload: 'Due date updated but notifications may need manual refresh'
+              payload:
+                "Due date updated but notifications may need manual refresh",
             });
           }
         }
 
         return updatedInvoice;
       } catch (error) {
-        console.error('❌ Error updating installment due date:', error);
+        console.error("❌ Error updating installment due date:", error);
         dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
         return null;
       } finally {
@@ -813,17 +909,25 @@ export const SalesProvider = ({ children }) => {
 
       try {
         // Generate preview invoice number using the same logic but don't save
-        const prefix = userType === "electronics" 
-          ? (includeGST ? "EL_GST_" : "EL_NGST_") 
-          : (includeGST ? "FN_GST_" : "FN_NGST_");
+        const prefix =
+          userType === "electronics"
+            ? includeGST
+              ? "EL_GST_"
+              : "EL_NGST_"
+            : includeGST
+            ? "FN_GST_"
+            : "FN_NGST_";
 
         // Get current max sequence from existing invoices
         const allInvoices = await salesService.getSales(userType);
         let maxSequence = 0;
-        
+
         if (allInvoices && allInvoices.length > 0) {
-          allInvoices.forEach(invoice => {
-            if (invoice.invoiceNumber && invoice.invoiceNumber.startsWith(prefix)) {
+          allInvoices.forEach((invoice) => {
+            if (
+              invoice.invoiceNumber &&
+              invoice.invoiceNumber.startsWith(prefix)
+            ) {
               const match = invoice.invoiceNumber.match(/(\d{3})$/);
               if (match) {
                 const sequence = parseInt(match[1]);
@@ -837,7 +941,7 @@ export const SalesProvider = ({ children }) => {
 
         const nextSequence = maxSequence + 1;
         const sequenceStr = String(nextSequence).padStart(3, "0");
-        
+
         return `${prefix}${sequenceStr}`;
       } catch (error) {
         console.error("Error previewing invoice number:", error);
@@ -886,6 +990,8 @@ export const SalesProvider = ({ children }) => {
     updateInstallmentDueDate,
     getEMISummary,
     getAllPendingEMIs,
+    updateExchangeItemStatus,
+    getPendingExchanges,
   };
 
   return (

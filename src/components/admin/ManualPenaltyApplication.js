@@ -289,6 +289,7 @@ const ManualPenaltyApplication = () => {
                 <Grid item xs={12} sm={6}>
                   <DatePicker
                     label="Penalty Date"
+                    format='dd/MM/yyyy'
                     value={penaltyDate}
                     onChange={setPenaltyDate}
                     maxDate={new Date()}

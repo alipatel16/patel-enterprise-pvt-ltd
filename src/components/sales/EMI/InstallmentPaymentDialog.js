@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -17,16 +17,19 @@ import {
   Chip,
   Divider,
   InputAdornment,
-  LinearProgress
-} from '@mui/material';
+  LinearProgress,
+} from "@mui/material";
 import {
   Payment as PaymentIcon,
   Schedule as ScheduleIcon,
   Warning as WarningIcon,
-  CheckCircle as CheckCircleIcon
-} from '@mui/icons-material';
+  CheckCircle as CheckCircleIcon,
+} from "@mui/icons-material";
 
-import { formatCurrency, formatDate } from '../../../utils/helpers/formatHelpers';
+import {
+  formatCurrency,
+  formatDate,
+} from "../../../utils/helpers/formatHelpers";
 
 /**
  * Dialog for recording installment payments with partial payment support
@@ -36,39 +39,52 @@ const InstallmentPaymentDialog = ({
   onClose,
   installment,
   invoice,
-  onPaymentRecorded
+  onPaymentRecorded,
 }) => {
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [transactionId, setTransactionId] = useState('');
-  const [notes, setNotes] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [transactionId, setTransactionId] = useState("");
+  const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [previewData, setPreviewData] = useState(null);
+
+  const isPartialPayment =
+    installment?.partiallyPaid ||
+    (installment?.paidAmount > 0 &&
+      installment?.paidAmount < installment?.amount &&
+      !installment?.paid);
+  const alreadyPaid = installment?.paidAmount || 0;
+  const remainingAmount =
+    installment?.remainingAmount || (installment?.amount || 0) - alreadyPaid;
 
   // Reset form when dialog opens/closes
   useEffect(() => {
     if (open && installment) {
-      setPaymentAmount(installment.amount.toString());
-      setPaymentMethod('cash');
-      setTransactionId('');
-      setNotes('');
-      setError('');
+      if (isPartialPayment) {
+        setPaymentAmount(remainingAmount.toString());
+      } else {
+        setPaymentAmount(installment.amount?.toString() || "");
+      }
+      setPaymentMethod("cash");
+      setTransactionId("");
+      setNotes("");
+      setError("");
       setPreviewData(null);
     }
-  }, [open, installment]);
+  }, [open, installment, isPartialPayment, remainingAmount]);
 
   // Calculate payment impact preview
   useEffect(() => {
     if (installment && paymentAmount) {
       const amount = parseFloat(paymentAmount);
       const installmentAmount = parseFloat(installment.amount);
-      
+
       if (amount > 0) {
         const isFullPayment = amount >= installmentAmount;
         const isPartialPayment = amount < installmentAmount;
         const isOverpayment = amount > installmentAmount;
-        
+
         setPreviewData({
           isFullPayment,
           isPartialPayment,
@@ -76,7 +92,7 @@ const InstallmentPaymentDialog = ({
           shortfall: isPartialPayment ? installmentAmount - amount : 0,
           overpayment: isOverpayment ? amount - installmentAmount : 0,
           paymentAmount: amount,
-          installmentAmount
+          installmentAmount,
         });
       } else {
         setPreviewData(null);
@@ -89,18 +105,18 @@ const InstallmentPaymentDialog = ({
 
     const amount = parseFloat(paymentAmount);
     if (amount <= 0) {
-      setError('Payment amount must be greater than 0');
+      setError("Payment amount must be greater than 0");
       return;
     }
 
     try {
       setLoading(true);
-      setError('');
+      setError("");
 
       const paymentDetails = {
         paymentMethod,
         transactionId: transactionId.trim() || null,
-        notes: notes.trim()
+        notes: notes.trim(),
       };
 
       await onPaymentRecorded(
@@ -111,26 +127,27 @@ const InstallmentPaymentDialog = ({
 
       onClose();
     } catch (err) {
-      setError(err.message || 'Failed to record payment');
+      setError(err.message || "Failed to record payment");
     } finally {
       setLoading(false);
     }
   };
 
   const getInstallmentStatusColor = () => {
-    if (!installment) return 'default';
-    
-    if (installment.isOverdue) return 'error';
-    if (installment.isDueToday) return 'warning';
-    if (installment.isDueSoon) return 'info';
-    return 'success';
+    if (!installment) return "default";
+
+    if (installment.isOverdue) return "error";
+    if (installment.isDueToday) return "warning";
+    if (installment.isDueSoon) return "info";
+    return "success";
   };
 
   const getInstallmentStatusLabel = () => {
-    if (!installment) return '';
-    
-    if (installment.isOverdue) return `${Math.abs(installment.daysDiff)} days overdue`;
-    if (installment.isDueToday) return 'Due today';
+    if (!installment) return "";
+
+    if (installment.isOverdue)
+      return `${Math.abs(installment.daysDiff)} days overdue`;
+    if (installment.isDueToday) return "Due today";
     if (installment.isDueSoon) return `Due in ${installment.daysDiff} days`;
     return `Due in ${installment.daysDiff} days`;
   };
@@ -144,16 +161,14 @@ const InstallmentPaymentDialog = ({
       maxWidth="md"
       fullWidth
       PaperProps={{
-        sx: { minHeight: 500 }
+        sx: { minHeight: 500 },
       }}
     >
       <DialogTitle>
         <Box display="flex" alignItems="center" gap={2}>
           <PaymentIcon color="primary" />
           <Box>
-            <Typography variant="h6">
-              Record Installment Payment
-            </Typography>
+            <Typography variant="h6">Record Installment Payment</Typography>
             <Typography variant="body2" color="text.secondary">
               {invoice?.customerName} • {invoice?.invoiceNumber}
             </Typography>
@@ -162,6 +177,20 @@ const InstallmentPaymentDialog = ({
       </DialogTitle>
 
       <DialogContent dividers>
+        {/* ADD: Partial payment alert */}
+        {isPartialPayment && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              <strong>Partial Payment Detected</strong>
+            </Typography>
+            <Typography variant="body2">
+              Already Paid: {formatCurrency(alreadyPaid)}
+            </Typography>
+            <Typography variant="body2">
+              Remaining: {formatCurrency(remainingAmount)}
+            </Typography>
+          </Alert>
+        )}
         {/* Installment Info */}
         <Box mb={3}>
           <Typography variant="subtitle1" fontWeight={600} gutterBottom>
@@ -200,7 +229,9 @@ const InstallmentPaymentDialog = ({
                 label={getInstallmentStatusLabel()}
                 color={getInstallmentStatusColor()}
                 size="small"
-                icon={installment.isOverdue ? <WarningIcon /> : <ScheduleIcon />}
+                icon={
+                  installment.isOverdue ? <WarningIcon /> : <ScheduleIcon />
+                }
               />
             </Grid>
           </Grid>
@@ -222,16 +253,20 @@ const InstallmentPaymentDialog = ({
               onChange={(e) => setPaymentAmount(e.target.value)}
               type="number"
               InputProps={{
-                startAdornment: <InputAdornment position="start">₹</InputAdornment>,
-                inputProps: { min: 0, step: 0.01 }
+                startAdornment: (
+                  <InputAdornment position="start">₹</InputAdornment>
+                ),
+                inputProps: { min: 0, step: 0.01 },
               }}
-              error={!!error && error.includes('amount')}
+              error={!!error && error.includes("amount")}
               helperText={
-                parseFloat(paymentAmount) > parseFloat(installment.amount) 
-                  ? 'Overpayment will be applied to future installments'
-                  : parseFloat(paymentAmount) < parseFloat(installment.amount) && parseFloat(paymentAmount) > 0
-                  ? 'Partial payment - remaining amount will be redistributed'
-                  : ''
+                parseFloat(paymentAmount) > parseFloat(installment.amount)
+                  ? "Overpayment will be applied to future installments"
+                  : parseFloat(paymentAmount) <
+                      parseFloat(installment.amount) &&
+                    parseFloat(paymentAmount) > 0
+                  ? "Partial payment - remaining amount will be redistributed"
+                  : ""
               }
             />
           </Grid>
@@ -283,39 +318,47 @@ const InstallmentPaymentDialog = ({
             <Typography variant="subtitle1" fontWeight={600} gutterBottom>
               Payment Impact
             </Typography>
-            
-            <Alert 
+
+            <Alert
               severity={
-                previewData.isOverpayment ? 'info' : 
-                previewData.isPartialPayment ? 'warning' : 'success'
+                previewData.isOverpayment
+                  ? "info"
+                  : previewData.isPartialPayment
+                  ? "warning"
+                  : "success"
               }
               icon={
-                previewData.isFullPayment && !previewData.isOverpayment ? 
-                <CheckCircleIcon /> : <PaymentIcon />
+                previewData.isFullPayment && !previewData.isOverpayment ? (
+                  <CheckCircleIcon />
+                ) : (
+                  <PaymentIcon />
+                )
               }
             >
               <Typography variant="body2" gutterBottom>
-                {previewData.isFullPayment && !previewData.isOverpayment && (
-                  "This installment will be marked as fully paid."
-                )}
+                {previewData.isFullPayment &&
+                  !previewData.isOverpayment &&
+                  "This installment will be marked as fully paid."}
                 {previewData.isPartialPayment && (
                   <>
-                    <strong>Partial Payment:</strong> Shortfall of {formatCurrency(previewData.shortfall)} 
+                    <strong>Partial Payment:</strong> Shortfall of{" "}
+                    {formatCurrency(previewData.shortfall)}
                     will be redistributed across remaining installments.
                   </>
                 )}
                 {previewData.isOverpayment && (
                   <>
-                    <strong>Overpayment:</strong> Excess amount of {formatCurrency(previewData.overpayment)} 
+                    <strong>Overpayment:</strong> Excess amount of{" "}
+                    {formatCurrency(previewData.overpayment)}
                     will be applied to future installments automatically.
                   </>
                 )}
               </Typography>
-              
+
               <Box mt={1}>
                 <Typography variant="caption" display="block">
-                  Payment: {formatCurrency(previewData.paymentAmount)} • 
-                  Due: {formatCurrency(previewData.installmentAmount)}
+                  Payment: {formatCurrency(previewData.paymentAmount)} • Due:{" "}
+                  {formatCurrency(previewData.installmentAmount)}
                 </Typography>
               </Box>
             </Alert>
@@ -333,7 +376,12 @@ const InstallmentPaymentDialog = ({
         {loading && (
           <Box mt={2}>
             <LinearProgress />
-            <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1 }}>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              align="center"
+              sx={{ mt: 1 }}
+            >
               Recording payment...
             </Typography>
           </Box>
@@ -341,10 +389,7 @@ const InstallmentPaymentDialog = ({
       </DialogContent>
 
       <DialogActions sx={{ p: 3 }}>
-        <Button 
-          onClick={onClose} 
-          disabled={loading}
-        >
+        <Button onClick={onClose} disabled={loading}>
           Cancel
         </Button>
         <Button
@@ -353,7 +398,7 @@ const InstallmentPaymentDialog = ({
           disabled={loading || !paymentAmount || parseFloat(paymentAmount) <= 0}
           startIcon={<PaymentIcon />}
         >
-          {loading ? 'Recording...' : 'Record Payment'}
+          {loading ? "Recording..." : "Record Payment"}
         </Button>
       </DialogActions>
     </Dialog>

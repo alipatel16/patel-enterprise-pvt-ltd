@@ -55,7 +55,7 @@ const RecordPaymentDialog = ({ open, onClose, invoice, onSuccess }) => {
   // Calculate remaining balance
   const getRemainingBalance = (inv) => {
     if (!inv) return 0;
-    const totalAmount = inv.grandTotal || inv.totalAmount || 0;
+    const totalAmount = inv.netPayable || inv.grandTotal || inv.totalAmount || 0;
     const paidAmount = inv.paymentDetails?.downPayment || 0;
     return Math.max(0, totalAmount - paidAmount);
   };

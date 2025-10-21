@@ -1,4 +1,4 @@
-// src/App.js - Updated with Quotation Routes
+// src/App.js - Updated with Exchange Routes
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -52,7 +52,7 @@ import EditInvoicePage from "./pages/sales/EditInvoicePage";
 import ViewInvoicePage from "./pages/sales/ViewInvoicePage";
 import SalesHistoryPage from "./pages/sales/SalesHistoryPage";
 
-// NEW: Pages - Quotations
+// Pages - Quotations
 import QuotationsPage from "./pages/quotations/QuotationsPage";
 import CreateQuotationPage from "./pages/quotations/CreateQuotationPage";
 import EditQuotationPage from "./pages/quotations/EditQuotationPage";
@@ -73,6 +73,13 @@ import EmployeeChecklistDashboard from "./pages/checklists/EmployeeChecklistDash
 // Complaints
 import ComplaintsPage from "./pages/complaints/ComplaintsPage";
 import ViewComplaintPage from "./pages/complaints/ViewComplaintPage";
+import ComplaintSettingsPage from "./pages/complaints/ComplaintSettingsPage";
+
+// Pages - Deliveries
+import DeliveriesPage from "./pages/deliveries/DeliveriesPage";
+
+// NEW: Pages - Exchanges
+import ExchangesPage from "./pages/exchanges/ExchangesPage";
 
 // Pages - Error
 import NotFoundPage from "./pages/NotFoundPage";
@@ -268,7 +275,7 @@ const AppContent = () => {
             }
           />
 
-          {/* NEW: Quotation routes */}
+          {/* Quotation routes */}
           <Route
             path="/quotations"
             element={
@@ -323,7 +330,6 @@ const AppContent = () => {
           />
 
           {/* Checklist routes */}
-          {/* Admin checklist management */}
           <Route
             path="/checklists"
             element={
@@ -348,7 +354,7 @@ const AppContent = () => {
               </ProtectedRoute>
             }
           />
-          
+
           {/* Complaint routes */}
           <Route
             path="/complaints"
@@ -366,6 +372,14 @@ const AppContent = () => {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/complaints/settings"
+            element={
+              <ProtectedRoute>
+                <ComplaintSettingsPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Employee Checklist Dashboard */}
           <Route
@@ -373,6 +387,26 @@ const AppContent = () => {
             element={
               <ProtectedRoute requiredRole="employee">
                 <EmployeeChecklistDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Deliveries routes */}
+          <Route
+            path="/deliveries"
+            element={
+              <ProtectedRoute>
+                <DeliveriesPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* NEW: Exchanges routes */}
+          <Route
+            path="/exchanges"
+            element={
+              <ProtectedRoute>
+                <ExchangesPage />
               </ProtectedRoute>
             }
           />

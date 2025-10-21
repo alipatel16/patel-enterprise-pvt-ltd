@@ -18,7 +18,6 @@ import {
   ArrowBack as ArrowBackIcon,
   Edit as EditIcon,
   Print as PrintIcon,
-  Download as DownloadIcon,
   Receipt as ReceiptIcon,
   AccountBalance as EMIIcon,
   LocalShipping as DeliveryIcon,
@@ -28,7 +27,7 @@ import {
 import Layout from "../../components/common/Layout/Layout";
 import LoadingSpinner from "../../components/common/UI/LoadingSpinner";
 import InvoicePreview from "../../components/sales/Invoice/InvoicePreview";
-import PrintInvoiceModal from "../../components/sales/Invoice/PrintInvoiceModal"; // ADD THIS IMPORT
+import PrintableInvoice from "../../components/sales/Invoice/PrintableInvoice"; // ADD THIS IMPORT
 import {
   SalesProvider,
   useSales,
@@ -70,7 +69,7 @@ const ViewInvoicePageContent = () => {
 
   const [currentTab, setCurrentTab] = useState(0);
   const [invoiceForPayment, setInvoiceForPayment] = useState(null);
-  const [printModalOpen, setPrintModalOpen] = useState(false); // ADD THIS STATE
+  const [showPrintView, setShowPrintView] = useState(false);
 
   // EMI Payment states
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -185,13 +184,12 @@ const ViewInvoicePageContent = () => {
 
   // UPDATE: Handle print - now opens modal instead of direct print
   const handlePrint = () => {
-    setPrintModalOpen(true);
+    setShowPrintView(true);
   };
 
-  // Handle download
-  const handleDownload = () => {
-    // Implementation for PDF download
-    console.log("Download invoice as PDF");
+  // Handle print completion
+  const handlePrintComplete = () => {
+    setShowPrintView(false);
   };
 
   // Handle back navigation
@@ -203,7 +201,6 @@ const ViewInvoicePageContent = () => {
   const canEdit =
     user?.role === USER_ROLES.ADMIN ||
     (user?.role === USER_ROLES.EMPLOYEE && user?.canCreateInvoices);
-  const canDelete = user?.role === USER_ROLES.ADMIN;
 
   // Get urgent installment count
   const urgentInstallmentCount = pendingInstallments.filter(
@@ -271,6 +268,16 @@ const ViewInvoicePageContent = () => {
       icon: <EMIIcon />,
       badge: pendingInstallments.length,
     });
+  }
+
+  if (showPrintView) {
+    return (
+      <PrintableInvoice 
+        invoice={currentInvoice}
+        autoTriggerPrint={true}
+        onPrint={handlePrintComplete}
+      />
+    );
   }
 
   return (
@@ -362,17 +369,6 @@ const ViewInvoicePageContent = () => {
                 }}
               >
                 Print
-              </Button>
-
-              <Button
-                variant="outlined"
-                startIcon={<DownloadIcon />}
-                onClick={handleDownload}
-                sx={{
-                  flex: { xs: 1, sm: "none" },
-                }}
-              >
-                Download
               </Button>
 
               {canEdit && (
@@ -561,13 +557,6 @@ const ViewInvoicePageContent = () => {
             await getInvoiceById(id);
             setInvoiceForPayment(null);
           }}
-        />
-
-        {/* ADD: Print Invoice Modal */}
-        <PrintInvoiceModal
-          open={printModalOpen}
-          onClose={() => setPrintModalOpen(false)}
-          invoice={currentInvoice}
         />
       </Container>
     </Layout>

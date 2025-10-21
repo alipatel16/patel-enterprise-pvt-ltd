@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Card,
@@ -28,8 +28,8 @@ import {
   ListItem,
   ListItemText,
   ListItemSecondaryAction,
-  Badge
-} from '@mui/material';
+  Badge,
+} from "@mui/material";
 import {
   Payment as PaymentIcon,
   Schedule as ScheduleIcon,
@@ -41,13 +41,16 @@ import {
   CalendarToday as CalendarIcon,
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
-  Flag as FlagIcon
-} from '@mui/icons-material';
+  Flag as FlagIcon,
+} from "@mui/icons-material";
 
-import { useSales } from '../../../contexts/SalesContext/SalesContext';
-import { formatCurrency, formatDate } from '../../../utils/helpers/formatHelpers';
-import InstallmentPaymentDialog from './InstallmentPaymentDialog';
-import DueDateChangeDialog from './DueDateChangeDialog'; // New import
+import { useSales } from "../../../contexts/SalesContext/SalesContext";
+import {
+  formatCurrency,
+  formatDate,
+} from "../../../utils/helpers/formatHelpers";
+import InstallmentPaymentDialog from "./InstallmentPaymentDialog";
+import DueDateChangeDialog from "./DueDateChangeDialog"; // New import
 
 /**
  * EMI Management Component for viewing and managing installment payments
@@ -55,16 +58,16 @@ import DueDateChangeDialog from './DueDateChangeDialog'; // New import
  */
 const EMIManagement = ({ invoice }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
-  
-  const { 
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isTablet = useMediaQuery(theme.breakpoints.down("md"));
+
+  const {
     recordInstallmentPayment,
     getInstallmentPaymentHistory,
     getPendingInstallments,
     getEMISummary,
     updateInstallmentDueDate, // Add this method
-    loading 
+    loading,
   } = useSales();
 
   const [emiSummary, setEmiSummary] = useState(null);
@@ -75,7 +78,7 @@ const EMIManagement = ({ invoice }) => {
   const [selectedInstallment, setSelectedInstallment] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   // Load EMI data
   useEffect(() => {
@@ -87,31 +90,40 @@ const EMIManagement = ({ invoice }) => {
   const loadEMIData = async () => {
     try {
       setLoadingData(true);
-      setError('');
+      setError("");
 
       const [summary, pending, history] = await Promise.all([
         getEMISummary(invoice.id),
         getPendingInstallments(invoice.id),
-        getInstallmentPaymentHistory(invoice.id)
+        getInstallmentPaymentHistory(invoice.id),
       ]);
 
       setEmiSummary(summary);
       setPendingInstallments(pending);
       setPaymentHistory(history);
     } catch (err) {
-      setError(err.message || 'Failed to load EMI data');
+      setError(err.message || "Failed to load EMI data");
     } finally {
       setLoadingData(false);
     }
   };
 
-  const handlePaymentRecord = async (installmentNumber, paymentAmount, paymentDetails) => {
+  const handlePaymentRecord = async (
+    installmentNumber,
+    paymentAmount,
+    paymentDetails
+  ) => {
     try {
-      await recordInstallmentPayment(invoice.id, installmentNumber, paymentAmount, paymentDetails);
-      
+      await recordInstallmentPayment(
+        invoice.id,
+        installmentNumber,
+        paymentAmount,
+        paymentDetails
+      );
+
       // Reload data to reflect changes
       await loadEMIData();
-      
+
       setPaymentDialogOpen(false);
       setSelectedInstallment(null);
     } catch (err) {
@@ -120,13 +132,22 @@ const EMIManagement = ({ invoice }) => {
   };
 
   // New: Handle due date change
-  const handleDueDateChange = async (installmentNumber, newDueDate, changeDetails) => {
+  const handleDueDateChange = async (
+    installmentNumber,
+    newDueDate,
+    changeDetails
+  ) => {
     try {
-      await updateInstallmentDueDate(invoice.id, installmentNumber, newDueDate, changeDetails);
-      
+      await updateInstallmentDueDate(
+        invoice.id,
+        installmentNumber,
+        newDueDate,
+        changeDetails
+      );
+
       // Reload data to reflect changes
       await loadEMIData();
-      
+
       setDueDateDialogOpen(false);
       setSelectedInstallment(null);
     } catch (err) {
@@ -161,27 +182,27 @@ const EMIManagement = ({ invoice }) => {
   const getInstallmentStatusConfig = (installment) => {
     if (installment.isOverdue) {
       return {
-        color: 'error',
+        color: "error",
         label: `${Math.abs(installment.daysDiff)} days overdue`,
-        icon: <ErrorIcon fontSize="small" />
+        icon: <ErrorIcon fontSize="small" />,
       };
     } else if (installment.isDueToday) {
       return {
-        color: 'warning',
-        label: 'Due today',
-        icon: <WarningIcon fontSize="small" />
+        color: "warning",
+        label: "Due today",
+        icon: <WarningIcon fontSize="small" />,
       };
     } else if (installment.isDueSoon) {
       return {
-        color: 'info',
+        color: "info",
         label: `Due in ${installment.daysDiff} days`,
-        icon: <ScheduleIcon fontSize="small" />
+        icon: <ScheduleIcon fontSize="small" />,
       };
     } else {
       return {
-        color: 'success',
+        color: "success",
         label: `Due in ${installment.daysDiff} days`,
-        icon: <ScheduleIcon fontSize="small" />
+        icon: <ScheduleIcon fontSize="small" />,
       };
     }
   };
@@ -189,22 +210,43 @@ const EMIManagement = ({ invoice }) => {
   // New: Get due date change indicator
   const getDueDateChangeIndicator = (installment) => {
     const changeCount = installment.dueDateChangeCount || 0;
-    
+
     if (changeCount === 0) return null;
-    
+
     return (
-      <Tooltip title={`Due date changed ${changeCount} time${changeCount > 1 ? 's' : ''}`}>
+      <Tooltip
+        title={`Due date changed ${changeCount} time${
+          changeCount > 1 ? "s" : ""
+        }`}
+      >
         <Badge
           badgeContent={changeCount}
-          color={changeCount >= 3 ? 'error' : changeCount >= 2 ? 'warning' : 'info'}
+          color={
+            changeCount >= 3 ? "error" : changeCount >= 2 ? "warning" : "info"
+          }
           sx={{ ml: 1 }}
         >
-          <HistoryIcon 
-            fontSize="small" 
-            color={changeCount >= 3 ? 'error' : changeCount >= 2 ? 'warning' : 'action'}
+          <HistoryIcon
+            fontSize="small"
+            color={
+              changeCount >= 3
+                ? "error"
+                : changeCount >= 2
+                ? "warning"
+                : "action"
+            }
           />
         </Badge>
       </Tooltip>
+    );
+  };
+
+  const hasPartialPayment = (installment) => {
+    return (
+      installment.partiallyPaid ||
+      (installment.paidAmount > 0 &&
+        installment.paidAmount < installment.amount &&
+        !installment.paid)
     );
   };
 
@@ -215,52 +257,69 @@ const EMIManagement = ({ invoice }) => {
         const statusConfig = getInstallmentStatusConfig(installment);
         const changeCount = installment.dueDateChangeCount || 0;
         const hasFrequentChanges = installment.hasFrequentDueDateChanges;
-        
+        const isPartial = hasPartialPayment(installment);
+        const paidAmount = installment.paidAmount || 0;
+        const remainingAmount =
+          installment.remainingAmount || installment.amount - paidAmount;
+
         return (
-          <ListItem 
+          <ListItem
             key={installment.installmentNumber}
             sx={{
-              backgroundColor: installment.isOverdue 
-                ? theme.palette.error.light + '10' 
-                : installment.isDueToday 
-                ? theme.palette.warning.light + '10'
+              backgroundColor: installment.isOverdue
+                ? theme.palette.error.light + "10"
+                : installment.isDueToday
+                ? theme.palette.warning.light + "10"
                 : hasFrequentChanges
-                ? theme.palette.warning.light + '05' // Subtle highlight for frequent changes
-                : 'transparent',
+                ? theme.palette.warning.light + "05"
+                : isPartial
+                ? theme.palette.info.light + "05"
+                : "transparent",
               borderRadius: 1,
               mb: 1,
-              border: '1px solid',
-              borderColor: hasFrequentChanges 
+              border: "1px solid",
+              borderColor: hasFrequentChanges
                 ? theme.palette.warning.main
+                : isPartial
+                ? theme.palette.info.main
                 : theme.palette.divider,
-              borderLeftWidth: hasFrequentChanges ? '4px' : '1px'
+              borderLeftWidth: hasFrequentChanges || isPartial ? "4px" : "1px",
             }}
           >
             <ListItemText
               primary={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Box
+                  sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}
+                >
                   <Typography variant="subtitle2" fontWeight={600}>
                     Installment #{installment.installmentNumber}
                   </Typography>
-                  
+
                   <Chip
                     label={statusConfig.label}
                     color={statusConfig.color}
                     size="small"
                     icon={statusConfig.icon}
                   />
-                  
-                  {/* Due date change indicator */}
+
                   {getDueDateChangeIndicator(installment)}
-                  
-                  {/* Frequent changes flag */}
+
                   {hasFrequentChanges && (
                     <Chip
                       label={`${changeCount} Changes`}
                       size="small"
                       color="warning"
                       icon={<FlagIcon />}
-                      sx={{ fontSize: '0.625rem' }}
+                      sx={{ fontSize: "0.625rem" }}
+                    />
+                  )}
+
+                  {isPartial && (
+                    <Chip
+                      label="Partial Payment"
+                      size="small"
+                      color="info"
+                      sx={{ fontSize: "0.625rem" }}
                     />
                   )}
                 </Box>
@@ -268,25 +327,37 @@ const EMIManagement = ({ invoice }) => {
               secondary={
                 <Stack spacing={0.5}>
                   <Typography variant="body2" color="text.secondary">
-                    <strong>Amount:</strong> {formatCurrency(installment.amount)}
+                    <strong>Amount:</strong>{" "}
+                    {formatCurrency(installment.amount)}
                   </Typography>
+                  {isPartial && (
+                    <>
+                      <Typography variant="body2" color="success.main">
+                        <strong>Paid:</strong> {formatCurrency(paidAmount)}
+                      </Typography>
+                      <Typography variant="body2" color="warning.main">
+                        <strong>Remaining:</strong>{" "}
+                        {formatCurrency(remainingAmount)}
+                      </Typography>
+                    </>
+                  )}
                   <Typography variant="body2" color="text.secondary">
                     <strong>Due Date:</strong> {formatDate(installment.dueDate)}
                     {installment.dueDateUpdated && (
-                      <Chip 
-                        label="Modified" 
-                        size="small" 
-                        color="info" 
-                        sx={{ ml: 1, fontSize: '0.625rem' }} 
+                      <Chip
+                        label="Modified"
+                        size="small"
+                        color="info"
+                        sx={{ ml: 1, fontSize: "0.625rem" }}
                       />
                     )}
                   </Typography>
-                  
-                  {/* Show last change info for frequent changers */}
+
                   {hasFrequentChanges && installment.lastDueDateChange && (
                     <Typography variant="caption" color="warning.main">
-                      Last changed: {formatDate(installment.lastDueDateChange.changedAt)} 
-                      ({installment.lastDueDateChange.reason})
+                      Last changed:{" "}
+                      {formatDate(installment.lastDueDateChange.changedAt)} (
+                      {installment.lastDueDateChange.reason})
                     </Typography>
                   )}
                 </Stack>
@@ -300,7 +371,7 @@ const EMIManagement = ({ invoice }) => {
                   startIcon={<PaymentIcon />}
                   onClick={() => handlePaymentClick(installment)}
                 >
-                  Pay
+                  {isPartial ? "Pay Remaining" : "Pay"}
                 </Button>
                 <IconButton
                   size="small"
@@ -325,6 +396,8 @@ const EMIManagement = ({ invoice }) => {
             <TableCell>Installment #</TableCell>
             <TableCell>Due Date</TableCell>
             <TableCell align="right">Amount</TableCell>
+            <TableCell align="right">Paid</TableCell>
+            <TableCell align="right">Remaining</TableCell>
             <TableCell>Status</TableCell>
             <TableCell align="center">Changes</TableCell>
             <TableCell align="center">Actions</TableCell>
@@ -335,30 +408,46 @@ const EMIManagement = ({ invoice }) => {
             const statusConfig = getInstallmentStatusConfig(installment);
             const changeCount = installment.dueDateChangeCount || 0;
             const hasFrequentChanges = installment.hasFrequentDueDateChanges;
-            
+            const isPartial = hasPartialPayment(installment);
+            const paidAmount = installment.paidAmount || 0;
+            const remainingAmount =
+              installment.remainingAmount || installment.amount - paidAmount;
+
             return (
-              <TableRow 
+              <TableRow
                 key={installment.installmentNumber}
                 sx={{
-                  backgroundColor: installment.isOverdue 
-                    ? theme.palette.error.light + '10' 
-                    : installment.isDueToday 
-                    ? theme.palette.warning.light + '10'
+                  backgroundColor: installment.isOverdue
+                    ? theme.palette.error.light + "10"
+                    : installment.isDueToday
+                    ? theme.palette.warning.light + "10"
                     : hasFrequentChanges
-                    ? theme.palette.warning.light + '05'
-                    : 'transparent',
-                  borderLeft: hasFrequentChanges 
+                    ? theme.palette.warning.light + "05"
+                    : isPartial
+                    ? theme.palette.info.light + "05"
+                    : "transparent",
+                  borderLeft: hasFrequentChanges
                     ? `3px solid ${theme.palette.warning.main}`
-                    : 'none'
+                    : isPartial
+                    ? `3px solid ${theme.palette.info.main}`
+                    : "none",
                 }}
               >
                 <TableCell>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <Typography variant="body2" fontWeight={500}>
                       #{installment.installmentNumber}
                     </Typography>
                     {hasFrequentChanges && (
                       <FlagIcon fontSize="small" color="warning" />
+                    )}
+                    {isPartial && (
+                      <Chip
+                        label="Partial"
+                        size="small"
+                        color="info"
+                        sx={{ fontSize: "0.625rem" }}
+                      />
                     )}
                   </Box>
                 </TableCell>
@@ -368,11 +457,11 @@ const EMIManagement = ({ invoice }) => {
                       {formatDate(installment.dueDate)}
                     </Typography>
                     {installment.dueDateUpdated && (
-                      <Chip 
-                        label="Modified" 
-                        size="small" 
-                        color="info" 
-                        sx={{ fontSize: '0.625rem', mt: 0.5 }} 
+                      <Chip
+                        label="Modified"
+                        size="small"
+                        color="info"
+                        sx={{ fontSize: "0.625rem", mt: 0.5 }}
                       />
                     )}
                   </Box>
@@ -380,6 +469,26 @@ const EMIManagement = ({ invoice }) => {
                 <TableCell align="right">
                   <Typography variant="body2" fontWeight={500}>
                     {formatCurrency(installment.amount)}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Typography
+                    variant="body2"
+                    color="success.main"
+                    fontWeight={500}
+                  >
+                    {formatCurrency(paidAmount)}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Typography
+                    variant="body2"
+                    color={
+                      remainingAmount > 0 ? "warning.main" : "text.secondary"
+                    }
+                    fontWeight={500}
+                  >
+                    {formatCurrency(remainingAmount)}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -396,7 +505,13 @@ const EMIManagement = ({ invoice }) => {
                       <Chip
                         label={changeCount}
                         size="small"
-                        color={changeCount >= 3 ? 'error' : changeCount >= 2 ? 'warning' : 'info'}
+                        color={
+                          changeCount >= 3
+                            ? "error"
+                            : changeCount >= 2
+                            ? "warning"
+                            : "info"
+                        }
                         icon={<HistoryIcon />}
                       />
                     </Tooltip>
@@ -414,7 +529,7 @@ const EMIManagement = ({ invoice }) => {
                     onClick={() => handlePaymentClick(installment)}
                     sx={{ mr: 1 }}
                   >
-                    Pay
+                    {isPartial ? "Pay Remaining" : "Pay"}
                   </Button>
                   <IconButton
                     size="small"
@@ -435,24 +550,26 @@ const EMIManagement = ({ invoice }) => {
   const renderPaymentHistoryMobile = () => (
     <List>
       {paymentHistory.map((payment, index) => (
-        <ListItem 
+        <ListItem
           key={index}
           sx={{
             borderRadius: 1,
             mb: 1,
-            border: '1px solid',
-            borderColor: theme.palette.divider
+            border: "1px solid",
+            borderColor: theme.palette.divider,
           }}
         >
           <ListItemText
             primary={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Box
+                sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}
+              >
                 <Typography variant="subtitle2" fontWeight={600}>
                   Installment #{payment.installmentNumber}
                 </Typography>
                 <Chip
-                  label={payment.fullyPaid ? 'Fully Paid' : 'Partial Payment'}
-                  color={payment.fullyPaid ? 'success' : 'warning'}
+                  label={payment.fullyPaid ? "Fully Paid" : "Partial Payment"}
+                  color={payment.fullyPaid ? "success" : "warning"}
                   size="small"
                   icon={<CheckCircleIcon />}
                 />
@@ -460,60 +577,124 @@ const EMIManagement = ({ invoice }) => {
             }
             secondary={
               <Stack spacing={0.5}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
                   <Typography variant="body2" color="text.secondary">
                     Amount Paid:
                   </Typography>
-                  <Typography variant="body2" fontWeight={500} color="success.main">
+                  <Typography
+                    variant="body2"
+                    fontWeight={500}
+                    color="success.main"
+                  >
                     {formatCurrency(payment.paidAmount)}
                   </Typography>
                 </Box>
-                
-                {payment.originalAmount && payment.paidAmount !== payment.originalAmount && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Original Amount:
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {formatCurrency(payment.originalAmount)}
-                    </Typography>
-                  </Box>
-                )}
-                
+
+                {payment.originalAmount &&
+                  payment.paidAmount !== payment.originalAmount && (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        Original Amount:
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {formatCurrency(payment.originalAmount)}
+                      </Typography>
+                    </Box>
+                  )}
+
                 {payment.paidAmount > payment.originalAmount && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
                     <Typography variant="body2" color="success.main">
                       Overpayment:
                     </Typography>
-                    <Typography variant="body2" fontWeight={500} color="success.main">
-                      +{formatCurrency(payment.paidAmount - payment.originalAmount)}
+                    <Typography
+                      variant="body2"
+                      fontWeight={500}
+                      color="success.main"
+                    >
+                      +
+                      {formatCurrency(
+                        payment.paidAmount - payment.originalAmount
+                      )}
                     </Typography>
                   </Box>
                 )}
-                
+
                 {payment.shortfallAmount > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
                     <Typography variant="body2" color="warning.main">
                       Shortfall:
                     </Typography>
-                    <Typography variant="body2" fontWeight={500} color="warning.main">
+                    <Typography
+                      variant="body2"
+                      fontWeight={500}
+                      color="warning.main"
+                    >
                       -{formatCurrency(payment.shortfallAmount)}
                     </Typography>
                   </Box>
                 )}
-                
+
                 <Typography variant="body2" color="text.secondary">
                   <strong>Date:</strong> {formatDate(payment.paymentDate)}
                 </Typography>
-                
+
                 <Typography variant="body2" color="text.secondary">
-                  <strong>Method:</strong> {payment.paymentRecord?.paymentMethod?.replace('_', ' ') || 'Cash'}
+                  <strong>Method:</strong>{" "}
+                  {payment.paymentRecord?.paymentMethod?.replace("_", " ") ||
+                    "Cash"}
                 </Typography>
-                
+
                 {payment.paymentRecord?.transactionId && (
                   <Typography variant="body2" color="text.secondary">
-                    <strong>Transaction ID:</strong> {payment.paymentRecord.transactionId}
+                    <strong>Transaction ID:</strong>{" "}
+                    {payment.paymentRecord.transactionId}
                   </Typography>
+                )}
+
+                {/* NEW: Show recorded by information */}
+                {payment.paymentRecord?.recordedBy && (
+                  <Box
+                    sx={{
+                      mt: 1,
+                      pt: 1,
+                      borderTop: "1px solid",
+                      borderColor: "divider",
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      display="block"
+                    >
+                      <strong>Recorded by:</strong>{" "}
+                      {payment.paymentRecord.recordedByName}
+                    </Typography>
+                  </Box>
                 )}
               </Stack>
             }
@@ -523,11 +704,9 @@ const EMIManagement = ({ invoice }) => {
     </List>
   );
 
-  if (!invoice || invoice.paymentStatus !== 'emi') {
+  if (!invoice || invoice.paymentStatus !== "emi") {
     return (
-      <Alert severity="info">
-        This invoice is not on an EMI payment plan.
-      </Alert>
+      <Alert severity="info">This invoice is not on an EMI payment plan.</Alert>
     );
   }
 
@@ -544,11 +723,14 @@ const EMIManagement = ({ invoice }) => {
 
   if (error) {
     return (
-      <Alert severity="error" action={
-        <Button color="inherit" size="small" onClick={loadEMIData}>
-          Retry
-        </Button>
-      }>
+      <Alert
+        severity="error"
+        action={
+          <Button color="inherit" size="small" onClick={loadEMIData}>
+            Retry
+          </Button>
+        }
+      >
         {error}
       </Alert>
     );
@@ -558,17 +740,15 @@ const EMIManagement = ({ invoice }) => {
     <Box>
       {/* Customer Due Date Change Warning */}
       {invoice.customerDueDateChangeFlags?.hasFrequentChanges && (
-        <Alert 
-          severity="warning" 
-          sx={{ mb: 3 }}
-          icon={<FlagIcon />}
-        >
+        <Alert severity="warning" sx={{ mb: 3 }} icon={<FlagIcon />}>
           <Typography variant="subtitle2" gutterBottom>
             Frequent Due Date Changes Detected
           </Typography>
           <Typography variant="body2">
-            This customer has requested {invoice.customerDueDateChangeFlags.totalChanges} due date changes. 
-            {invoice.customerDueDateChangeFlags.flaggedForReview && ' Account flagged for management review.'}
+            This customer has requested{" "}
+            {invoice.customerDueDateChangeFlags.totalChanges} due date changes.
+            {invoice.customerDueDateChangeFlags.flaggedForReview &&
+              " Account flagged for management review."}
           </Typography>
         </Alert>
       )}
@@ -580,11 +760,15 @@ const EMIManagement = ({ invoice }) => {
             <Typography variant="h6" gutterBottom fontWeight={600}>
               EMI Payment Summary
             </Typography>
-            
+
             <Grid container spacing={2}>
               <Grid item xs={6} sm={3}>
                 <Box textAlign="center">
-                  <Typography variant={isMobile ? "h5" : "h4"} color="primary" fontWeight="bold">
+                  <Typography
+                    variant={isMobile ? "h5" : "h4"}
+                    color="primary"
+                    fontWeight="bold"
+                  >
                     {emiSummary.paidInstallments}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
@@ -595,11 +779,15 @@ const EMIManagement = ({ invoice }) => {
                   </Typography>
                 </Box>
               </Grid>
-              
+
               <Grid item xs={6} sm={3}>
                 <Box textAlign="center">
-                  <Typography variant={isMobile ? "h5" : "h4"} color="success.main" fontWeight="bold">
-                    {formatCurrency(emiSummary.paidAmount).replace('₹', '')}
+                  <Typography
+                    variant={isMobile ? "h5" : "h4"}
+                    color="success.main"
+                    fontWeight="bold"
+                  >
+                    {formatCurrency(emiSummary.paidAmount).replace("₹", "")}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Amount Paid
@@ -609,12 +797,16 @@ const EMIManagement = ({ invoice }) => {
                   </Typography>
                 </Box>
               </Grid>
-              
+
               <Grid item xs={6} sm={3}>
                 <Box textAlign="center">
-                  <Typography 
+                  <Typography
                     variant={isMobile ? "h5" : "h4"}
-                    color={emiSummary.overdueInstallments > 0 ? "error.main" : "warning.main"} 
+                    color={
+                      emiSummary.overdueInstallments > 0
+                        ? "error.main"
+                        : "warning.main"
+                    }
                     fontWeight="bold"
                   >
                     {emiSummary.pendingInstallments}
@@ -627,11 +819,18 @@ const EMIManagement = ({ invoice }) => {
                   </Typography>
                 </Box>
               </Grid>
-              
+
               <Grid item xs={6} sm={3}>
                 <Box textAlign="center">
-                  <Typography variant={isMobile ? "h5" : "h4"} color="error.main" fontWeight="bold">
-                    {formatCurrency(emiSummary.remainingAmount).replace('₹', '')}
+                  <Typography
+                    variant={isMobile ? "h5" : "h4"}
+                    color="error.main"
+                    fontWeight="bold"
+                  >
+                    {formatCurrency(emiSummary.remainingAmount).replace(
+                      "₹",
+                      ""
+                    )}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Balance Due
@@ -654,9 +853,9 @@ const EMIManagement = ({ invoice }) => {
                   {emiSummary.paymentPercentage}%
                 </Typography>
               </Box>
-              <LinearProgress 
-                variant="determinate" 
-                value={emiSummary.paymentPercentage} 
+              <LinearProgress
+                variant="determinate"
+                value={emiSummary.paymentPercentage}
                 sx={{ height: 8, borderRadius: 4 }}
               />
             </Box>
@@ -668,13 +867,22 @@ const EMIManagement = ({ invoice }) => {
       {pendingInstallments.length > 0 && (
         <Card sx={{ mb: 3 }}>
           <CardContent>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={1}>
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              mb={2}
+              flexWrap="wrap"
+              gap={1}
+            >
               <Typography variant="h6" fontWeight={600}>
                 Pending Installments ({pendingInstallments.length})
               </Typography>
-              {pendingInstallments.some(inst => inst.isOverdue) && (
+              {pendingInstallments.some((inst) => inst.isOverdue) && (
                 <Chip
-                  label={`${pendingInstallments.filter(inst => inst.isOverdue).length} Overdue`}
+                  label={`${
+                    pendingInstallments.filter((inst) => inst.isOverdue).length
+                  } Overdue`}
                   color="error"
                   size="small"
                   icon={<ErrorIcon />}
@@ -682,7 +890,9 @@ const EMIManagement = ({ invoice }) => {
               )}
             </Box>
 
-            {isMobile ? renderPendingInstallmentsMobile() : renderPendingInstallmentsDesktop()}
+            {isMobile
+              ? renderPendingInstallmentsMobile()
+              : renderPendingInstallmentsDesktop()}
           </CardContent>
         </Card>
       )}
@@ -695,7 +905,9 @@ const EMIManagement = ({ invoice }) => {
               Payment History ({paymentHistory.length})
             </Typography>
 
-            {isMobile ? renderPaymentHistoryMobile() : (
+            {isMobile ? (
+              renderPaymentHistoryMobile()
+            ) : (
               <TableContainer component={Paper} variant="outlined">
                 <Table size={isTablet ? "small" : "medium"}>
                   <TableHead>
@@ -705,6 +917,7 @@ const EMIManagement = ({ invoice }) => {
                       <TableCell align="right">Amount Paid</TableCell>
                       <TableCell>Method</TableCell>
                       <TableCell>Status</TableCell>
+                      <TableCell>Recorded By</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -722,29 +935,67 @@ const EMIManagement = ({ invoice }) => {
                         </TableCell>
                         <TableCell align="right">
                           <Stack alignItems="flex-end" spacing={0.5}>
-                            <Typography variant="body2" fontWeight={500} color="success.main">
+                            <Typography
+                              variant="body2"
+                              fontWeight={500}
+                              color="success.main"
+                            >
                               {formatCurrency(payment.paidAmount)}
                             </Typography>
-                            
-                            {payment.originalAmount && payment.paidAmount !== payment.originalAmount && (
-                              <Typography variant="caption" color="text.secondary">
-                                Original: {formatCurrency(payment.originalAmount)}
-                              </Typography>
-                            )}
-                            
+
+                            {payment.originalAmount &&
+                              payment.paidAmount !== payment.originalAmount && (
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
+                                  Original:{" "}
+                                  {formatCurrency(payment.originalAmount)}
+                                </Typography>
+                              )}
+
                             {payment.paidAmount > payment.originalAmount && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <TrendingUpIcon fontSize="small" color="success" />
-                                <Typography variant="caption" color="success.main" fontWeight={500}>
-                                  +{formatCurrency(payment.paidAmount - payment.originalAmount)}
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 0.5,
+                                }}
+                              >
+                                <TrendingUpIcon
+                                  fontSize="small"
+                                  color="success"
+                                />
+                                <Typography
+                                  variant="caption"
+                                  color="success.main"
+                                  fontWeight={500}
+                                >
+                                  +
+                                  {formatCurrency(
+                                    payment.paidAmount - payment.originalAmount
+                                  )}
                                 </Typography>
                               </Box>
                             )}
-                            
+
                             {payment.shortfallAmount > 0 && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <TrendingDownIcon fontSize="small" color="warning" />
-                                <Typography variant="caption" color="warning.main" fontWeight={500}>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 0.5,
+                                }}
+                              >
+                                <TrendingDownIcon
+                                  fontSize="small"
+                                  color="warning"
+                                />
+                                <Typography
+                                  variant="caption"
+                                  color="warning.main"
+                                  fontWeight={500}
+                                >
                                   -{formatCurrency(payment.shortfallAmount)}
                                 </Typography>
                               </Box>
@@ -752,22 +1003,70 @@ const EMIManagement = ({ invoice }) => {
                           </Stack>
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                            {payment.paymentRecord?.paymentMethod?.replace('_', ' ') || 'Cash'}
+                          <Typography
+                            variant="body2"
+                            sx={{ textTransform: "capitalize" }}
+                          >
+                            {payment.paymentRecord?.paymentMethod?.replace(
+                              "_",
+                              " "
+                            ) || "Cash"}
                           </Typography>
                           {payment.paymentRecord?.transactionId && (
-                            <Typography variant="caption" color="text.secondary" display="block">
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              display="block"
+                            >
                               {payment.paymentRecord.transactionId}
                             </Typography>
                           )}
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={payment.fullyPaid ? 'Fully Paid' : 'Partial Payment'}
-                            color={payment.fullyPaid ? 'success' : 'warning'}
+                            label={
+                              payment.fullyPaid
+                                ? "Fully Paid"
+                                : "Partial Payment"
+                            }
+                            color={payment.fullyPaid ? "success" : "warning"}
                             size="small"
                             icon={<CheckCircleIcon />}
                           />
+                        </TableCell>
+                        <TableCell>
+                          {/* NEW: Show recorded by information */}
+                          {payment.paymentRecord?.recordedBy ? (
+                            <Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                {payment.paymentRecord.recordedByName}
+                              </Typography>
+                              {payment.paymentRecord.recordedBy.email && (
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  display="block"
+                                >
+                                  {payment.paymentRecord.recordedBy.email}
+                                </Typography>
+                              )}
+                              {payment.paymentRecord.recordedBy.recordedAt && (
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  display="block"
+                                >
+                                  {formatDate(
+                                    payment.paymentRecord.recordedBy.recordedAt
+                                  )}
+                                </Typography>
+                              )}
+                            </Box>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              -
+                            </Typography>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -823,7 +1122,9 @@ const EMIManagement = ({ invoice }) => {
               </ListItemIcon>
               Record Payment
             </MenuItem>
-            <MenuItem onClick={() => handleDueDateChangeClick(selectedInstallment)}>
+            <MenuItem
+              onClick={() => handleDueDateChangeClick(selectedInstallment)}
+            >
               <ListItemIcon>
                 <CalendarIcon fontSize="small" />
               </ListItemIcon>

@@ -1,5 +1,5 @@
-// src/pages/checklists/ChecklistsManagementPage.js - Admin Calendar View
-import React, { useState, useEffect } from 'react';
+// src/pages/checklists/ChecklistsManagementPage.js - Admin Calendar View with Search
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -44,6 +44,7 @@ import {
 } from '@mui/icons-material';
 
 import Layout from '../../components/common/Layout/Layout';
+import SearchBar from '../../components/common/UI/SearchBar';
 import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
 import checklistService from '../../services/checklistService';
 
@@ -62,6 +63,9 @@ const ChecklistsManagementPage = () => {
   const [employees, setEmployees] = useState([]);
   const [monthStats, setMonthStats] = useState({});
   const [error, setError] = useState('');
+
+  // NEW: Search state
+  const [searchValue, setSearchValue] = useState('');
 
   // Load data on component mount and when month/year changes
   useEffect(() => {
@@ -100,6 +104,8 @@ const ChecklistsManagementPage = () => {
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
+    // Clear search when changing tabs
+    setSearchValue('');
     // Reload data for the new tab
     setTimeout(() => loadData(), 100);
   };
@@ -116,6 +122,37 @@ const ChecklistsManagementPage = () => {
       console.error('Error deleting checklist:', error);
       setError('Failed to delete checklist. Please try again.');
     }
+  };
+
+  // NEW: Filter checklists based on search
+  const filteredChecklists = useMemo(() => {
+    if (!searchValue.trim()) {
+      return checklists;
+    }
+
+    const searchTerm = searchValue.toLowerCase().trim();
+    return checklists.filter((checklist) => {
+      return (
+        checklist.title?.toLowerCase().includes(searchTerm) ||
+        checklist.description?.toLowerCase().includes(searchTerm) ||
+        checklist.assignedEmployeeNames?.some(name => 
+          name.toLowerCase().includes(searchTerm)
+        ) ||
+        checklist.backupEmployeeNames?.some(name => 
+          name.toLowerCase().includes(searchTerm)
+        ) ||
+        checklist.recurrence?.type?.toLowerCase().includes(searchTerm)
+      );
+    });
+  }, [checklists, searchValue]);
+
+  // NEW: Search handlers
+  const handleSearchChange = (value) => {
+    setSearchValue(value);
+  };
+
+  const handleSearchClear = () => {
+    setSearchValue('');
   };
 
   const getDaysInMonth = (month, year) => {
@@ -299,107 +336,128 @@ const ChecklistsManagementPage = () => {
             <Typography variant="h6" gutterBottom>
               All Checklists
             </Typography>
+
+            {/* NEW: Search Bar */}
+            <Box mb={3}>
+              <SearchBar
+                value={searchValue}
+                onChange={handleSearchChange}
+                onClear={handleSearchClear}
+                placeholder="Search by title, description, assigned employees, or schedule..."
+                disabled={loading}
+              />
+            </Box>
             
-            {checklists.length === 0 ? (
+            {filteredChecklists.length === 0 ? (
               <Alert severity="info">
-                No checklists found. Create your first checklist to get started.
+                {searchValue 
+                  ? 'No checklists found matching your search criteria.'
+                  : 'No checklists found. Create your first checklist to get started.'
+                }
               </Alert>
             ) : (
-              <TableContainer component={Paper} variant="outlined">
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell><strong>Title</strong></TableCell>
-                      <TableCell><strong>Description</strong></TableCell>
-                      <TableCell><strong>Assigned Employees</strong></TableCell>
-                      <TableCell><strong>Backup Employees</strong></TableCell>
-                      <TableCell><strong>Schedule</strong></TableCell>
-                      <TableCell><strong>Status</strong></TableCell>
-                      <TableCell align="center"><strong>Actions</strong></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {checklists.map((checklist) => (
-                      <TableRow key={checklist.id} hover>
-                        <TableCell>
-                          <Typography variant="subtitle2" fontWeight={600}>
-                            {checklist.title}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="textSecondary">
-                            {checklist.description?.substring(0, 50)}
-                            {checklist.description?.length > 50 ? '...' : ''}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Box display="flex" flexWrap="wrap" gap={0.5}>
-                            {checklist.assignedEmployeeNames?.map((name, index) => (
-                              <Chip 
-                                key={index}
-                                label={name} 
-                                size="small" 
-                                color="primary"
-                                variant="outlined"
-                              />
-                            ))}
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Box display="flex" flexWrap="wrap" gap={0.5}>
-                            {checklist.backupEmployeeNames?.map((name, index) => (
-                              <Chip 
-                                key={index}
-                                label={name} 
-                                size="small" 
-                                color="warning"
-                                variant="outlined"
-                              />
-                            ))}
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {checklist.recurrence?.type === 'daily' && 'Daily'}
-                            {checklist.recurrence?.type === 'weekly' && `Weekly (${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][checklist.recurrence.dayOfWeek]})`}
-                            {checklist.recurrence?.type === 'monthly' && `Monthly (${checklist.recurrence.dayOfMonth}${checklist.recurrence.dayOfMonth === 1 ? 'st' : checklist.recurrence.dayOfMonth === 2 ? 'nd' : checklist.recurrence.dayOfMonth === 3 ? 'rd' : 'th'})`}
-                            {checklist.recurrence?.type === 'once' && 'One Time'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={checklist.isActive ? 'Active' : 'Inactive'}
-                            color={checklist.isActive ? 'success' : 'default'}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Box display="flex" justifyContent="center" gap={1}>
-                            <Tooltip title="Edit">
-                              <IconButton 
-                                size="small" 
-                                color="primary"
-                                onClick={() => navigate(`/checklists/edit/${checklist.id}`)}
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton 
-                                size="small" 
-                                color="error"
-                                onClick={() => handleDeleteChecklist(checklist.id)}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </TableCell>
+              <>
+                {searchValue && (
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                    Showing {filteredChecklists.length} of {checklists.length} checklist{checklists.length !== 1 ? 's' : ''}
+                  </Typography>
+                )}
+                <TableContainer component={Paper} variant="outlined">
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell><strong>Title</strong></TableCell>
+                        <TableCell><strong>Description</strong></TableCell>
+                        <TableCell><strong>Assigned Employees</strong></TableCell>
+                        <TableCell><strong>Backup Employees</strong></TableCell>
+                        <TableCell><strong>Schedule</strong></TableCell>
+                        <TableCell><strong>Status</strong></TableCell>
+                        <TableCell align="center"><strong>Actions</strong></TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                    </TableHead>
+                    <TableBody>
+                      {filteredChecklists.map((checklist) => (
+                        <TableRow key={checklist.id} hover>
+                          <TableCell>
+                            <Typography variant="subtitle2" fontWeight={600}>
+                              {checklist.title}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" color="textSecondary">
+                              {checklist.description?.substring(0, 50)}
+                              {checklist.description?.length > 50 ? '...' : ''}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Box display="flex" flexWrap="wrap" gap={0.5}>
+                              {checklist.assignedEmployeeNames?.map((name, index) => (
+                                <Chip 
+                                  key={index}
+                                  label={name} 
+                                  size="small" 
+                                  color="primary"
+                                  variant="outlined"
+                                />
+                              ))}
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Box display="flex" flexWrap="wrap" gap={0.5}>
+                              {checklist.backupEmployeeNames?.map((name, index) => (
+                                <Chip 
+                                  key={index}
+                                  label={name} 
+                                  size="small" 
+                                  color="warning"
+                                  variant="outlined"
+                                />
+                              ))}
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {checklist.recurrence?.type === 'daily' && 'Daily'}
+                              {checklist.recurrence?.type === 'weekly' && `Weekly (${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][checklist.recurrence.dayOfWeek]})`}
+                              {checklist.recurrence?.type === 'monthly' && `Monthly (${checklist.recurrence.dayOfMonth}${checklist.recurrence.dayOfMonth === 1 ? 'st' : checklist.recurrence.dayOfMonth === 2 ? 'nd' : checklist.recurrence.dayOfMonth === 3 ? 'rd' : 'th'})`}
+                              {checklist.recurrence?.type === 'once' && 'One Time'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={checklist.isActive ? 'Active' : 'Inactive'}
+                              color={checklist.isActive ? 'success' : 'default'}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box display="flex" justifyContent="center" gap={1}>
+                              <Tooltip title="Edit">
+                                <IconButton 
+                                  size="small" 
+                                  color="primary"
+                                  onClick={() => navigate(`/checklists/edit/${checklist.id}`)}
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete">
+                                <IconButton 
+                                  size="small" 
+                                  color="error"
+                                  onClick={() => handleDeleteChecklist(checklist.id)}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
             )}
           </CardContent>
         </Card>

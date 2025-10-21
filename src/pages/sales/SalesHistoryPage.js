@@ -34,36 +34,50 @@ const SalesStats = () => {
     loadSalesStats();
   }, [loadSalesStats]);
 
+  // ✅ FIX: Safe default values
+  const safeStats = {
+    totalSales: stats?.totalSales || 0,
+    totalRevenue: stats?.totalRevenue || 0,
+    todaysRevenue: stats?.todaysRevenue || 0,
+    emiInvoices: stats?.emiInvoices || 0,
+    pendingDeliveries: stats?.pendingDeliveries || 0
+  };
+
   const statCards = [
     {
       title: 'Total Sales',
-      value: stats.totalSales,
+      value: safeStats.totalSales,
       icon: ReceiptIcon,
-      color: theme.palette.primary.main
+      color: theme.palette.primary.main,
+      isCurrency: false
     },
     {
       title: 'Total Revenue',
-      value: `₹${stats.totalAmount.toLocaleString()}`,
+      value: safeStats.totalRevenue,
       icon: MoneyIcon,
-      color: theme.palette.success.main
+      color: theme.palette.success.main,
+      isCurrency: true
     },
     {
       title: "Today's Sales",
-      value: `₹${stats.todaysAmount.toLocaleString()}`,
+      value: safeStats.todaysRevenue,
       icon: TrendingUpIcon,
-      color: theme.palette.info.main
+      color: theme.palette.info.main,
+      isCurrency: true
     },
     {
       title: 'Pending EMIs',
-      value: stats.emiInvoices,
+      value: safeStats.emiInvoices,
       icon: ScheduleIcon,
-      color: theme.palette.warning.main
+      color: theme.palette.warning.main,
+      isCurrency: false
     },
     {
       title: 'Pending Deliveries',
-      value: stats.pendingDeliveries,
+      value: safeStats.pendingDeliveries,
       icon: DeliveryIcon,
-      color: theme.palette.error.main
+      color: theme.palette.error.main,
+      isCurrency: false
     }
   ];
 
@@ -71,6 +85,11 @@ const SalesStats = () => {
     <Grid container spacing={3} sx={{ mb: 3 }}>
       {statCards.map((stat, index) => {
         const Icon = stat.icon;
+        // ✅ FIX: Format value safely
+        const formattedValue = stat.isCurrency
+          ? `₹${stat.value.toLocaleString()}`
+          : stat.value.toLocaleString();
+
         return (
           <Grid item xs={6} sm={4} md={2.4} key={index}>
             <Card>
@@ -81,7 +100,7 @@ const SalesStats = () => {
                       {stat.title}
                     </Typography>
                     <Typography variant="h6" component="h2" fontWeight="bold">
-                      {stat.value.toLocaleString()}
+                      {formattedValue}
                     </Typography>
                   </Box>
                   <Box

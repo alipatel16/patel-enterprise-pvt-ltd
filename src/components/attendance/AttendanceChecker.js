@@ -1006,7 +1006,8 @@ const AttendanceChecker = () => {
                       variant="outlined"
                       startIcon={<BreakIcon />}
                       onClick={handleStartBreak}
-                      disabled={actionLoading}
+                      disabled={actionLoading || !locationValid}
+                      sx={{ py: 2 }}
                     >
                       Start Break
                     </Button>
@@ -1017,7 +1018,8 @@ const AttendanceChecker = () => {
                       color="warning"
                       startIcon={<WorkIcon />}
                       onClick={handleEndBreak}
-                      disabled={actionLoading}
+                      disabled={actionLoading || !locationValid}
+                      sx={{ py: 2 }}
                     >
                       End Break
                     </Button>
@@ -1032,6 +1034,7 @@ const AttendanceChecker = () => {
                     startIcon={<CheckOutIcon />}
                     onClick={handleCheckOut}
                     disabled={actionLoading || isOnBreak || !locationValid}
+                    sx={{ py: 2 }}
                   >
                     Check Out
                   </Button>

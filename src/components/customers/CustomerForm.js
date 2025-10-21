@@ -26,7 +26,8 @@ import {
   LocationOn as LocationIcon,
   Business as BusinessIcon,
   Save as SaveIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  Description as DescriptionIcon
 } from '@mui/icons-material';
 
 import { validateCustomerData, cleanCustomerData } from '../../utils/validation/customerValidation';
@@ -65,7 +66,8 @@ const CustomerForm = ({
     pincode: '',
     customerType: '',
     category: '',
-    gstNumber: ''
+    gstNumber: '',
+    purpose: '' // NEW FIELD
   });
 
   const [formErrors, setFormErrors] = useState({});
@@ -84,7 +86,8 @@ const CustomerForm = ({
         pincode: customer.pincode || '',
         customerType: customer.customerType || '',
         category: customer.category || '',
-        gstNumber: customer.gstNumber || ''
+        gstNumber: customer.gstNumber || '',
+        purpose: customer.purpose || '' // NEW FIELD
       });
     }
   }, [isEdit, customer]);
@@ -332,6 +335,30 @@ const CustomerForm = ({
                     startAdornment: (
                       <InputAdornment position="start">
                         <BusinessIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              {/* Purpose for Visit - NEW FIELD */}
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Purpose for Visit"
+                  multiline
+                  rows={2}
+                  value={formData.purpose}
+                  onChange={handleChange('purpose')}
+                  onBlur={handleBlur('purpose')}
+                  error={touched.purpose && !!formErrors.purpose}
+                  helperText={touched.purpose && (formErrors.purpose || 'Optional - Reason for visit or business purpose')}
+                  disabled={loading}
+                  placeholder="e.g., Looking for office furniture, Inquiring about products, Follow-up meeting..."
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start" sx={{ alignSelf: 'flex-start', mt: 1 }}>
+                        <DescriptionIcon />
                       </InputAdornment>
                     ),
                   }}

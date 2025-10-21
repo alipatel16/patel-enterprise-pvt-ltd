@@ -502,6 +502,7 @@ const EmployeeAttendancePage = () => {
                 <DatePicker
                   label="Filter by Date"
                   value={dateFilter}
+                  format='dd/MM/yyyy'
                   onChange={(newDate) => {
                     setDateFilter(newDate);
                     handleFilterChange();

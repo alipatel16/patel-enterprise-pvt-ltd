@@ -1,4 +1,4 @@
-// Updated DrawerContent.js - Add Quotation Navigation
+// Updated DrawerContent.js - Add Exchange Navigation
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -27,8 +27,10 @@ import {
   AssignmentTurnedIn as TaskIcon,
   Assessment as AssessmentIcon,
   SupportAgent as ComplaintsIcon,
-  RequestQuote as QuotationIcon, // NEW: Quotation icon
-  Add as AddQuotationIcon, // NEW: For create quotation
+  RequestQuote as QuotationIcon,
+  Add as AddQuotationIcon,
+  LocalShipping as DeliveriesIcon,
+  SwapHoriz as ExchangesIcon,
 } from "@mui/icons-material";
 
 import { useAuth } from "../../../contexts/AuthContext/AuthContext";
@@ -72,6 +74,18 @@ const DrawerContent = ({ onItemClick }) => {
       active: location.pathname.startsWith("/complaints"),
     },
     {
+      label: "Deliveries",
+      icon: DeliveriesIcon,
+      path: "/deliveries",
+      active: location.pathname.startsWith("/deliveries"),
+    },
+    {
+      label: "Exchanges", // ← NEW ITEM
+      icon: ExchangesIcon,
+      path: "/exchanges",
+      active: location.pathname.startsWith("/exchanges"),
+    },
+    {
       label: "Attendance",
       icon: AttendanceIcon,
       path: "/attendance",
@@ -92,17 +106,17 @@ const DrawerContent = ({ onItemClick }) => {
       active: location.pathname.startsWith("/my-checklists"),
       employeeOnly: true,
     },
-    // NEW: Quotation section separator
+    // Quotation section separator
     {
       type: "divider",
-      label: "Quotations & Sales"
+      label: "Quotations & Sales",
     },
-    // NEW: Quotation navigation items
+    // Quotation navigation items
     {
       label: "Quotations",
       icon: QuotationIcon,
       path: "/quotations",
-      active: 
+      active:
         location.pathname === "/quotations" ||
         location.pathname.startsWith("/quotations/view") ||
         location.pathname.startsWith("/quotations/edit"),
@@ -129,11 +143,11 @@ const DrawerContent = ({ onItemClick }) => {
         location.pathname.startsWith("/sales/edit") ||
         location.pathname === "/sales",
     },
-    // NEW: Reports section separator
+    // Reports section separator
     {
       type: "divider",
       label: "Reports & Analytics",
-      adminOnly: true
+      adminOnly: true,
     },
     {
       label: "Employee Reports",
@@ -204,11 +218,11 @@ const DrawerContent = ({ onItemClick }) => {
               <Box key={`divider-${index}`}>
                 <Divider sx={{ my: 2 }} />
                 <Box sx={{ px: 2, py: 1 }}>
-                  <Typography 
-                    variant="caption" 
-                    color="text.secondary" 
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
                     fontWeight={600}
-                    sx={{ textTransform: 'uppercase', letterSpacing: 1 }}
+                    sx={{ textTransform: "uppercase", letterSpacing: 1 }}
                   >
                     {item.label}
                   </Typography>

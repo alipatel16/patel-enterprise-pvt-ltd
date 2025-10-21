@@ -1,4 +1,4 @@
-// src/pages/reports/EmployeeReportsPage.js (Fixed with correct Present Today calculation and clean salary tab)
+// src/pages/reports/EmployeeReportsPage.js - Updated with Upaad Management Tab
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -49,7 +49,8 @@ import {
   TrendingUp as TrendingUpIcon,
   Settings as SettingsIcon,
   AttachMoney as MoneyIcon,
-  Assessment as ReportIcon
+  Assessment as ReportIcon,
+  AccountBalance as UpaadIcon
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
@@ -58,6 +59,7 @@ import LoadingSpinner from '../../components/common/UI/LoadingSpinner';
 import PenaltySettings from '../../components/admin/PenaltySettings';
 import ManualPenaltyApplication from '../../components/admin/ManualPenaltyApplication';
 import SalaryPenaltyTab from '../admin/SalaryPenaltyReports';
+import UpaadManagementTab from '../admin/UpaadManagementTab';
 import { EmployeeProvider, useEmployee } from '../../contexts/EmployeeContext/EmployeeContext';
 import { useAuth } from '../../contexts/AuthContext/AuthContext';
 import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
@@ -71,7 +73,7 @@ const EmployeeReportsContent = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { user } = useAuth();
   const { userType } = useUserType();
-  const { loadEmployeeStats, stats: employeeStats } = useEmployee(); // Get employee stats from context
+  const { loadEmployeeStats, stats: employeeStats } = useEmployee();
 
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [filteredRecords, setFilteredRecords] = useState([]);
@@ -93,12 +95,11 @@ const EmployeeReportsContent = () => {
     activePenalties: 0
   });
 
-  // Wait for userType to be available before loading data
   useEffect(() => {
     if (userType && user?.uid) {
       loadAttendanceData();
       loadPenaltyStats();
-      loadEmployeeStats(); // Load actual employee statistics
+      loadEmployeeStats();
     } else if (userType === null || user === null) {
       setLoading(false);
       setError('Unable to load user information. Please refresh the page.');
@@ -125,7 +126,7 @@ const EmployeeReportsContent = () => {
       const records = await attendanceService.getAllEmployeesAttendance(userType, dateParam);
       
       setAttendanceRecords(records);
-      calculateAttendanceStats(records); // Calculate only attendance-related stats
+      calculateAttendanceStats(records);
     } catch (error) {
       console.error('Failed to load attendance data:', error);
       setError('Failed to load attendance data. Please try again.');
@@ -138,12 +139,10 @@ const EmployeeReportsContent = () => {
     if (!userType) return;
 
     try {
-      // Load penalty statistics for the current month
       const currentDate = new Date();
       const startDate = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-01`;
       const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString().split('T')[0];
 
-      // This is a simplified stats calculation - you might want to create a specific service method
       const settings = await penaltyService.getPenaltySettings(userType);
       
       setStats(prev => ({
@@ -155,31 +154,27 @@ const EmployeeReportsContent = () => {
     }
   };
 
-  // FIXED: Calculate attendance stats excluding employees on leave from "Present Today"
   const calculateAttendanceStats = (records) => {
     const today = new Date().toISOString().split('T')[0];
     const todayRecords = records.filter(r => r.date === today);
     
-    // FIXED: Only count employees who are checked in or checked out (not on leave)
     const presentTodayRecords = todayRecords.filter(r => r.status !== 'on_leave');
     
     const totalWorkMinutes = records.reduce((sum, r) => sum + (r.totalWorkTime || 0), 0);
     
     setStats(prev => ({
       ...prev,
-      // FIXED: Use filtered records that exclude 'on_leave' status
       presentToday: presentTodayRecords.length,
       totalWorkHours: Math.round(totalWorkMinutes / 60 * 100) / 100,
       avgWorkHours: records.length > 0 ? Math.round((totalWorkMinutes / records.length / 60) * 100) / 100 : 0
     }));
   };
 
-  // FIXED: Update stats when employee stats are loaded
   useEffect(() => {
     if (employeeStats) {
       setStats(prev => ({
         ...prev,
-        totalEmployees: employeeStats.total || 0, // Use actual employee count
+        totalEmployees: employeeStats.total || 0,
         activeEmployees: employeeStats.active || 0
       }));
     }
@@ -188,7 +183,6 @@ const EmployeeReportsContent = () => {
   const applyFilters = () => {
     let filtered = [...attendanceRecords];
 
-    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(record =>
         record.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -197,7 +191,6 @@ const EmployeeReportsContent = () => {
       );
     }
 
-    // Status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter(record => record.status === statusFilter);
     }
@@ -295,12 +288,11 @@ const EmployeeReportsContent = () => {
     window.URL.revokeObjectURL(url);
   };
 
-  // Check user permissions for penalty features
   const canViewPenaltySettings = user?.role === 'admin';
   const canApplyPenalties = user?.role === 'admin';
   const canViewSalaryReports = user?.role === 'admin' || user?.role === 'manager';
+  const canManageUpaad = user?.role === 'admin' || user?.role === 'manager';
 
-  // Define tabs based on permissions
   const getAvailableTabs = () => {
     const tabs = [
       { label: 'Attendance Records', icon: <CalendarIcon />, id: 'attendance' }
@@ -318,6 +310,10 @@ const EmployeeReportsContent = () => {
       tabs.push({ label: 'Salary Reports', icon: <ReportIcon />, id: 'salary-reports' });
     }
 
+    if (canManageUpaad) {
+      tabs.push({ label: 'Employee Upaad', icon: <UpaadIcon />, id: 'upaad-management' });
+    }
+
     return tabs;
   };
 
@@ -327,7 +323,6 @@ const EmployeeReportsContent = () => {
     { label: 'Employee Reports', path: '/employees' }
   ];
 
-  // Show loading spinner if userType or user are not yet available
   if (!userType || !user) {
     return (
       <Layout title="Employee Reports" breadcrumbs={breadcrumbs}>
@@ -353,7 +348,7 @@ const EmployeeReportsContent = () => {
           </Alert>
         )}
 
-        {/* Statistics Cards - FIXED with correct employee count and present today */}
+        {/* Statistics Cards */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={6} md={3}>
             <Card>
@@ -446,7 +441,6 @@ const EmployeeReportsContent = () => {
             {/* Tab Content */}
             {availableTabs[tabValue]?.id === 'attendance' && (
               <>
-                {/* Controls */}
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                   <Typography variant="h6">
                     Attendance Records
@@ -493,6 +487,7 @@ const EmployeeReportsContent = () => {
                   <Grid item xs={12} md={4}>
                     <DatePicker
                       label="Filter by Date"
+                      format='dd/MM/yyyy'
                       value={dateFilter}
                       onChange={setDateFilter}
                       slotProps={{
@@ -672,9 +667,14 @@ const EmployeeReportsContent = () => {
               <ManualPenaltyApplication />
             )}
 
-            {/* Salary Reports Tab - CLEANED UP */}
+            {/* Salary Reports Tab */}
             {availableTabs[tabValue]?.id === 'salary-reports' && (
               <SalaryPenaltyTab />
+            )}
+
+            {/* Upaad Management Tab */}
+            {availableTabs[tabValue]?.id === 'upaad-management' && (
+              <UpaadManagementTab />
             )}
           </CardContent>
         </Card>

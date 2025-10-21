@@ -688,6 +688,7 @@ const EditChecklistPage = () => {
                     <Grid item xs={12} sm={6}>
                       <DatePicker
                         label="Select Date *"
+                        format='dd/MM/yyyy'
                         value={formData.recurrence.specificDate}
                         onChange={(newValue) => handleRecurrenceChange('specificDate', newValue)}
                         renderInput={(params) => <TextField {...params} fullWidth />}

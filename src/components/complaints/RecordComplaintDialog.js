@@ -1,3 +1,4 @@
+// src/components/complaints/RecordComplaintDialog.js
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -32,6 +33,7 @@ import { useUserType } from '../../contexts/UserTypeContext';
 import customerService from '../../services/api/customerService';
 import employeeService from '../../services/api/employeeService';
 import complaintService from '../../services/api/complaintService';
+import brandHierarchyService from '../../services/api/BrandHierarchyService';
 
 const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
   const { user } = useAuth();
@@ -43,18 +45,23 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     customerName: '',
     customerPhone: '',
     customerAddress: '',
+    customerPincode: '',
     title: '',
+    model: '',
+    serialNumber: '',
+    purchaseDate: null,
     description: '',
     category: '',
     severity: 'medium',
-    assigneeType: 'employee',
+    assigneeType: userType === 'electronics' ? 'service_person' : 'employee',
     assignedEmployeeId: '',
     assignedEmployeeName: '',
     servicePersonName: '',
     servicePersonContact: '',
     companyComplaintNumber: '',
     companyRecordedDate: null,
-    expectedResolutionDate: null
+    expectedResolutionDate: null,
+    detectedBrand: null
   });
 
   // UI state
@@ -64,15 +71,45 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
   const [employeeOptions, setEmployeeOptions] = useState([]);
   const [customerLoading, setCustomerLoading] = useState(false);
   const [employeeLoading, setEmployeeLoading] = useState(false);
+  const [brandOptions, setBrandOptions] = useState([]);
+  const [brandLoading, setBrandLoading] = useState(false);
 
   // Load employees on component mount
   useEffect(() => {
     if (open) {
       loadEmployees();
+      if (userType === 'electronics') {
+        loadBrands();
+      }
     }
   }, [open, userType]);
 
-  // Load employees
+  const loadBrands = async () => {
+    if (userType !== 'electronics') return;
+    
+    try {
+      setBrandLoading(true);
+      const brands = await brandHierarchyService.getAllBrands(userType);
+      const brandSuggestions = brands.map(brand => ({
+        id: brand.id,
+        brandName: brand.brandName,
+        hierarchy: brand.hierarchy || []
+      }));
+      setBrandOptions(brandSuggestions);
+    } catch (error) {
+      console.error('Error loading brands:', error);
+    } finally {
+      setBrandLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      assigneeType: userType === 'electronics' ? 'service_person' : 'employee'
+    }));
+  }, [userType]);
+
   const loadEmployees = async () => {
     try {
       setEmployeeLoading(true);
@@ -92,7 +129,6 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     }
   };
 
-  // Handle customer search
   const handleCustomerSearch = async (searchTerm) => {
     if (!searchTerm || searchTerm.length < 2) {
       setCustomerOptions([]);
@@ -108,6 +144,7 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
         name: customer.name,
         phone: customer.phone,
         address: customer.address,
+        pincode: customer.pincode || '',
         customerType: customer.customerType,
         category: customer.category
       }));
@@ -119,7 +156,6 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     }
   };
 
-  // Handle customer selection
   const handleCustomerSelect = (event, customer) => {
     if (customer) {
       setFormData(prev => ({
@@ -127,7 +163,8 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
         customerId: customer.id,
         customerName: customer.name,
         customerPhone: customer.phone,
-        customerAddress: customer.address
+        customerAddress: customer.address,
+        customerPincode: customer.pincode || ''
       }));
     } else {
       setFormData(prev => ({
@@ -135,12 +172,12 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
         customerId: '',
         customerName: '',
         customerPhone: '',
-        customerAddress: ''
+        customerAddress: '',
+        customerPincode: ''
       }));
     }
   };
 
-  // Handle employee selection
   const handleEmployeeSelect = (event, employee) => {
     if (employee) {
       setFormData(prev => ({
@@ -157,7 +194,6 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     }
   };
 
-  // Handle form field changes
   const handleChange = (field) => (event) => {
     const value = event.target.value;
     setFormData(prev => ({
@@ -165,7 +201,6 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
       [field]: value
     }));
 
-    // Clear related fields when assignee type changes
     if (field === 'assigneeType') {
       if (value === 'employee') {
         setFormData(prev => ({
@@ -185,7 +220,77 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     }
   };
 
-  // Handle date change
+  const handleBrandSelect = (event, brand) => {
+    if (!brand) {
+      setFormData(prev => ({
+        ...prev,
+        title: '',
+        detectedBrand: null,
+        servicePersonName: '',
+        servicePersonContact: ''
+      }));
+      return;
+    }
+
+    const titleWithBrand = brand.brandName;
+    setFormData(prev => ({
+      ...prev,
+      title: titleWithBrand,
+      detectedBrand: brand
+    }));
+
+    if (brand.hierarchy && brand.hierarchy.length > 0) {
+      const firstLevel = brand.hierarchy[0];
+      setFormData(prev => ({
+        ...prev,
+        assigneeType: 'service_person',
+        servicePersonName: firstLevel.name,
+        servicePersonContact: firstLevel.contact
+      }));
+    }
+  };
+
+  const handleTitleInputChange = (event, value, reason) => {
+    if (reason === 'input') {
+      setFormData(prev => ({
+        ...prev,
+        title: value
+      }));
+
+      if (value && value.length >= 2) {
+        detectBrandFromTitle(value);
+      }
+    }
+  };
+
+  const detectBrandFromTitle = async (title) => {
+    if (!title || title.trim().length < 2) {
+      return;
+    }
+
+    try {
+      const detectedBrand = await brandHierarchyService.detectBrandFromTitle(userType, title);
+      
+      if (detectedBrand && detectedBrand.hierarchy && detectedBrand.hierarchy.length > 0) {
+        const firstLevel = detectedBrand.hierarchy[0];
+        setFormData(prev => ({
+          ...prev,
+          detectedBrand: detectedBrand,
+          assigneeType: 'service_person',
+          servicePersonName: firstLevel.name,
+          servicePersonContact: firstLevel.contact
+        }));
+      } else if (!detectedBrand) {
+        setFormData(prev => ({
+          ...prev,
+          detectedBrand: null
+        }));
+      }
+    } catch (error) {
+      console.error('Error detecting brand:', error);
+    }
+  };
+
   const handleDateChange = (field) => (date) => {
     setFormData(prev => ({
       ...prev,
@@ -193,7 +298,6 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     }));
   };
 
-  // Validate form
   const validateForm = () => {
     if (!formData.customerId) {
       return 'Please select a customer';
@@ -201,14 +305,11 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     if (!formData.title.trim()) {
       return 'Complaint title is required';
     }
-    if (formData.title.length < 5) {
-      return 'Complaint title must be at least 5 characters';
-    }
     if (!formData.description.trim()) {
-      return 'Complaint description is required';
+      return 'Reason/Problem is required';
     }
     if (formData.description.length < 10) {
-      return 'Complaint description must be at least 10 characters';
+      return 'Reason/Problem must be at least 10 characters';
     }
     if (!formData.category) {
       return 'Please select a complaint category';
@@ -231,6 +332,11 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
       }
     }
 
+    // Validate pincode if provided
+    if (formData.customerPincode && !/^\d{6}$/.test(formData.customerPincode)) {
+      return 'Pincode must be 6 digits';
+    }
+
     const expectedDate = new Date(formData.expectedResolutionDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -238,11 +344,20 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
       return 'Expected resolution date cannot be in the past';
     }
 
-    // Validate company recorded date if provided
+    // Validate purchase date if provided
+    if (formData.purchaseDate) {
+      const purchaseDate = new Date(formData.purchaseDate);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (purchaseDate > today) {
+        return 'Purchase date cannot be in the future';
+      }
+    }
+
     if (formData.companyRecordedDate) {
       const companyDate = new Date(formData.companyRecordedDate);
       const today = new Date();
-      today.setHours(23, 59, 59, 999); // Allow today
+      today.setHours(23, 59, 59, 999);
       if (companyDate > today) {
         return 'Company recorded date cannot be in the future';
       }
@@ -251,7 +366,6 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     return null;
   };
 
-  // Handle form submission
   const handleSubmit = async () => {
     try {
       setError('');
@@ -264,13 +378,40 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
 
       setLoading(true);
 
+      if (userType === 'electronics' && formData.title && !formData.detectedBrand) {
+        try {
+          const potentialBrandName = brandHierarchyService.extractPotentialBrandName(formData.title);
+          if (potentialBrandName) {
+            const existingBrand = await brandHierarchyService.findBrandByName(userType, potentialBrandName);
+            if (!existingBrand) {
+              await brandHierarchyService.saveBrand(userType, {
+                brandName: potentialBrandName,
+                hierarchy: []
+              });
+              console.log('Auto-created brand:', potentialBrandName);
+            }
+          }
+        } catch (brandError) {
+          console.warn('Could not auto-create brand:', brandError);
+        }
+      }
+
+      // Build structured description
+      const structuredDescription = [
+        formData.model ? `Model: ${formData.model.trim()}` : null,
+        formData.serialNumber ? `Serial Number: ${formData.serialNumber.trim()}` : null,
+        formData.description ? `Reason/Problem: ${formData.description.trim()}` : null
+      ].filter(Boolean).join('\n');
+
       const complaintData = {
         customerId: formData.customerId,
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
         customerAddress: formData.customerAddress,
+        customerPincode: formData.customerPincode.trim(),
         title: formData.title.trim(),
-        description: formData.description.trim(),
+        description: structuredDescription,
+        purchaseDate: formData.purchaseDate ? formData.purchaseDate.toISOString() : '',
         category: formData.category,
         severity: formData.severity,
         assigneeType: formData.assigneeType,
@@ -279,7 +420,6 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
         createdByName: user.name
       };
 
-      // Add assignee details based on type
       if (formData.assigneeType === 'employee') {
         complaintData.assignedEmployeeId = formData.assignedEmployeeId;
         complaintData.assignedEmployeeName = formData.assignedEmployeeName;
@@ -287,7 +427,6 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
         complaintData.servicePersonName = formData.servicePersonName.trim();
         complaintData.servicePersonContact = formData.servicePersonContact.trim();
         
-        // Add company complaint details if provided
         if (formData.companyComplaintNumber.trim()) {
           complaintData.companyComplaintNumber = formData.companyComplaintNumber.trim();
         }
@@ -298,12 +437,10 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
 
       const newComplaint = await complaintService.createComplaint(userType, complaintData);
       
-      // Call the callback with the new complaint
       if (onComplaintCreated) {
         onComplaintCreated(newComplaint);
       }
 
-      // Reset form and close dialog
       resetForm();
       onClose();
 
@@ -315,31 +452,34 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
     }
   };
 
-  // Reset form
   const resetForm = () => {
     setFormData({
       customerId: '',
       customerName: '',
       customerPhone: '',
       customerAddress: '',
+      customerPincode: '',
       title: '',
+      model: '',
+      serialNumber: '',
+      purchaseDate: null,
       description: '',
       category: '',
       severity: 'medium',
-      assigneeType: 'employee',
+      assigneeType: userType === 'electronics' ? 'service_person' : 'employee',
       assignedEmployeeId: '',
       assignedEmployeeName: '',
       servicePersonName: '',
       servicePersonContact: '',
       companyComplaintNumber: '',
       companyRecordedDate: null,
-      expectedResolutionDate: null
+      expectedResolutionDate: null,
+      detectedBrand: null
     });
     setError('');
     setCustomerOptions([]);
   };
 
-  // Handle dialog close
   const handleClose = () => {
     if (!loading) {
       resetForm();
@@ -407,6 +547,7 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {option.phone} • {option.address}
+                        {option.pincode && ` • PIN: ${option.pincode}`}
                       </Typography>
                     </Box>
                   </Box>
@@ -418,16 +559,42 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
             {formData.customerName && (
               <Grid item xs={12}>
                 <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                  <Typography variant="body2" fontWeight={500}>
-                    Selected Customer: {formData.customerName}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Phone: {formData.customerPhone}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Address: {formData.customerAddress}
-                  </Typography>
+                  <Grid container spacing={1}>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="body2" fontWeight={500}>
+                        {formData.customerName}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Phone: {formData.customerPhone}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Address: {formData.customerAddress}
+                      </Typography>
+                      {formData.customerPincode && (
+                        <Typography variant="body2" color="text.secondary">
+                          Pincode: {formData.customerPincode}
+                        </Typography>
+                      )}
+                    </Grid>
+                  </Grid>
                 </Box>
+              </Grid>
+            )}
+
+            {/* Pincode Entry - Always visible when customer is selected */}
+            {formData.customerId && (
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Customer Pincode"
+                  value={formData.customerPincode}
+                  onChange={handleChange('customerPincode')}
+                  fullWidth
+                  placeholder="Enter 6-digit pincode"
+                  helperText={formData.customerPincode ? "Pincode entered" : "Optional - Enter customer pincode"}
+                  inputProps={{ maxLength: 6 }}
+                />
               </Grid>
             )}
 
@@ -439,15 +606,66 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <TextField
-                label="Complaint Title"
-                value={formData.title}
-                onChange={handleChange('title')}
-                fullWidth
-                required
-                helperText={`${formData.title.length}/100 characters`}
-                inputProps={{ maxLength: 100 }}
-              />
+              {userType === 'electronics' ? (
+                <Autocomplete
+                  freeSolo
+                  options={brandOptions}
+                  loading={brandLoading}
+                  value={formData.title}
+                  onChange={handleBrandSelect}
+                  onInputChange={handleTitleInputChange}
+                  getOptionLabel={(option) => typeof option === 'string' ? option : option.brandName}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Complaint Title"
+                      placeholder="Start typing brand name (e.g., LG, Samsung)..."
+                      fullWidth
+                      required
+                      helperText={`${formData.title.length}/100 characters - Select brand or type freely`}
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {brandLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props}>
+                      <Box>
+                        <Typography variant="body2" fontWeight={500}>
+                          {option.brandName}
+                        </Typography>
+                        {option.hierarchy && option.hierarchy.length > 0 && (
+                          <Typography variant="caption" color="text.secondary">
+                            {option.hierarchy.length} service level{option.hierarchy.length > 1 ? 's' : ''} • 
+                            Level 1: {option.hierarchy[0].name}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  )}
+                />
+              ) : (
+                <TextField
+                  label="Complaint Title"
+                  value={formData.title}
+                  onChange={handleChange('title')}
+                  fullWidth
+                  required
+                  helperText={`${formData.title.length}/100 characters`}
+                  inputProps={{ maxLength: 100 }}
+                />
+              )}
+              {userType === 'electronics' && formData.detectedBrand && (
+                <Alert severity="success" sx={{ mt: 1 }}>
+                  Brand "{formData.detectedBrand.brandName}" detected! Auto-assigned to {formData.servicePersonName}
+                </Alert>
+              )}
             </Grid>
 
             <Grid item xs={12} md={6}>
@@ -467,16 +685,57 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
               </FormControl>
             </Grid>
 
+            {/* NEW: Structured Description Fields */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" gutterBottom fontWeight={600} color="text.secondary">
+                Product Details & Issue
+              </Typography>
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <TextField
+                label="Model"
+                value={formData.model}
+                onChange={handleChange('model')}
+                fullWidth
+                placeholder="Enter product model number"
+                helperText="Optional - Product model"
+              />
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <TextField
+                label="Serial Number"
+                value={formData.serialNumber}
+                onChange={handleChange('serialNumber')}
+                fullWidth
+                placeholder="Enter serial number"
+                helperText="Optional - Serial number"
+              />
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <DatePicker
+                label="Purchase Date"
+                value={formData.purchaseDate}
+                onChange={handleDateChange('purchaseDate')}
+                renderInput={(params) => <TextField {...params} fullWidth />}
+                maxDate={new Date()}
+                format='dd/MM/yyyy'
+              />
+            </Grid>
+
             <Grid item xs={12}>
               <TextField
-                label="Complaint Description"
+                label="Reason/Problem"
                 value={formData.description}
                 onChange={handleChange('description')}
                 fullWidth
                 multiline
                 rows={4}
                 required
-                helperText={`${formData.description.length}/1000 characters`}
+                placeholder="Describe the issue in detail..."
+                helperText={`${formData.description.length}/1000 characters - Describe the problem or reason for complaint`}
                 inputProps={{ maxLength: 1000 }}
               />
             </Grid>
@@ -515,6 +774,7 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
                 onChange={handleDateChange('expectedResolutionDate')}
                 renderInput={(params) => <TextField {...params} fullWidth required />}
                 minDate={new Date()}
+                format='dd/MM/yyyy'
               />
             </Grid>
 
@@ -626,6 +886,7 @@ const RecordComplaintDialog = ({ open, onClose, onComplaintCreated }) => {
                     onChange={handleDateChange('companyRecordedDate')}
                     renderInput={(params) => <TextField {...params} fullWidth />}
                     maxDate={new Date()}
+                    format='dd/MM/yyyy'
                   />
                 </Grid>
               </>

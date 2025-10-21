@@ -47,7 +47,7 @@ export const UserTypeProvider = ({ children }) => {
 
   // Get display name
   const getDisplayName = () => {
-    return userType ? getUserTypeDisplayName(userType) : '';
+    return userType ? `Patel ${getUserTypeDisplayName(userType)}` : '';
   };
 
   // Get theme colors based on user type
@@ -94,11 +94,11 @@ export const UserTypeProvider = ({ children }) => {
 
   // Get app title based on user type
   const getAppTitle = () => {
-    const baseTitle = 'Showroom Management';
+    const baseTitle = 'Management';
     if (!userType) return baseTitle;
     
     const typeDisplayName = getUserTypeDisplayName(userType);
-    return `${typeDisplayName} ${baseTitle}`;
+    return `Patel ${typeDisplayName} ${baseTitle}`;
   };
 
   // Get navigation items based on user type

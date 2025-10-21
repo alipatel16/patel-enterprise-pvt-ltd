@@ -55,6 +55,14 @@ export const validateCustomerData = (customerData, isEdit = false) => {
     }
   }
 
+  // State validation required
+  if (!isEdit || customerData.state !== undefined) {
+    if (!customerData.state || customerData.state.trim() === '') {
+      errors.state = VALIDATION_MESSAGES.REQUIRED;
+      isValid = false;
+    }
+  }
+
   // Email validation (optional but must be valid if provided)
   if (customerData.email && customerData.email.trim() !== '') {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -259,7 +267,7 @@ export const formatCustomerForDisplay = (customer) => {
     ...customer,
     customerTypeDisplay: getCustomerTypeDisplayName(customer.customerType),
     categoryDisplay: getCategoryDisplayName(customer.category),
-    fullAddress: [customer.address, customer.city, customer.state, customer.pincode]
+    fullAddress: [customer.address, customer.city, customer.state, customer.pincode, customer.purpose]
       .filter(Boolean)
       .join(', ')
   };

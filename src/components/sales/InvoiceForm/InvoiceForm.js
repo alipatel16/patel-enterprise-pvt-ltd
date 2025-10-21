@@ -38,6 +38,7 @@ import {
   Calculate as CalculateIcon,
   AttachMoney as MoneyIcon,
   Info as InfoIcon,
+  Business as BusinessIcon, // Add this import
 } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 
@@ -50,10 +51,14 @@ import {
   DELIVERY_STATUS,
   getPaymentCategory,
 } from "../../../utils/constants/appConstants";
+import {
+  getAllCompanies, // Add this import
+} from "../../../utils/constants/companyConstants";
 
 // Import the new ItemModal component
 import ItemModal from "./ItemModal";
 import PaymentDeliveryOptions from "./PaymentDeliveryOptions";
+import ExchangeDetails from "./ExchangeDetails";
 
 // Helper function to safely parse dates
 const parseDate = (dateValue) => {
@@ -73,7 +78,7 @@ const GST_TAX_SLABS = [
 
 /**
  * Enhanced InvoiceForm component with ItemModal for mobile-friendly item management
- * Clean, modular implementation
+ * Clean, modular implementation with Company Selection
  */
 const InvoiceForm = ({
   invoice = null,
@@ -82,6 +87,7 @@ const InvoiceForm = ({
   onCancel,
   loading = false,
   error = null,
+  userType = "electronics",
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -97,9 +103,13 @@ const InvoiceForm = ({
   const { getCustomerSuggestions } = useCustomer();
   const { getEmployeeSuggestions } = useEmployee();
 
-  // Form state
+  // Get all companies for selection
+  const availableCompanies = getAllCompanies();
+
+  // Form state - ADD company field
   const [formData, setFormData] = useState({
     saleDate: new Date(),
+    company: null, // ADD this field
     customerId: "",
     customerName: "",
     customerPhone: "",
@@ -108,11 +118,17 @@ const InvoiceForm = ({
     salesPersonId: "",
     salesPersonName: "",
     items: [],
-    includeGST: true,
+    includeGST: userType === "electronics",
     paymentStatus: PAYMENT_STATUS.PAID,
     deliveryStatus: DELIVERY_STATUS.DELIVERED,
     scheduledDeliveryDate: null,
     remarks: "",
+    exchangeDetails: {
+      hasExchange: false,
+      exchangeAmount: 0,
+      itemReceived: false,
+      exchangeDescription: "",
+    },
     paymentDetails: {
       downPayment: 0,
       remainingBalance: 0,
@@ -149,88 +165,85 @@ const InvoiceForm = ({
   const [selectedEmployee, setSelectedEmployee] = useState(null);
 
   // Initialize form data for edit
-  useEffect(() => {
-    if (isEdit && invoice) {
-      const saleDate = parseDate(invoice.saleDate) || new Date();
-      const scheduledDeliveryDate = parseDate(invoice.scheduledDeliveryDate);
-      const emiStartDate = parseDate(invoice.emiDetails?.startDate);
+ useEffect(() => {
+  if (isEdit && invoice) {
+    const saleDate = parseDate(invoice.saleDate) || new Date();
+    const scheduledDeliveryDate = parseDate(invoice.scheduledDeliveryDate);
+    const emiStartDate = parseDate(invoice.emiDetails?.startDate);
 
-      setFormData({
-        saleDate,
-        customerId: invoice.customerId || "",
-        customerName: invoice.customerName || "",
-        customerPhone: invoice.customerPhone || "",
-        customerAddress: invoice.customerAddress || "",
-        customerState: invoice.customerState || "",
-        customerGSTNumber: invoice.customerGSTNumber || "",
-        salesPersonId: invoice.salesPersonId || "",
-        salesPersonName: invoice.salesPersonName || "",
-        items: (invoice.items || []).map((item) => ({
-          name: item.name || "",
-          description: item.description || "",
-          quantity: item.quantity || 1,
-          rate: item.rate || 0,
-          gstSlab: item.gstSlab || 18,
-          isPriceInclusive: item.isPriceInclusive || false,
-          hsnCode: item.hsnCode || "",
-        })),
-        includeGST: invoice.includeGST !== false,
-        paymentStatus: invoice.paymentStatus || PAYMENT_STATUS.PAID,
-        deliveryStatus: invoice.deliveryStatus || DELIVERY_STATUS.DELIVERED,
-        scheduledDeliveryDate,
-        remarks: invoice.remarks || "",
-        paymentDetails: {
-          downPayment: invoice.paymentDetails?.downPayment || 0,
-          remainingBalance: invoice.paymentDetails?.remainingBalance || 0,
-          paymentMethod:
-            invoice.paymentDetails?.paymentMethod || PAYMENT_METHODS.CASH,
-          bankName: invoice.paymentDetails?.bankName || "",
-          financeCompany: invoice.paymentDetails?.financeCompany || "",
-          paymentReference: invoice.paymentDetails?.paymentReference || "",
-        },
-        emiDetails: {
-          monthlyAmount: invoice.emiDetails?.monthlyAmount || 0,
-          startDate: emiStartDate,
-          numberOfInstallments: invoice.emiDetails?.numberOfInstallments || 1,
-        },
-        // FIX: Check for bulk pricing details and set them
-        bulkPricingDetails: invoice.bulkPricingDetails || null,
-      });
+    setFormData({
+      saleDate,
+      company: invoice.company || null,
+      customerId: invoice.customerId || "",
+      customerName: invoice.customerName || "",
+      customerPhone: invoice.customerPhone || "",
+      customerAddress: invoice.customerAddress || "",
+      customerState: invoice.customerState || "",
+      customerGSTNumber: invoice.customerGSTNumber || "",
+      salesPersonId: invoice.salesPersonId || "",
+      salesPersonName: invoice.salesPersonName || "",
+      items: invoice.items || [],
+      includeGST: invoice.includeGST !== false,
+      paymentStatus: invoice.paymentStatus || PAYMENT_STATUS.PENDING,
+      originalPaymentStatus: invoice.paymentStatus, // 🆕 Track original status
+      deliveryStatus: invoice.deliveryStatus || DELIVERY_STATUS.PENDING,
+      scheduledDeliveryDate: scheduledDeliveryDate,
+      remarks: invoice.remarks || "",
+      exchangeDetails: {
+        hasExchange: invoice.exchangeDetails?.hasExchange || false,
+        exchangeAmount: invoice.exchangeDetails?.exchangeAmount || 0,
+        itemReceived: invoice.exchangeDetails?.itemReceived || false,
+        exchangeDescription: invoice.exchangeDetails?.exchangeDescription || "",
+      },
+      paymentDetails: {
+        downPayment: invoice.paymentDetails?.downPayment || 0,
+        remainingBalance: invoice.paymentDetails?.remainingBalance || 0,
+        paymentMethod: invoice.paymentDetails?.paymentMethod || PAYMENT_METHODS.CASH,
+        bankName: invoice.paymentDetails?.bankName || "",
+        financeCompany: invoice.paymentDetails?.financeCompany || "",
+        paymentReference: invoice.paymentDetails?.paymentReference || "",
+      },
+      emiDetails: {
+        monthlyAmount: invoice.emiDetails?.monthlyAmount || 0,
+        startDate: emiStartDate,
+        numberOfInstallments: invoice.emiDetails?.numberOfInstallments || 1,
+        schedule: invoice.emiDetails?.schedule || [], // 🆕 Preserve schedule
+      },
+      bulkPricingDetails: invoice.bulkPricingDetails || null,
+    });
 
-      // FIX: Auto-populate bulk pricing if it exists in the invoice
-      if (invoice.bulkPricingDetails || invoice.bulkPricingApplied) {
-        const bulkDetails = invoice.bulkPricingDetails;
-        if (bulkDetails) {
-          setBulkPricing({
-            totalPrice: bulkDetails.totalPrice || 0,
-            gstSlab: bulkDetails.gstSlab || 18,
-            isPriceInclusive: bulkDetails.isPriceInclusive || false,
-          });
-          setBulkPricingApplied(true);
-        }
-      }
-
-      // Set up autocomplete selections for edit mode
-      if (invoice.customerId && invoice.customerName) {
-        setSelectedCustomer({
-          id: invoice.customerId,
-          name: invoice.customerName,
-          phone: invoice.customerPhone,
-          address: invoice.customerAddress,
-          state: invoice.customerState,
-          label: `${invoice.customerName} - ${invoice.customerPhone}`,
-        });
-      }
-
-      if (invoice.salesPersonId && invoice.salesPersonName) {
-        setSelectedEmployee({
-          id: invoice.salesPersonId,
-          name: invoice.salesPersonName,
-          label: invoice.salesPersonName,
-        });
-      }
+    // Set bulk pricing state if applicable
+    if (invoice.bulkPricingApplied && invoice.bulkPricingDetails) {
+      setBulkPricingApplied(true);
+      setBulkPricing(invoice.bulkPricingDetails);
+      setShowBulkPricing(true);
     }
-  }, [isEdit, invoice]);
+
+    // Set autocomplete selections
+    if (invoice.customerId && invoice.customerName) {
+      setSelectedCustomer({
+        id: invoice.customerId,
+        label: invoice.customerName,
+        ...invoice,
+      });
+    }
+
+    if (invoice.salesPersonId && invoice.salesPersonName) {
+      setSelectedEmployee({
+        id: invoice.salesPersonId,
+        label: invoice.salesPersonName,
+        name: invoice.salesPersonName,
+      });
+    }
+  }
+}, [isEdit, invoice]);
+
+  const handleExchangeChange = (exchangeDetails) => {
+    setFormData((prev) => ({
+      ...prev,
+      exchangeDetails,
+    }));
+  };
 
   // Bulk pricing handlers
   const handleBulkPricingToggle = () => {
@@ -351,10 +364,18 @@ const InvoiceForm = ({
         });
       }
 
+      const grandTotal = Math.round(subtotal + totalGST);
+
+      const exchangeAmount = formData.exchangeDetails?.hasExchange
+        ? parseFloat(formData.exchangeDetails.exchangeAmount || 0)
+        : 0;
+      const netPayable = Math.max(0, grandTotal - exchangeAmount);
+
       setCalculations({
         subtotal: Math.round(subtotal * 100) / 100,
         totalGST: Math.round(totalGST * 100) / 100,
-        grandTotal: Math.round((subtotal + totalGST) * 100) / 100,
+        grandTotal: grandTotal, // Rounded to nearest integer
+        netPayable: netPayable,
         itemTotals,
       });
     };
@@ -366,6 +387,7 @@ const InvoiceForm = ({
     formData.includeGST,
     bulkPricingApplied,
     formData.bulkPricingDetails,
+    formData.exchangeDetails,
   ]);
 
   // Auto-calculate remaining balance for finance/bank transfer
@@ -375,10 +397,8 @@ const InvoiceForm = ({
       formData.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER
     ) {
       const downPayment = parseFloat(formData.paymentDetails.downPayment) || 0;
-      const remainingBalance = Math.max(
-        0,
-        calculations.grandTotal - downPayment
-      );
+      const baseAmount = calculations.netPayable || calculations.grandTotal;
+      const remainingBalance = Math.max(0, baseAmount - downPayment);
 
       setFormData((prev) => ({
         ...prev,
@@ -389,6 +409,7 @@ const InvoiceForm = ({
       }));
     }
   }, [
+    calculations.netPayable,
     calculations.grandTotal,
     formData.paymentDetails.downPayment,
     formData.paymentStatus,
@@ -403,7 +424,8 @@ const InvoiceForm = ({
     ) {
       const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
       const downPayment = parseFloat(formData.paymentDetails?.downPayment || 0);
-      const emiAmount = calculations.grandTotal - downPayment; // FIX: Calculate on remaining amount
+      const baseAmount = calculations.netPayable || calculations.grandTotal; // ✓ Use netPayable (accounts for exchange)
+      const emiAmount = baseAmount - downPayment;
       const calculatedInstallments = Math.ceil(emiAmount / monthlyAmount); // FIX: Use emiAmount instead of grandTotal
 
       if (calculatedInstallments !== formData.emiDetails.numberOfInstallments) {
@@ -421,6 +443,7 @@ const InvoiceForm = ({
     formData.paymentStatus,
     formData.emiDetails.monthlyAmount,
     formData.paymentDetails?.downPayment, // ADD: Also watch for down payment changes
+    calculations.netPayable,
   ]);
 
   // Customer search and selection handlers
@@ -500,6 +523,14 @@ const InvoiceForm = ({
         salesPersonName: "",
       }));
     }
+  };
+
+  // ADD: Company selection handler
+  const handleCompanySelect = (company) => {
+    setFormData((prev) => ({
+      ...prev,
+      company: company,
+    }));
   };
 
   // Item management handlers
@@ -591,6 +622,8 @@ const InvoiceForm = ({
         paymentStatus: newStatus,
       };
 
+      const baseAmount = calculations.netPayable || calculations.grandTotal;
+
       if (
         newStatus === PAYMENT_STATUS.FINANCE ||
         newStatus === PAYMENT_STATUS.BANK_TRANSFER
@@ -598,23 +631,22 @@ const InvoiceForm = ({
         updatedData.paymentDetails = {
           ...prev.paymentDetails,
           downPayment: 0,
-          remainingBalance: calculations.grandTotal,
+          remainingBalance: baseAmount,
         };
       } else if (newStatus === PAYMENT_STATUS.PAID) {
         updatedData.paymentDetails = {
           ...prev.paymentDetails,
-          downPayment: calculations.grandTotal,
+          downPayment: baseAmount,
           remainingBalance: 0,
         };
       }
 
       if (
         newStatus === PAYMENT_STATUS.EMI &&
-        prev.emiDetails.monthlyAmount > 0 &&
-        calculations.grandTotal > 0
+        prev.emiDetails.monthlyAmount > 0
       ) {
         const numberOfInstallments = Math.ceil(
-          calculations.grandTotal / parseFloat(prev.emiDetails.monthlyAmount)
+          baseAmount / parseFloat(prev.emiDetails.monthlyAmount)
         );
         updatedData.emiDetails = {
           ...prev.emiDetails,
@@ -647,7 +679,8 @@ const InvoiceForm = ({
         calculations.grandTotal > 0
       ) {
         const downPayment = parseFloat(prev.paymentDetails?.downPayment || 0);
-        const emiAmount = calculations.grandTotal - downPayment;
+        const baseAmount = calculations.netPayable || calculations.grandTotal;
+        const emiAmount = baseAmount - downPayment;
         const numberOfInstallments = Math.ceil(emiAmount / parseFloat(value));
         updatedEmiDetails.numberOfInstallments = numberOfInstallments;
       }
@@ -669,9 +702,15 @@ const InvoiceForm = ({
     }));
   };
 
-  // Form validation
+  // Form validation - ADD company validation
   const validateForm = () => {
     const errors = {};
+
+    const baseAmount = calculations.netPayable || calculations.grandTotal;
+
+    if (!formData.company) {
+      errors.company = "Company selection is required";
+    }
 
     if (!formData.customerId || !formData.customerName) {
       errors.customer = "Customer is required";
@@ -702,12 +741,9 @@ const InvoiceForm = ({
       if (!formData.paymentDetails.financeCompany) {
         errors.financeCompany = "Finance company is required";
       }
-      if (parseFloat(formData.paymentDetails.downPayment) < 0) {
-        errors.downPayment = "Down payment cannot be negative";
-      }
       if (
         parseFloat(formData.paymentDetails.downPayment) >
-        calculations.grandTotal
+        baseAmount
       ) {
         errors.downPayment = "Down payment cannot exceed total amount";
       }
@@ -717,12 +753,9 @@ const InvoiceForm = ({
       if (!formData.paymentDetails.bankName) {
         errors.bankName = "Bank name is required";
       }
-      if (parseFloat(formData.paymentDetails.downPayment) < 0) {
-        errors.downPayment = "Down payment cannot be negative";
-      }
       if (
         parseFloat(formData.paymentDetails.downPayment) >
-        calculations.grandTotal
+        baseAmount
       ) {
         errors.downPayment = "Down payment cannot exceed total amount";
       }
@@ -768,7 +801,7 @@ const InvoiceForm = ({
     const monthlyAmount = parseFloat(formData.emiDetails.monthlyAmount);
     const startDate = new Date(formData.emiDetails.startDate);
     const downPayment = parseFloat(formData.paymentDetails?.downPayment || 0);
-    const totalAmount = calculations.grandTotal;
+    const totalAmount = calculations.netPayable || calculations.grandTotal;
     const emiAmount = totalAmount - downPayment; // EMI calculated on remaining amount
     const numberOfInstallments = parseInt(
       formData.emiDetails.numberOfInstallments
@@ -795,48 +828,51 @@ const InvoiceForm = ({
     return schedule;
   };
 
-  // Form submission
+  // Form submission - INCLUDE company in submission
   const handleSubmit = async (event) => {
-    event.preventDefault();
+  event.preventDefault();
 
-    const errors = validateForm();
-    setFormErrors(errors);
+  const errors = validateForm();
+  setFormErrors(errors);
 
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
+  if (Object.keys(errors).length > 0) {
+    return;
+  }
 
-    const invoiceData = {
-      ...formData,
-      saleDate: formData.saleDate.toISOString(),
-      scheduledDeliveryDate: formData.scheduledDeliveryDate?.toISOString(),
-      emiDetails:
-        formData.paymentStatus === PAYMENT_STATUS.EMI
-          ? {
-              ...formData.emiDetails,
-              startDate: formData.emiDetails.startDate?.toISOString(),
-              schedule: generateEMISchedule(),
-            }
-          : null,
-      // FIX: Include bulk pricing information in submission
-      bulkPricingApplied,
-      bulkPricingDetails: bulkPricingApplied
-        ? formData.bulkPricingDetails
+  const invoiceData = {
+    ...formData,
+    saleDate: formData.saleDate.toISOString(),
+    scheduledDeliveryDate: formData.scheduledDeliveryDate?.toISOString(),
+    exchangeDetails: formData.exchangeDetails?.hasExchange
+      ? formData.exchangeDetails
+      : null,
+    emiDetails:
+      formData.paymentStatus === PAYMENT_STATUS.EMI
+        ? {
+            ...formData.emiDetails,
+            startDate: formData.emiDetails.startDate?.toISOString(),
+            // 🆕 CRITICAL: Preserve existing schedule in edit mode
+            schedule:
+              isEdit && invoice?.emiDetails?.schedule
+                ? invoice.emiDetails.schedule // Keep existing schedule
+                : generateEMISchedule(), // Generate new for create
+          }
         : null,
-      customerGSTNumber: formData?.customerGSTNumber,
-    };
-
-    console.log("CUSTOMER,GST");
-
-    if (onSubmit) {
-      await onSubmit(invoiceData);
-    }
+    bulkPricingApplied,
+    bulkPricingDetails: bulkPricingApplied
+      ? formData.bulkPricingDetails
+      : null,
+    customerGSTNumber: formData?.customerGSTNumber,
+    company: formData.company,
   };
 
-  const currentPaymentCategory = getPaymentCategory(
-    formData.paymentStatus,
-    formData.paymentDetails.paymentMethod
-  );
+  // Don't send originalPaymentStatus to backend, it's just for UI warning
+  delete invoiceData.originalPaymentStatus;
+
+  if (onSubmit) {
+    await onSubmit(invoiceData);
+  }
+};
 
   return (
     <Box component="form" onSubmit={handleSubmit}>
@@ -866,6 +902,7 @@ const InvoiceForm = ({
                   <DatePicker
                     label="Sale Date"
                     value={formData.saleDate}
+                    format="dd/MM/yyyy"
                     onChange={handleDateChange("saleDate")}
                     disabled={loading}
                     slotProps={{
@@ -890,6 +927,94 @@ const InvoiceForm = ({
                     sx={{ mt: 2 }}
                   />
                 </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+
+          {/* ADD: Company Selection Card */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography
+                variant="h6"
+                gutterBottom
+                sx={{ display: "flex", alignItems: "center", gap: 1 }}
+              >
+                <BusinessIcon />
+                Company Information
+              </Typography>
+
+              {formErrors.company && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {formErrors.company}
+                </Alert>
+              )}
+
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <Autocomplete
+                    options={availableCompanies}
+                    getOptionLabel={(option) => option.name || ""}
+                    value={formData.company}
+                    onChange={(event, value) => handleCompanySelect(value)}
+                    disabled={loading}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Select Company"
+                        required
+                        helperText="Choose the company to show on the invoice (All companies available)"
+                      />
+                    )}
+                    renderOption={(props, option) => (
+                      <Box component="li" {...props}>
+                        <Box>
+                          <Typography variant="body1" fontWeight={600}>
+                            {option.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {option.category} | {option.address} | GST:{" "}
+                            {option.gstNumber}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+                  />
+                </Grid>
+
+                {formData.company && (
+                  <Grid item xs={12}>
+                    <Box
+                      sx={{
+                        p: 2,
+                        backgroundColor: "rgba(25, 118, 210, 0.1)",
+                        borderRadius: 1,
+                        border: "1px solid rgba(25, 118, 210, 0.2)",
+                      }}
+                    >
+                      <Typography
+                        variant="subtitle2"
+                        color="primary"
+                        gutterBottom
+                      >
+                        Selected Company Details:
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>{formData.company.name}</strong> (
+                        {formData.company.category})
+                      </Typography>
+                      <Typography variant="body2">
+                        {formData.company.address}, {formData.company.city},{" "}
+                        {formData.company.state} - {formData.company.pincode}
+                      </Typography>
+                      <Typography variant="body2">
+                        Phone: {formData.company.phone}
+                      </Typography>
+                      <Typography variant="body2">
+                        GST: {formData.company.gstNumber}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
               </Grid>
             </CardContent>
           </Card>
@@ -1025,7 +1150,7 @@ const InvoiceForm = ({
                   variant="contained"
                   size={isMobile ? "small" : "medium"}
                 >
-                  Add Item
+                  {isEdit ? "Add More Items" : "Add Item"}
                 </Button>
               </Box>
 
@@ -1187,6 +1312,13 @@ const InvoiceForm = ({
               )}
             </CardContent>
           </Card>
+
+          <ExchangeDetails
+            exchangeDetails={formData.exchangeDetails}
+            onExchangeChange={handleExchangeChange}
+            loading={loading}
+            grandTotal={calculations.grandTotal}
+          />
 
           {/* Bulk Pricing Section */}
           {formData.items.length > 0 && (
@@ -1432,6 +1564,47 @@ const InvoiceForm = ({
                     ₹{calculations.grandTotal.toFixed(2)}
                   </Typography>
                 </Box>
+
+                {formData.exchangeDetails?.hasExchange &&
+                  formData.exchangeDetails?.exchangeAmount > 0 && (
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2" color="success.main">
+                        Less: Exchange Credit:
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        color="success.main"
+                        fontWeight="600"
+                      >
+                        -₹{formData.exchangeDetails.exchangeAmount.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  )}
+
+                <Divider sx={{ my: 1 }} />
+
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="h6" fontWeight="bold">
+                    {formData.exchangeDetails?.hasExchange
+                      ? "Net Payable:"
+                      : "Grand Total:"}
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    fontWeight="bold"
+                    color="primary.main"
+                  >
+                    ₹
+                    {(formData.exchangeDetails?.hasExchange
+                      ? Math.max(
+                          0,
+                          calculations.grandTotal -
+                            formData.exchangeDetails.exchangeAmount
+                        )
+                      : calculations.grandTotal
+                    ).toFixed(2)}
+                  </Typography>
+                </Box>
               </Box>
             </CardContent>
           </Card>
@@ -1441,6 +1614,7 @@ const InvoiceForm = ({
             formErrors={formErrors}
             calculations={calculations}
             loading={loading}
+            isEdit={isEdit}
             onPaymentStatusChange={handlePaymentStatusChange}
             onPaymentDetailsChange={handlePaymentDetailsChange}
             onEMIChange={handleEMIChange}

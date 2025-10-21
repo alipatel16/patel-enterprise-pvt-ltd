@@ -52,7 +52,7 @@ const EmployeeSalesAnalyticsPage = () => {
   const [error, setError] = useState(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
-  const [ setMonthlyComparison] = useState(null);
+  const [ monthlyComparison, setMonthlyComparison] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // Check if user has access (admin only)

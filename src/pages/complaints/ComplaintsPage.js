@@ -38,6 +38,7 @@ import {
   Assignment as ComplaintIcon,
   Warning as OverdueIcon,
   Business as CompanyIcon,
+  Settings as SettingsIcon,
 } from "@mui/icons-material";
 
 import Layout from "../../components/common/Layout/Layout";
@@ -252,6 +253,15 @@ const ComplaintsPage = () => {
               >
                 Refresh
               </Button>
+              {userType === 'electronics' && (
+                <Button
+                  variant="outlined"
+                  startIcon={<SettingsIcon />}
+                  onClick={() => navigate('/complaints/settings')}
+                >
+                  Settings
+                </Button>
+              )}
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}

@@ -30,6 +30,7 @@ import {
   Receipt as ReceiptIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
+
 import Layout from '../../components/common/Layout/Layout';
 import salesStatsService from '../../services/salesStatsService';
 import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
@@ -104,7 +105,7 @@ const SalesStatisticsPage = () => {
     );
   }
 
-  if (error) {
+  if (error && !statsData) {
     return (
       <Layout title="Sales Statistics" breadcrumbs={[{ label: 'Sales Statistics' }]}>
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -139,7 +140,7 @@ const SalesStatisticsPage = () => {
                 <MenuItem value="all">All Time</MenuItem>
               </Select>
             </FormControl>
-            
+
             <IconButton onClick={handleRefresh} disabled={refreshing}>
               <RefreshIcon />
             </IconButton>

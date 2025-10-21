@@ -1,12 +1,5 @@
 // src/services/checklistService.js - COMPLETE REWRITE: Check-in Based Generation
-import {
-  ref,
-  get,
-  set,
-  push,
-  update,
-  remove,
-} from "firebase/database";
+import { ref, get, set, push, update, remove } from "firebase/database";
 import { database } from "./firebase/config";
 import { COLLECTIONS } from "../utils/constants/appConstants";
 
@@ -1291,6 +1284,266 @@ class ChecklistService {
     } catch (error) {
       console.error("Error handling leave cancellation:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Reassign employee checklists before deletion
+   * Updates checklist assignments by replacing deleted employee with replacement
+   * Preserves other assigned employees
+   *
+   * @param {string} userType - User type
+   * @param {Object} reassignmentData - Reassignment data from modal
+   * @returns {Promise<Object>} Update results
+   */
+  async reassignEmployeeChecklists(userType, reassignmentData) {
+    try {
+      console.log("=== REASSIGNING EMPLOYEE CHECKLISTS ===");
+      console.log("Reassignment data:", reassignmentData);
+
+      const {
+        employeeId,
+        primaryReplacements,
+        backupReplacements,
+        primaryChecklists,
+        backupChecklists,
+      } = reassignmentData;
+
+      const updates = {
+        primaryUpdated: 0,
+        backupUpdated: 0,
+        errors: [],
+      };
+
+      // Get all employees for name resolution
+      const allEmployees = await this.getAllEmployees(userType);
+      const employeeMap = new Map(
+        allEmployees.map((emp) => [emp.id, emp.name])
+      );
+
+      // Process primary checklist updates
+      for (const checklistInfo of primaryChecklists) {
+        try {
+          const {
+            id: checklistId,
+            currentEmployees,
+            hasOtherEmployees,
+          } = checklistInfo;
+          const replacementId = primaryReplacements[checklistId];
+
+          console.log(`Processing primary checklist ${checklistId}:`, {
+            currentEmployees,
+            hasOtherEmployees,
+            replacementId,
+          });
+
+          // Get current checklist data
+          const checklistsRef = ref(
+            this.database,
+            this.getChecklistsPath(userType, checklistId)
+          );
+          const snapshot = await get(checklistsRef);
+
+          if (!snapshot.exists()) {
+            console.warn(`Checklist ${checklistId} not found, skipping`);
+            updates.errors.push(`Checklist ${checklistId} not found`);
+            continue;
+          }
+
+          const checklist = snapshot.val();
+
+          // Update assigned employees array
+          let updatedAssignedEmployees = [
+            ...(checklist.assignedEmployees || []),
+          ];
+          let updatedAssignedEmployeeNames = [
+            ...(checklist.assignedEmployeeNames || []),
+          ];
+
+          // Remove the deleted employee
+          const employeeIndex = updatedAssignedEmployees.indexOf(employeeId);
+          if (employeeIndex > -1) {
+            updatedAssignedEmployees.splice(employeeIndex, 1);
+
+            // Also remove from names array if it exists
+            if (updatedAssignedEmployeeNames.length > employeeIndex) {
+              updatedAssignedEmployeeNames.splice(employeeIndex, 1);
+            }
+          }
+
+          // Add replacement employee if provided
+          if (
+            replacementId &&
+            !updatedAssignedEmployees.includes(replacementId)
+          ) {
+            updatedAssignedEmployees.push(replacementId);
+
+            // Add replacement name
+            const replacementName = employeeMap.get(replacementId);
+            if (replacementName) {
+              updatedAssignedEmployeeNames.push(replacementName);
+            }
+          }
+
+          // Update the checklist
+          const updateData = {
+            assignedEmployees: updatedAssignedEmployees,
+            assignedEmployeeNames: updatedAssignedEmployeeNames,
+            updatedAt: new Date().toISOString(),
+          };
+
+          await update(checklistsRef, updateData);
+          updates.primaryUpdated++;
+
+          console.log(`✅ Updated primary checklist ${checklistId}:`, {
+            before: checklist.assignedEmployees,
+            after: updatedAssignedEmployees,
+          });
+        } catch (error) {
+          console.error(
+            `Error updating primary checklist ${checklistInfo.id}:`,
+            error
+          );
+          updates.errors.push(
+            `Primary checklist ${checklistInfo.id}: ${error.message}`
+          );
+        }
+      }
+
+      // Process backup checklist updates
+      for (const checklistInfo of backupChecklists) {
+        try {
+          const {
+            id: checklistId,
+            currentEmployees,
+            hasOtherEmployees,
+          } = checklistInfo;
+          const replacementId = backupReplacements[checklistId];
+
+          console.log(`Processing backup checklist ${checklistId}:`, {
+            currentEmployees,
+            hasOtherEmployees,
+            replacementId,
+          });
+
+          // Get current checklist data
+          const checklistsRef = ref(
+            this.database,
+            this.getChecklistsPath(userType, checklistId)
+          );
+          const snapshot = await get(checklistsRef);
+
+          if (!snapshot.exists()) {
+            console.warn(`Checklist ${checklistId} not found, skipping`);
+            updates.errors.push(`Checklist ${checklistId} not found`);
+            continue;
+          }
+
+          const checklist = snapshot.val();
+
+          // Update backup employees array
+          let updatedBackupEmployees = [...(checklist.backupEmployees || [])];
+          let updatedBackupEmployeeNames = [
+            ...(checklist.backupEmployeeNames || []),
+          ];
+
+          // Remove the deleted employee
+          const employeeIndex = updatedBackupEmployees.indexOf(employeeId);
+          if (employeeIndex > -1) {
+            updatedBackupEmployees.splice(employeeIndex, 1);
+
+            // Also remove from names array if it exists
+            if (updatedBackupEmployeeNames.length > employeeIndex) {
+              updatedBackupEmployeeNames.splice(employeeIndex, 1);
+            }
+          }
+
+          // Add replacement employee if provided
+          if (
+            replacementId &&
+            !updatedBackupEmployees.includes(replacementId)
+          ) {
+            updatedBackupEmployees.push(replacementId);
+
+            // Add replacement name
+            const replacementName = employeeMap.get(replacementId);
+            if (replacementName) {
+              updatedBackupEmployeeNames.push(replacementName);
+            }
+          }
+
+          // Update the checklist
+          const updateData = {
+            backupEmployees: updatedBackupEmployees,
+            backupEmployeeNames: updatedBackupEmployeeNames,
+            updatedAt: new Date().toISOString(),
+          };
+
+          await update(checklistsRef, updateData);
+          updates.backupUpdated++;
+
+          console.log(`✅ Updated backup checklist ${checklistId}:`, {
+            before: checklist.backupEmployees,
+            after: updatedBackupEmployees,
+          });
+        } catch (error) {
+          console.error(
+            `Error updating backup checklist ${checklistInfo.id}:`,
+            error
+          );
+          updates.errors.push(
+            `Backup checklist ${checklistInfo.id}: ${error.message}`
+          );
+        }
+      }
+
+      // Also clean up any existing assignments for this employee
+      await this.cleanupEmployeeAssignments(userType, employeeId);
+
+      console.log("✅ Checklist reassignment complete:", updates);
+      return updates;
+    } catch (error) {
+      console.error("Error reassigning employee checklists:", error);
+      throw new Error(`Failed to reassign checklists: ${error.message}`);
+    }
+  }
+
+  /**
+   * Clean up all assignment records for a deleted employee
+   *
+   * @param {string} userType - User type
+   * @param {string} employeeId - Employee ID
+   * @returns {Promise<number>} Number of cleaned up assignments
+   */
+  async cleanupEmployeeAssignments(userType, employeeId) {
+    try {
+      console.log("=== CLEANING UP EMPLOYEE ASSIGNMENTS ===");
+      console.log("Employee ID:", employeeId);
+
+      // Get all completions for this employee
+      const allCompletions = await this.getCompletions(userType, {
+        employeeId: employeeId,
+      });
+
+      console.log(`Found ${allCompletions.length} assignments to clean up`);
+
+      // Delete all completions for this employee
+      const deletePromises = allCompletions.map((completion) => {
+        const completionRef = ref(
+          this.database,
+          this.getCompletionsPath(userType, completion.id)
+        );
+        return remove(completionRef);
+      });
+
+      await Promise.all(deletePromises);
+
+      console.log(`✅ Cleaned up ${allCompletions.length} assignments`);
+      return allCompletions.length;
+    } catch (error) {
+      console.error("Error cleaning up employee assignments:", error);
+      // Don't throw - this is cleanup, not critical
+      return 0;
     }
   }
 

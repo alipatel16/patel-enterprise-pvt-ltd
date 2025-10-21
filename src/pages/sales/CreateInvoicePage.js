@@ -7,11 +7,14 @@ import InvoiceForm from '../../components/sales/InvoiceForm/InvoiceForm';
 import { SalesProvider, useSales } from '../../contexts/SalesContext/SalesContext';
 import { CustomerProvider } from '../../contexts/CustomerContext/CustomerContext';
 import { EmployeeProvider } from '../../contexts/EmployeeContext/EmployeeContext';
+import { useUserType } from '../../contexts/UserTypeContext';
 
 // Page Content Component
 const CreateInvoicePageContent = () => {
   const navigate = useNavigate();
   const { createInvoice, loading, error } = useSales();
+
+  const { userType } = useUserType()
   
   const [submitError, setSubmitError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
@@ -83,6 +86,7 @@ const CreateInvoicePageContent = () => {
           onCancel={handleCancel}
           loading={loading}
           error={error}
+          userType={userType}
         />
       </Box>
     </Layout>

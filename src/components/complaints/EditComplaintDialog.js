@@ -1,3 +1,4 @@
+// src/components/complaints/EditComplaintDialog.js - Updated with Pincode & Purchase Date
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -34,11 +35,37 @@ import { useUserType } from '../../contexts/UserTypeContext';
 import customerService from '../../services/api/customerService';
 import employeeService from '../../services/api/employeeService';
 import complaintService from '../../services/api/complaintService';
+import brandHierarchyService from '../../services/api/BrandHierarchyService';
 import { formatDate } from '../../utils/helpers/formatHelpers';
 
 const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) => {
   const { user } = useAuth();
   const { userType } = useUserType();
+
+  // Helper function to parse structured description
+  const parseDescription = (description) => {
+    if (!description) return { model: '', serialNumber: '', reason: '' };
+
+    const lines = description.split('\n');
+    let model = '';
+    let serialNumber = '';
+    let reason = '';
+
+    lines.forEach(line => {
+      if (line.startsWith('Model:')) {
+        model = line.replace('Model:', '').trim();
+      } else if (line.startsWith('Serial Number:')) {
+        serialNumber = line.replace('Serial Number:', '').trim();
+      } else if (line.startsWith('Reason/Problem:')) {
+        reason = line.replace('Reason/Problem:', '').trim();
+      } else if (!line.startsWith('Model:') && !line.startsWith('Serial Number:')) {
+        // If no structured format, treat entire content as reason
+        reason = description;
+      }
+    });
+
+    return { model, serialNumber, reason };
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -46,7 +73,11 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     customerName: '',
     customerPhone: '',
     customerAddress: '',
+    customerPincode: '',
     title: '',
+    model: '',
+    serialNumber: '',
+    purchaseDate: null,
     description: '',
     category: '',
     severity: 'medium',
@@ -69,17 +100,29 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
   const [employeeOptions, setEmployeeOptions] = useState([]);
   const [customerLoading, setCustomerLoading] = useState(false);
   const [employeeLoading, setEmployeeLoading] = useState(false);
+  const [nextHierarchyLevel, setNextHierarchyLevel] = useState(null);
+  const [defaultHierarchyLevel, setDefaultHierarchyLevel] = useState(null);
+  const [isAtLastLevel, setIsAtLastLevel] = useState(false);
+  const [checkingHierarchy, setCheckingHierarchy] = useState(false);
+  const [brandOptions, setBrandOptions] = useState([]);
+  const [brandLoading, setBrandLoading] = useState(false);
 
   // Initialize form data when complaint changes
   useEffect(() => {
     if (complaint && open) {
+      const parsed = parseDescription(complaint.description);
+      
       setFormData({
         customerId: complaint.customerId || '',
         customerName: complaint.customerName || '',
         customerPhone: complaint.customerPhone || '',
         customerAddress: complaint.customerAddress || '',
+        customerPincode: complaint.customerPincode || '',
         title: complaint.title || '',
-        description: complaint.description || '',
+        model: parsed.model,
+        serialNumber: parsed.serialNumber,
+        purchaseDate: complaint.purchaseDate ? new Date(complaint.purchaseDate) : null,
+        description: parsed.reason,
         category: complaint.category || '',
         severity: complaint.severity || 'medium',
         status: complaint.status || 'open',
@@ -94,10 +137,120 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         statusRemarks: ''
       });
       loadEmployees();
+      
+      if (userType === 'electronics') {
+        loadBrands();
+      }
+      
+      if (userType === 'electronics' && complaint.assigneeType === 'service_person') {
+        checkHierarchyLevels(complaint);
+      }
     }
   }, [complaint, open, userType]);
 
-  // Load employees
+  const loadBrands = async () => {
+    if (userType !== 'electronics') return;
+    
+    try {
+      setBrandLoading(true);
+      const brands = await brandHierarchyService.getAllBrands(userType);
+      const brandSuggestions = brands.map(brand => ({
+        id: brand.id,
+        brandName: brand.brandName,
+        hierarchy: brand.hierarchy || []
+      }));
+      setBrandOptions(brandSuggestions);
+    } catch (error) {
+      console.error('Error loading brands:', error);
+    } finally {
+      setBrandLoading(false);
+    }
+  };
+
+  const checkHierarchyLevels = async (currentComplaint) => {
+    if (userType !== 'electronics' || !currentComplaint.title || !currentComplaint.servicePersonContact) {
+      setNextHierarchyLevel(null);
+      setDefaultHierarchyLevel(null);
+      setIsAtLastLevel(false);
+      return;
+    }
+
+    try {
+      setCheckingHierarchy(true);
+      const detectedBrand = await brandHierarchyService.detectBrandFromTitle(userType, currentComplaint.title);
+      
+      if (detectedBrand) {
+        const atLastLevel = await brandHierarchyService.isAtLastHierarchyLevel(
+          userType,
+          detectedBrand.brandName,
+          currentComplaint.servicePersonContact
+        );
+        setIsAtLastLevel(atLastLevel);
+
+        const nextLevel = await brandHierarchyService.getNextHierarchyLevel(
+          userType,
+          detectedBrand.brandName,
+          currentComplaint.servicePersonContact
+        );
+        setNextHierarchyLevel(nextLevel);
+
+        if (atLastLevel) {
+          const defaultLevel = await brandHierarchyService.getDefaultHierarchy(userType);
+          if (defaultLevel) {
+            const isAlreadyAtDefault = currentComplaint.servicePersonContact === defaultLevel.contact;
+            setDefaultHierarchyLevel(isAlreadyAtDefault ? null : defaultLevel);
+          } else {
+            setDefaultHierarchyLevel(null);
+          }
+        } else {
+          setDefaultHierarchyLevel(null);
+        }
+      } else {
+        setNextHierarchyLevel(null);
+        setDefaultHierarchyLevel(null);
+        setIsAtLastLevel(false);
+      }
+    } catch (error) {
+      console.error('Error checking hierarchy:', error);
+      setNextHierarchyLevel(null);
+      setDefaultHierarchyLevel(null);
+      setIsAtLastLevel(false);
+    } finally {
+      setCheckingHierarchy(false);
+    }
+  };
+
+  const handleAssignToNextLevel = () => {
+    if (nextHierarchyLevel) {
+      setFormData(prev => ({
+        ...prev,
+        servicePersonName: nextHierarchyLevel.name,
+        servicePersonContact: nextHierarchyLevel.contact,
+        assigneeType: 'service_person'
+      }));
+      
+      const updatedComplaint = {
+        ...complaint,
+        servicePersonContact: nextHierarchyLevel.contact
+      };
+      checkHierarchyLevels(updatedComplaint);
+    }
+  };
+
+  const handleAssignToDefaultLevel = () => {
+    if (defaultHierarchyLevel) {
+      setFormData(prev => ({
+        ...prev,
+        servicePersonName: defaultHierarchyLevel.name,
+        servicePersonContact: defaultHierarchyLevel.contact,
+        assigneeType: 'service_person'
+      }));
+      
+      setNextHierarchyLevel(null);
+      setDefaultHierarchyLevel(null);
+    }
+  };
+
   const loadEmployees = async () => {
     try {
       setEmployeeLoading(true);
@@ -117,7 +270,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle customer search
   const handleCustomerSearch = async (searchTerm) => {
     if (!searchTerm || searchTerm.length < 2) {
       setCustomerOptions([]);
@@ -133,6 +285,7 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         name: customer.name,
         phone: customer.phone,
         address: customer.address,
+        pincode: customer.pincode || '',
         customerType: customer.customerType,
         category: customer.category
       }));
@@ -144,7 +297,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle customer selection
   const handleCustomerSelect = (event, customer) => {
     if (customer) {
       setFormData(prev => ({
@@ -152,7 +304,8 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         customerId: customer.id,
         customerName: customer.name,
         customerPhone: customer.phone,
-        customerAddress: customer.address
+        customerAddress: customer.address,
+        customerPincode: customer.pincode || ''
       }));
     } else {
       setFormData(prev => ({
@@ -160,12 +313,12 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         customerId: '',
         customerName: '',
         customerPhone: '',
-        customerAddress: ''
+        customerAddress: '',
+        customerPincode: ''
       }));
     }
   };
 
-  // Handle employee selection
   const handleEmployeeSelect = (event, employee) => {
     if (employee) {
       setFormData(prev => ({
@@ -182,7 +335,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle form field changes
   const handleChange = (field) => (event) => {
     const value = event.target.value;
     setFormData(prev => ({
@@ -190,7 +342,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
       [field]: value
     }));
 
-    // Clear related fields when assignee type changes
     if (field === 'assigneeType') {
       if (value === 'employee') {
         setFormData(prev => ({
@@ -210,7 +361,56 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle date change
+  const handleBrandSelect = (event, brand) => {
+    if (!brand) {
+      setFormData(prev => ({
+        ...prev,
+        title: ''
+      }));
+      return;
+    }
+
+    if (typeof brand === 'string') {
+      setFormData(prev => ({
+        ...prev,
+        title: brand
+      }));
+      return;
+    }
+
+    const titleWithBrand = brand.brandName;
+    setFormData(prev => ({
+      ...prev,
+      title: titleWithBrand
+    }));
+
+    if (brand.hierarchy && brand.hierarchy.length > 0) {
+      const firstLevel = brand.hierarchy[0];
+      setFormData(prev => ({
+        ...prev,
+        assigneeType: 'service_person',
+        servicePersonName: firstLevel.name,
+        servicePersonContact: firstLevel.contact
+      }));
+      
+      const updatedComplaint = {
+        ...complaint,
+        title: titleWithBrand,
+        servicePersonContact: firstLevel.contact
+      };
+      checkHierarchyLevels(updatedComplaint);
+    }
+  };
+
+  const handleTitleInputChange = (event, value, reason) => {
+    if (reason === 'input') {
+      setFormData(prev => ({
+        ...prev,
+        title: value
+      }));
+    }
+  };
+
   const handleDateChange = (field) => (date) => {
     setFormData(prev => ({
       ...prev,
@@ -218,7 +418,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }));
   };
 
-  // Validate form
   const validateForm = () => {
     if (!formData.customerId) {
       return 'Please select a customer';
@@ -226,14 +425,11 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     if (!formData.title.trim()) {
       return 'Complaint title is required';
     }
-    if (formData.title.length < 5) {
-      return 'Complaint title must be at least 5 characters';
-    }
     if (!formData.description.trim()) {
-      return 'Complaint description is required';
+      return 'Reason/Problem is required';
     }
     if (formData.description.length < 10) {
-      return 'Complaint description must be at least 10 characters';
+      return 'Reason/Problem must be at least 10 characters';
     }
     if (!formData.category) {
       return 'Please select a complaint category';
@@ -256,16 +452,29 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
       }
     }
 
-    // Validate status change remarks
     if (formData.status !== complaint.status && !formData.statusRemarks.trim()) {
       return 'Please provide remarks for status change';
     }
 
-    // Validate company recorded date if provided
+    // Validate pincode if provided
+    if (formData.customerPincode && !/^\d{6}$/.test(formData.customerPincode)) {
+      return 'Pincode must be 6 digits';
+    }
+
+    // Validate purchase date if provided
+    if (formData.purchaseDate) {
+      const purchaseDate = new Date(formData.purchaseDate);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (purchaseDate > today) {
+        return 'Purchase date cannot be in the future';
+      }
+    }
+
     if (formData.companyRecordedDate) {
       const companyDate = new Date(formData.companyRecordedDate);
       const today = new Date();
-      today.setHours(23, 59, 59, 999); // Allow today
+      today.setHours(23, 59, 59, 999);
       if (companyDate > today) {
         return 'Company recorded date cannot be in the future';
       }
@@ -274,7 +483,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     return null;
   };
 
-  // Handle form submission
   const handleSubmit = async () => {
     try {
       setError('');
@@ -287,13 +495,22 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
 
       setLoading(true);
 
+      // Build structured description
+      const structuredDescription = [
+        formData.model ? `Model: ${formData.model.trim()}` : null,
+        formData.serialNumber ? `Serial Number: ${formData.serialNumber.trim()}` : null,
+        formData.description ? `Reason/Problem: ${formData.description.trim()}` : null
+      ].filter(Boolean).join('\n');
+
       const updateData = {
         customerId: formData.customerId,
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
         customerAddress: formData.customerAddress,
+        customerPincode: formData.customerPincode.trim(),
         title: formData.title.trim(),
-        description: formData.description.trim(),
+        description: structuredDescription,
+        purchaseDate: formData.purchaseDate ? formData.purchaseDate.toISOString() : '',
         category: formData.category,
         severity: formData.severity,
         status: formData.status,
@@ -303,11 +520,9 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         updatedByName: user.name
       };
 
-      // Add assignee details based on type
       if (formData.assigneeType === 'employee') {
         updateData.assignedEmployeeId = formData.assignedEmployeeId;
         updateData.assignedEmployeeName = formData.assignedEmployeeName;
-        // Clear service person fields
         updateData.servicePersonName = '';
         updateData.servicePersonContact = '';
         updateData.companyComplaintNumber = '';
@@ -316,24 +531,20 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
         updateData.servicePersonName = formData.servicePersonName.trim();
         updateData.servicePersonContact = formData.servicePersonContact.trim();
         
-        // Add company complaint details
         updateData.companyComplaintNumber = formData.companyComplaintNumber.trim();
         updateData.companyRecordedDate = formData.companyRecordedDate ? 
           formData.companyRecordedDate.toISOString() : '';
         
-        // Clear employee fields
         updateData.assignedEmployeeId = '';
         updateData.assignedEmployeeName = '';
       }
 
-      // Add status remarks if status changed
       if (formData.status !== complaint.status) {
         updateData.statusRemarks = formData.statusRemarks.trim();
       }
 
       await complaintService.updateComplaint(userType, complaint.id, updateData);
       
-      // Call the callback
       if (onComplaintUpdated) {
         onComplaintUpdated();
       }
@@ -346,7 +557,6 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
     }
   };
 
-  // Handle dialog close
   const handleClose = () => {
     if (!loading) {
       setError('');
@@ -442,7 +652,8 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
                   label: `${formData.customerName} (${formData.customerPhone})`,
                   name: formData.customerName,
                   phone: formData.customerPhone,
-                  address: formData.customerAddress
+                  address: formData.customerAddress,
+                  pincode: formData.customerPincode
                 } : null}
                 onInputChange={(event, value) => handleCustomerSearch(value)}
                 onChange={handleCustomerSelect}
@@ -471,12 +682,28 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {option.phone} • {option.address}
+                        {option.pincode && ` • PIN: ${option.pincode}`}
                       </Typography>
                     </Box>
                   </Box>
                 )}
               />
             </Grid>
+
+            {/* Customer Pincode field */}
+            {formData.customerId && (
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Customer Pincode"
+                  value={formData.customerPincode}
+                  onChange={handleChange('customerPincode')}
+                  fullWidth
+                  placeholder="Enter 6-digit pincode"
+                  helperText="Enter or update customer pincode"
+                  inputProps={{ maxLength: 6 }}
+                />
+              </Grid>
+            )}
 
             {/* Complaint Details */}
             <Grid item xs={12}>
@@ -487,15 +714,61 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <TextField
-                label="Complaint Title"
-                value={formData.title}
-                onChange={handleChange('title')}
-                fullWidth
-                required
-                helperText={`${formData.title.length}/100 characters`}
-                inputProps={{ maxLength: 100 }}
-              />
+              {userType === 'electronics' ? (
+                <Autocomplete
+                  freeSolo
+                  options={brandOptions}
+                  loading={brandLoading}
+                  value={formData.title}
+                  onChange={handleBrandSelect}
+                  onInputChange={handleTitleInputChange}
+                  getOptionLabel={(option) => typeof option === 'string' ? option : option.brandName}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Complaint Title"
+                      placeholder="Start typing brand name or select from dropdown..."
+                      fullWidth
+                      required
+                      helperText={`${formData.title.length}/100 characters - Select brand or type freely`}
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {brandLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props}>
+                      <Box>
+                        <Typography variant="body2" fontWeight={500}>
+                          {option.brandName}
+                        </Typography>
+                        {option.hierarchy && option.hierarchy.length > 0 && (
+                          <Typography variant="caption" color="text.secondary">
+                            {option.hierarchy.length} service level{option.hierarchy.length > 1 ? 's' : ''} • 
+                            Level 1: {option.hierarchy[0].name}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  )}
+                />
+              ) : (
+                <TextField
+                  label="Complaint Title"
+                  value={formData.title}
+                  onChange={handleChange('title')}
+                  fullWidth
+                  required
+                  helperText={`${formData.title.length}/100 characters`}
+                  inputProps={{ maxLength: 100 }}
+                />
+              )}
             </Grid>
 
             <Grid item xs={12} md={6}>
@@ -515,16 +788,57 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
               </FormControl>
             </Grid>
 
+            {/* NEW: Structured Description Fields */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" gutterBottom fontWeight={600} color="text.secondary">
+                Product Details & Issue
+              </Typography>
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <TextField
+                label="Model"
+                value={formData.model}
+                onChange={handleChange('model')}
+                fullWidth
+                placeholder="Enter product model number"
+                helperText="Optional - Product model"
+              />
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <TextField
+                label="Serial Number"
+                value={formData.serialNumber}
+                onChange={handleChange('serialNumber')}
+                fullWidth
+                placeholder="Enter serial number"
+                helperText="Optional - Serial number"
+              />
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <DatePicker
+                label="Purchase Date"
+                value={formData.purchaseDate}
+                onChange={handleDateChange('purchaseDate')}
+                format='dd/MM/yyyy'
+                renderInput={(params) => <TextField {...params} fullWidth />}
+                maxDate={new Date()}
+              />
+            </Grid>
+
             <Grid item xs={12}>
               <TextField
-                label="Complaint Description"
+                label="Reason/Problem"
                 value={formData.description}
                 onChange={handleChange('description')}
                 fullWidth
                 multiline
                 rows={4}
                 required
-                helperText={`${formData.description.length}/1000 characters`}
+                placeholder="Describe the issue in detail..."
+                helperText={`${formData.description.length}/1000 characters - Describe the problem or reason for complaint`}
                 inputProps={{ maxLength: 1000 }}
               />
             </Grid>
@@ -666,6 +980,47 @@ const EditComplaintDialog = ({ open, onClose, complaint, onComplaintUpdated }) =
             {/* Service Person Assignment */}
             {formData.assigneeType === 'service_person' && (
               <>
+                {/* Electronics: Show escalation buttons */}
+                {userType === 'electronics' && (nextHierarchyLevel || defaultHierarchyLevel) && (
+                  <Grid item xs={12}>
+                    {nextHierarchyLevel && (
+                      <Alert 
+                        severity="info" 
+                        action={
+                          <Button 
+                            color="inherit" 
+                            size="small"
+                            onClick={handleAssignToNextLevel}
+                          >
+                            Assign to Level {nextHierarchyLevel.level}
+                          </Button>
+                        }
+                        sx={{ mb: defaultHierarchyLevel ? 1 : 0 }}
+                      >
+                        Next hierarchy level available: {nextHierarchyLevel.name} ({nextHierarchyLevel.contact})
+                      </Alert>
+                    )}
+                    
+                    {defaultHierarchyLevel && isAtLastLevel && (
+                      <Alert 
+                        severity="warning" 
+                        action={
+                          <Button 
+                            color="inherit" 
+                            size="small"
+                            onClick={handleAssignToDefaultLevel}
+                            variant="outlined"
+                          >
+                            Assign to Default Level
+                          </Button>
+                        }
+                      >
+                        At last brand hierarchy level. Escalate to default level: {defaultHierarchyLevel.name} ({defaultHierarchyLevel.contact})
+                      </Alert>
+                    )}
+                  </Grid>
+                )}
+                
                 <Grid item xs={12} md={6}>
                   <TextField
                     label="Service Person Name"

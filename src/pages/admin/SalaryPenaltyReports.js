@@ -1,4 +1,4 @@
-// src/components/admin/SalaryPenaltyTab.js - FIXED VERSION WITH ATTENDANCE DETAILS
+// src/components/admin/SalaryPenaltyTab.js - FIXED VERSION - Calendar shows all days including last day of month
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -80,7 +80,7 @@ const SalaryPenaltyTab = () => {
   const [removePenaltyDialogOpen, setRemovePenaltyDialogOpen] = useState(false);
   const [penaltyToRemove, setPenaltyToRemove] = useState(null);
   const [removeReason, setRemoveReason] = useState('');
-  const [removeType, setRemoveType] = useState('single'); // 'single', 'daily', 'monthly'
+  const [removeType, setRemoveType] = useState('single');
   
   // Attendance details dialog states
   const [attendanceDetailsOpen, setAttendanceDetailsOpen] = useState(false);
@@ -115,7 +115,10 @@ const SalaryPenaltyTab = () => {
       const year = selectedMonth.getFullYear();
       const month = selectedMonth.getMonth() + 1;
       const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+      
+      // FIXED: Get the correct last day of the month
+      const lastDay = new Date(year, month, 0).getDate(); // This gives us the actual last day
+      const endDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
 
       const reports = [];
 
@@ -134,24 +137,18 @@ const SalaryPenaltyTab = () => {
           attendanceService.getEmployeeAttendance(userType, employee.id, 50)
         ]);
 
+        // FIXED: Use <= for end date comparison to include the last day
         const monthlyAttendance = attendanceRecords.filter(record =>
           record.date >= startDate && record.date <= endDate
         );
 
-        // FIX 1: Only include employees who have attendance data for the selected month
-        // OR if we're showing all employees and it's the current month
         const isCurrentMonth = year === new Date().getFullYear() && 
                               month === new Date().getMonth() + 1;
         
-        // Include employee if:
-        // 1. They have attendance records for this month, OR
-        // 2. It's the current month and they have active employment, OR  
-        // 3. They have penalties for this month (even without attendance)
         const hasMonthlyData = monthlyAttendance.length > 0 || 
                               penalties.filter(p => p.status === 'active').length > 0 ||
                               (isCurrentMonth && employee.isActive !== false);
 
-        // Skip employees with no data for non-current months
         if (!hasMonthlyData && !isCurrentMonth) {
           continue;
         }
@@ -180,13 +177,15 @@ const SalaryPenaltyTab = () => {
     }
   };
 
-  // FIX 2: Add function to refresh penalty details
   const refreshPenaltyDetails = async (employeeId) => {
     try {
       const year = selectedMonth.getFullYear();
       const month = selectedMonth.getMonth() + 1;
       const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+      
+      // FIXED: Use correct last day calculation
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
 
       const updatedPenalties = await penaltyService.getEmployeePenalties(
         userType, 
@@ -205,7 +204,7 @@ const SalaryPenaltyTab = () => {
     }
   };
 
-  // NEW: Function to view detailed attendance for an employee
+  // FIXED: View attendance details with correct date range calculation
   const viewAttendanceDetails = async (employee) => {
     try {
       setAttendanceDetailsLoading(true);
@@ -214,26 +213,29 @@ const SalaryPenaltyTab = () => {
       const year = selectedMonth.getFullYear();
       const month = selectedMonth.getMonth() + 1;
       const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+      
+      // FIXED: Calculate the last day properly
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
 
       // Get all attendance records for the employee
       const attendanceRecords = await attendanceService.getEmployeeAttendance(userType, employee.id, 100);
       
-      // Filter for the selected month
+      // FIXED: Filter with correct date range (inclusive of last day)
       const monthlyAttendance = attendanceRecords.filter(record =>
         record.date >= startDate && record.date <= endDate
       );
 
       // Generate complete month calendar with attendance data
-      const daysInMonth = new Date(year, month, 0).getDate();
       const attendanceCalendar = [];
 
-      for (let day = 1; day <= daysInMonth; day++) {
+      // FIXED: Use lastDay directly instead of recalculating
+      for (let day = 1; day <= lastDay; day++) {
         const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
         const dayRecord = monthlyAttendance.find(record => record.date === dateStr);
-        const dayOfWeek = new Date(dateStr).getDay(); // 0 = Sunday, 6 = Saturday
+        const dayOfWeek = new Date(dateStr).getDay();
         
-        attendanceCalendar.push({
+        const dayData = {
           date: dateStr,
           day: day,
           dayName: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dayOfWeek],
@@ -245,14 +247,35 @@ const SalaryPenaltyTab = () => {
           totalWorkTime: dayRecord?.totalWorkTime || 0,
           leaveType: dayRecord?.leaveType || null,
           leaveReason: dayRecord?.leaveReason || null
-        });
+        };
+
+        // Add break analysis to each day
+        if (dayRecord && dayRecord.breaks && dayRecord.breaks.length > 0) {
+          const dayBreakCount = dayRecord.breaks.length;
+          const dayBreakTime = dayRecord.breaks.reduce((sum, br) => sum + (br.duration || 0), 0);
+          
+          dayData.breakCount = dayBreakCount;
+          dayData.breakTime = dayBreakTime;
+          dayData.breakDetails = dayRecord.breaks.map((br, index) => ({
+            id: index + 1,
+            startTime: br.startTime,
+            endTime: br.endTime,
+            duration: br.duration || 0
+          }));
+        } else {
+          dayData.breakCount = 0;
+          dayData.breakTime = 0;
+          dayData.breakDetails = [];
+        }
+
+        attendanceCalendar.push(dayData);
       }
 
       setSelectedEmployeeAttendance({
         employee,
         attendanceCalendar,
         summary: {
-          totalDays: daysInMonth,
+          totalDays: lastDay,
           workingDays: attendanceCalendar.filter(d => d.status === 'checked_out').length,
           leaveDays: attendanceCalendar.filter(d => d.status === 'on_leave').length,
           absentDays: attendanceCalendar.filter(d => d.status === 'absent').length,
@@ -315,12 +338,10 @@ const SalaryPenaltyTab = () => {
       setRemoveReason('');
       setRemoveType('single');
 
-      // FIX 2: Refresh penalty details in the dialog if it's open
       if (penaltyDetailsOpen && employeeId) {
         await refreshPenaltyDetails(employeeId);
       }
 
-      // Reload main data to show updated calculations
       await loadData();
     } catch (error) {
       console.error('Failed to remove penalty:', error);
@@ -623,7 +644,7 @@ const SalaryPenaltyTab = () => {
                                 ID: {report.employee.employeeId || report.employee.id}
                               </Typography>
                             </Box>
-                            <Tooltip title="View Attendance Details">
+                            <Tooltip title="View Attendance & Break Details">
                               <IconButton
                                 size="small"
                                 onClick={() => viewAttendanceDetails(report.employee)}
@@ -705,7 +726,6 @@ const SalaryPenaltyTab = () => {
                           <Collapse in={expandedRows.has(report.employee.id)} timeout="auto" unmountOnExit>
                             <Box sx={{ margin: 2 }}>
                               <Grid container spacing={3}>
-                                {/* Penalty Breakdown */}
                                 <Grid item xs={12} md={6}>
                                   <Typography variant="subtitle2" gutterBottom>
                                     Penalty Breakdown
@@ -734,7 +754,6 @@ const SalaryPenaltyTab = () => {
                                   </Table>
                                 </Grid>
 
-                                {/* Attendance Summary */}
                                 <Grid item xs={12} md={6}>
                                   <Typography variant="subtitle2" gutterBottom>
                                     Attendance Summary
@@ -760,7 +779,6 @@ const SalaryPenaltyTab = () => {
                                   </Table>
                                 </Grid>
 
-                                {/* Quick Actions */}
                                 <Grid item xs={12}>
                                   <Box display="flex" gap={1} flexWrap="wrap">
                                     {report.penalties.length > 0 && (
@@ -907,7 +925,7 @@ const SalaryPenaltyTab = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Attendance Details Dialog */}
+      {/* Attendance Details Dialog with Break Details - FIXED to show all days */}
       <Dialog
         open={attendanceDetailsOpen}
         onClose={() => setAttendanceDetailsOpen(false)}
@@ -987,9 +1005,9 @@ const SalaryPenaltyTab = () => {
                 </Grid>
               </Grid>
 
-              {/* Attendance Calendar */}
+              {/* Attendance Calendar with Break Details */}
               <Typography variant="subtitle1" gutterBottom sx={{ mt: 2, mb: 2 }}>
-                Daily Attendance Details
+                Daily Attendance & Break Details (Total: {selectedEmployeeAttendance.summary.totalDays} days)
               </Typography>
               
               <TableContainer component={Paper} variant="outlined">
@@ -1002,6 +1020,8 @@ const SalaryPenaltyTab = () => {
                       <TableCell align="center">Check In</TableCell>
                       <TableCell align="center">Check Out</TableCell>
                       <TableCell align="right">Work Hours</TableCell>
+                      <TableCell align="center">Breaks</TableCell>
+                      <TableCell align="right">Break Time</TableCell>
                       <TableCell>Notes</TableCell>
                     </TableRow>
                   </TableHead>
@@ -1092,6 +1112,42 @@ const SalaryPenaltyTab = () => {
                           <TableCell align="right">
                             <Typography variant="body2">
                               {formatWorkHours(day.totalWorkTime)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="center">
+                            {(day.breakCount || 0) > 0 ? (
+                              <Tooltip 
+                                title={
+                                  <Box>
+                                    <Typography variant="subtitle2" gutterBottom>Break Details:</Typography>
+                                    {(day.breakDetails || []).map((br) => (
+                                      <Box key={br.id} component="span" sx={{ display: 'block', fontSize: '0.75rem' }}>
+                                        Break {br.id}: {formatTime(br.startTime)} - {br.endTime ? formatTime(br.endTime) : 'Ongoing'} 
+                                        {br.duration > 0 && ` (${formatWorkHours(br.duration)})`}
+                                      </Box>
+                                    ))}
+                                  </Box>
+                                }
+                                arrow
+                              >
+                                <Chip
+                                  label={`${day.breakCount || 0} break${(day.breakCount || 0) > 1 ? 's' : ''}`}
+                                  color={(day.breakCount || 0) > 3 ? 'error' : (day.breakCount || 0) > 1 ? 'warning' : 'info'}
+                                  size="small"
+                                  sx={{ cursor: 'help' }}
+                                />
+                              </Tooltip>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">-</Typography>
+                            )}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography 
+                              variant="body2"
+                              color={(day.breakTime || 0) > 60 ? 'warning.main' : 'text.primary'}
+                              fontWeight={(day.breakTime || 0) > 60 ? 'medium' : 'normal'}
+                            >
+                              {(day.breakTime || 0) > 0 ? formatWorkHours(day.breakTime) : '-'}
                             </Typography>
                           </TableCell>
                           <TableCell>

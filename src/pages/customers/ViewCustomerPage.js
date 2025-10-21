@@ -21,7 +21,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  useTheme
+  useTheme,
+  Paper,
+  alpha
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -37,6 +39,7 @@ import {
   Receipt as ReceiptIcon,
   History as HistoryIcon,
   ContactPhone as ContactPhoneIcon,
+  Description as DescriptionIcon,
   ContactMail as ContactMailIcon
 } from '@mui/icons-material';
 
@@ -367,6 +370,58 @@ const ViewCustomerPageContent = () => {
                   </Box>
                 </Box>
               </Box>
+
+              {/* FIXED: Changed !formattedCustomer.purpose to formattedCustomer.purpose */}
+              {formattedCustomer.purpose && (
+                <>
+                  <Divider sx={{ mb: 3 }} />
+                  
+                  <Box mb={3}>
+                    <Paper
+                      elevation={0}
+                      sx={{ 
+                        p: 2, 
+                        bgcolor: alpha(theme.palette.primary.main, 0.05),
+                        border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                        borderRadius: 1
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                        <DescriptionIcon
+                          sx={{ 
+                            color: 'primary.main',
+                            fontSize: 20,
+                            mt: 0.2
+                          }} 
+                        />
+                        <Box flex={1}>
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              fontWeight: 600,
+                              color: 'primary.main',
+                              textTransform: 'uppercase',
+                              letterSpacing: 0.5
+                            }}
+                          >
+                            Purpose for Visit
+                          </Typography>
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              mt: 0.5,
+                              color: 'text.primary',
+                              fontStyle: 'italic'
+                            }}
+                          >
+                            {formattedCustomer.purpose}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Paper>
+                  </Box>
+                </>
+              )}
 
               <Divider sx={{ mb: 3 }} />
 
