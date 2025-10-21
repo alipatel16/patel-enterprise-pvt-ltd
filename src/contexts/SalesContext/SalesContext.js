@@ -8,6 +8,8 @@ import salesService from "../../services/api/salesService";
 import { useUserType } from "../UserTypeContext/UserTypeContext";
 import { useAuth } from "../AuthContext/AuthContext";
 
+import optimizedSalesService from '../../services/api/optimizedSalesService';
+
 import { PAYMENT_STATUS } from "../../utils/constants/appConstants";
 
 // Initial state - simplified for client-side filtering
@@ -158,22 +160,60 @@ export const SalesProvider = ({ children }) => {
   const { userType } = useUserType();
   const { user } = useAuth();
 
-  // Load all sales - simplified for client-side filtering
-  const loadSales = useCallback(async () => {
+  // In loadSales function
+  const loadSales = useCallback(
+    async (options = {}) => {
+      if (!userType) {
+        return [];
+      }
+
+      try {
+        dispatch({ type: SALES_ACTIONS.SET_LOADING, payload: true });
+
+        // Use optimized service
+        const result = await optimizedSalesService.getSales(userType, {
+          ...state.filters,
+          ...options,
+        });
+
+        dispatch({
+          type: SALES_ACTIONS.SET_SALES,
+          payload: result.sales,
+        });
+
+        dispatch({
+          type: SALES_ACTIONS.SET_PAGINATION,
+          payload: {
+            currentPage: result.currentPage,
+            totalPages: result.totalPages,
+            total: result.total,
+            hasMore: result.hasMore,
+          },
+        });
+
+        return result.sales;
+      } catch (error) {
+        dispatch({
+          type: SALES_ACTIONS.SET_ERROR,
+          payload: error.message,
+        });
+        return [];
+      }
+    },
+    [userType, state.filters]
+  );
+
+  // In loadSalesStats function
+  const loadSalesStats = useCallback(async () => {
     if (!userType) {
-      dispatch({
-        type: SALES_ACTIONS.SET_ERROR,
-        payload: "User type not available",
-      });
       return;
     }
 
     try {
-      dispatch({ type: SALES_ACTIONS.SET_LOADING, payload: true });
-      const sales = await salesService.getSales(userType);
-      dispatch({ type: SALES_ACTIONS.SET_SALES, payload: sales });
+      const stats = await optimizedSalesService.getSalesStats(userType);
+      dispatch({ type: SALES_ACTIONS.SET_STATS, payload: stats });
     } catch (error) {
-      dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
+      console.error("Error loading sales stats:", error);
     }
   }, [userType]);
 
@@ -429,20 +469,6 @@ export const SalesProvider = ({ children }) => {
     [userType]
   );
 
-  // Load sales statistics
-  const loadSalesStats = useCallback(async () => {
-    if (!userType) {
-      return;
-    }
-
-    try {
-      const stats = await salesService.getSalesStats(userType);
-      dispatch({ type: SALES_ACTIONS.SET_STATS, payload: stats });
-    } catch (error) {
-      console.error("Error loading sales stats:", error);
-    }
-  }, [userType]);
-
   // Load notifications (pending EMIs and deliveries)
   const loadNotifications = useCallback(async () => {
     if (!userType) {
@@ -452,7 +478,7 @@ export const SalesProvider = ({ children }) => {
     try {
       const [pendingEMIs, pendingDeliveries] = await Promise.all([
         salesService.getPendingEMIPayments(userType),
-        salesService.getPendingDeliveries(userType),
+        optimizedSalesService.getPendingDeliveries(userType),
       ]);
 
       dispatch({
