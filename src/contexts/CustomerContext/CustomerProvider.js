@@ -1,7 +1,14 @@
-import React, { useReducer, useCallback, useContext, createContext } from 'react';
-import customerService from '../../services/api/customerService';
-import { useUserType } from '../UserTypeContext/UserTypeContext';
-import { useAuth } from '../AuthContext/AuthContext';
+import React, {
+  useReducer,
+  useCallback,
+  useContext,
+  createContext,
+} from "react";
+import customerService from "../../services/api/customerService";
+import { useUserType } from "../UserTypeContext/UserTypeContext";
+import { useAuth } from "../AuthContext/AuthContext";
+
+import optimizedCustomerService from "../../services/api/optimizedCustomerService";
 
 // Create context
 const CustomerContext = createContext();
@@ -10,7 +17,7 @@ const CustomerContext = createContext();
 export const useCustomer = () => {
   const context = useContext(CustomerContext);
   if (!context) {
-    throw new Error('useCustomer must be used within a CustomerProvider');
+    throw new Error("useCustomer must be used within a CustomerProvider");
   }
   return context;
 };
@@ -25,30 +32,30 @@ const initialState = {
     currentPage: 1,
     totalPages: 1,
     total: 0,
-    hasMore: false
+    hasMore: false,
   },
   filters: {
-    search: '',
-    type: '',
-    category: '',
-    sortBy: 'name',
-    sortOrder: 'asc'
-  }
+    search: "",
+    type: "",
+    category: "",
+    sortBy: "name",
+    sortOrder: "asc",
+  },
 };
 
 // Action types
 const CUSTOMER_ACTIONS = {
-  SET_LOADING: 'SET_LOADING',
-  SET_ERROR: 'SET_ERROR',
-  CLEAR_ERROR: 'CLEAR_ERROR',
-  SET_CUSTOMERS: 'SET_CUSTOMERS',
-  ADD_CUSTOMER: 'ADD_CUSTOMER',
-  UPDATE_CUSTOMER: 'UPDATE_CUSTOMER',
-  DELETE_CUSTOMER: 'DELETE_CUSTOMER',
-  SET_CURRENT_CUSTOMER: 'SET_CURRENT_CUSTOMER',
-  SET_PAGINATION: 'SET_PAGINATION',
-  SET_FILTERS: 'SET_FILTERS',
-  RESET_STATE: 'RESET_STATE'
+  SET_LOADING: "SET_LOADING",
+  SET_ERROR: "SET_ERROR",
+  CLEAR_ERROR: "CLEAR_ERROR",
+  SET_CUSTOMERS: "SET_CUSTOMERS",
+  ADD_CUSTOMER: "ADD_CUSTOMER",
+  UPDATE_CUSTOMER: "UPDATE_CUSTOMER",
+  DELETE_CUSTOMER: "DELETE_CUSTOMER",
+  SET_CURRENT_CUSTOMER: "SET_CURRENT_CUSTOMER",
+  SET_PAGINATION: "SET_PAGINATION",
+  SET_FILTERS: "SET_FILTERS",
+  RESET_STATE: "RESET_STATE",
 };
 
 // Reducer
@@ -58,20 +65,20 @@ const customerReducer = (state, action) => {
       return {
         ...state,
         loading: action.payload,
-        error: null
+        error: null,
       };
 
     case CUSTOMER_ACTIONS.SET_ERROR:
       return {
         ...state,
         error: action.payload,
-        loading: false
+        loading: false,
       };
 
     case CUSTOMER_ACTIONS.CLEAR_ERROR:
       return {
         ...state,
-        error: null
+        error: null,
       };
 
     case CUSTOMER_ACTIONS.SET_CUSTOMERS:
@@ -79,55 +86,59 @@ const customerReducer = (state, action) => {
         ...state,
         customers: action.payload,
         loading: false,
-        error: null
+        error: null,
       };
 
     case CUSTOMER_ACTIONS.ADD_CUSTOMER:
       return {
         ...state,
         customers: [action.payload, ...state.customers],
-        error: null
+        error: null,
       };
 
     case CUSTOMER_ACTIONS.UPDATE_CUSTOMER:
       return {
         ...state,
-        customers: state.customers.map(customer =>
+        customers: state.customers.map((customer) =>
           customer.id === action.payload.id ? action.payload : customer
         ),
-        currentCustomer: state.currentCustomer?.id === action.payload.id 
-          ? action.payload 
-          : state.currentCustomer,
-        error: null
+        currentCustomer:
+          state.currentCustomer?.id === action.payload.id
+            ? action.payload
+            : state.currentCustomer,
+        error: null,
       };
 
     case CUSTOMER_ACTIONS.DELETE_CUSTOMER:
       return {
         ...state,
-        customers: state.customers.filter(customer => customer.id !== action.payload),
-        currentCustomer: state.currentCustomer?.id === action.payload 
-          ? null 
-          : state.currentCustomer,
-        error: null
+        customers: state.customers.filter(
+          (customer) => customer.id !== action.payload
+        ),
+        currentCustomer:
+          state.currentCustomer?.id === action.payload
+            ? null
+            : state.currentCustomer,
+        error: null,
       };
 
     case CUSTOMER_ACTIONS.SET_CURRENT_CUSTOMER:
       return {
         ...state,
         currentCustomer: action.payload,
-        error: null
+        error: null,
       };
 
     case CUSTOMER_ACTIONS.SET_PAGINATION:
       return {
         ...state,
-        pagination: { ...state.pagination, ...action.payload }
+        pagination: { ...state.pagination, ...action.payload },
       };
 
     case CUSTOMER_ACTIONS.SET_FILTERS:
       return {
         ...state,
-        filters: { ...state.filters, ...action.payload }
+        filters: { ...state.filters, ...action.payload },
       };
 
     case CUSTOMER_ACTIONS.RESET_STATE:
@@ -163,175 +174,222 @@ const CustomerProvider = ({ children }) => {
     dispatch({ type: CUSTOMER_ACTIONS.SET_FILTERS, payload: filters });
   }, []);
 
-  // Get customers
-  const getCustomers = useCallback(async (options = {}) => {
-    if (!userType) {
-      dispatch({ type: CUSTOMER_ACTIONS.SET_ERROR, payload: 'User type not available' });
-      return [];
-    }
+  // In getCustomers function
+  const getCustomers = useCallback(
+    async (options = {}) => {
+      if (!userType) {
+        return [];
+      }
 
-    try {
-      dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: true });
-      
-      const result = await customerService.getCustomers(userType, {
-        ...state.filters,
-        ...options
-      });
+      try {
+        dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: true });
 
-      dispatch({ type: CUSTOMER_ACTIONS.SET_CUSTOMERS, payload: result.customers });
-      dispatch({ 
-        type: CUSTOMER_ACTIONS.SET_PAGINATION, 
-        payload: {
-          currentPage: result.currentPage,
-          totalPages: result.totalPages,
-          total: result.total,
-          hasMore: result.hasMore
-        }
-      });
+        // Use optimized service
+        const result = await optimizedCustomerService.getCustomers(userType, {
+          ...state.filters,
+          ...options,
+        });
 
-      return result.customers;
-    } catch (error) {
-      dispatch({ 
-        type: CUSTOMER_ACTIONS.SET_ERROR, 
-        payload: error.message || 'Failed to fetch customers' 
-      });
-      return [];
-    }
-  }, [userType, state.filters]);
+        dispatch({
+          type: CUSTOMER_ACTIONS.SET_CUSTOMERS,
+          payload: result.customers,
+        });
+        dispatch({
+          type: CUSTOMER_ACTIONS.SET_PAGINATION,
+          payload: {
+            currentPage: result.currentPage,
+            totalPages: result.totalPages,
+            total: result.total,
+            hasMore: result.hasMore,
+          },
+        });
+
+        return result.customers;
+      } catch (error) {
+        dispatch({
+          type: CUSTOMER_ACTIONS.SET_ERROR,
+          payload: error.message || "Failed to fetch customers",
+        });
+        return [];
+      }
+    },
+    [userType, state.filters]
+  );
 
   // Get customer by ID
-  const getCustomerById = useCallback(async (customerId) => {
-    if (!userType || !customerId) {
-      return null;
-    }
-
-    try {
-      const customer = await customerService.getCustomerById(userType, customerId);
-      
-      if (customer) {
-        dispatch({ type: CUSTOMER_ACTIONS.SET_CURRENT_CUSTOMER, payload: customer });
+  const getCustomerById = useCallback(
+    async (customerId) => {
+      if (!userType || !customerId) {
+        return null;
       }
-      
-      return customer;
-    } catch (error) {
-      dispatch({ 
-        type: CUSTOMER_ACTIONS.SET_ERROR, 
-        payload: error.message || 'Failed to fetch customer' 
-      });
-      return null;
-    }
-  }, [userType]);
+
+      try {
+        const customer = await optimizedCustomerService.getCustomerById(
+          userType,
+          customerId
+        );
+
+        if (customer) {
+          dispatch({
+            type: CUSTOMER_ACTIONS.SET_CURRENT_CUSTOMER,
+            payload: customer,
+          });
+        }
+
+        return customer;
+      } catch (error) {
+        dispatch({
+          type: CUSTOMER_ACTIONS.SET_ERROR,
+          payload: error.message || "Failed to fetch customer",
+        });
+        return null;
+      }
+    },
+    [userType]
+  );
 
   // Create customer
-  const createCustomer = useCallback(async (customerData) => {
-    if (!userType) {
-      throw new Error('User type not available');
-    }
+  const createCustomer = useCallback(
+    async (customerData) => {
+      if (!userType) {
+        throw new Error("User type not available");
+      }
 
-    try {
-      dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: true });
-      
-      const newCustomer = await customerService.createCustomer(userType, {
-        ...customerData,
-        createdBy: user?.uid,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
+      try {
+        dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: true });
 
-      dispatch({ type: CUSTOMER_ACTIONS.ADD_CUSTOMER, payload: newCustomer });
-      dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: false });
-      
-      return newCustomer;
-    } catch (error) {
-      dispatch({ 
-        type: CUSTOMER_ACTIONS.SET_ERROR, 
-        payload: error.message || 'Failed to create customer' 
-      });
-      throw error;
-    }
-  }, [userType, user]);
+        const newCustomer = await customerService.createCustomer(userType, {
+          ...customerData,
+          createdBy: user?.uid,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+
+        dispatch({ type: CUSTOMER_ACTIONS.ADD_CUSTOMER, payload: newCustomer });
+        dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: false });
+
+        return newCustomer;
+      } catch (error) {
+        dispatch({
+          type: CUSTOMER_ACTIONS.SET_ERROR,
+          payload: error.message || "Failed to create customer",
+        });
+        throw error;
+      }
+    },
+    [userType, user]
+  );
 
   // Update customer
-  const updateCustomer = useCallback(async (customerId, updates) => {
-    if (!userType || !customerId) {
-      throw new Error('User type and customer ID are required');
-    }
+  const updateCustomer = useCallback(
+    async (customerId, updates) => {
+      if (!userType || !customerId) {
+        throw new Error("User type and customer ID are required");
+      }
 
-    try {
-      dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: true });
-      
-      const updatedCustomer = await customerService.updateCustomer(userType, customerId, {
-        ...updates,
-        updatedBy: user?.uid,
-        updatedAt: new Date().toISOString()
-      });
+      try {
+        dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: true });
 
-      dispatch({ type: CUSTOMER_ACTIONS.UPDATE_CUSTOMER, payload: updatedCustomer });
-      dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: false });
-      
-      return updatedCustomer;
-    } catch (error) {
-      dispatch({ 
-        type: CUSTOMER_ACTIONS.SET_ERROR, 
-        payload: error.message || 'Failed to update customer' 
-      });
-      throw error;
-    }
-  }, [userType, user]);
+        const updatedCustomer = await customerService.updateCustomer(
+          userType,
+          customerId,
+          {
+            ...updates,
+            updatedBy: user?.uid,
+            updatedAt: new Date().toISOString(),
+          }
+        );
+
+        dispatch({
+          type: CUSTOMER_ACTIONS.UPDATE_CUSTOMER,
+          payload: updatedCustomer,
+        });
+        dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: false });
+
+        return updatedCustomer;
+      } catch (error) {
+        dispatch({
+          type: CUSTOMER_ACTIONS.SET_ERROR,
+          payload: error.message || "Failed to update customer",
+        });
+        throw error;
+      }
+    },
+    [userType, user]
+  );
 
   // Delete customer
-  const deleteCustomer = useCallback(async (customerId) => {
-    if (!userType || !customerId) {
-      throw new Error('User type and customer ID are required');
-    }
+  const deleteCustomer = useCallback(
+    async (customerId) => {
+      if (!userType || !customerId) {
+        throw new Error("User type and customer ID are required");
+      }
 
-    try {
-      dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: true });
-      
-      await customerService.deleteCustomer(userType, customerId);
-      
-      dispatch({ type: CUSTOMER_ACTIONS.DELETE_CUSTOMER, payload: customerId });
-      dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: false });
-      
-      return true;
-    } catch (error) {
-      dispatch({ 
-        type: CUSTOMER_ACTIONS.SET_ERROR, 
-        payload: error.message || 'Failed to delete customer' 
-      });
-      throw error;
-    }
-  }, [userType]);
+      try {
+        dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: true });
+
+        await customerService.deleteCustomer(userType, customerId);
+
+        dispatch({
+          type: CUSTOMER_ACTIONS.DELETE_CUSTOMER,
+          payload: customerId,
+        });
+        dispatch({ type: CUSTOMER_ACTIONS.SET_LOADING, payload: false });
+
+        return true;
+      } catch (error) {
+        dispatch({
+          type: CUSTOMER_ACTIONS.SET_ERROR,
+          payload: error.message || "Failed to delete customer",
+        });
+        throw error;
+      }
+    },
+    [userType]
+  );
 
   // Search customers
-  const searchCustomers = useCallback(async (searchTerm, options = {}) => {
-    if (!userType) {
-      return [];
-    }
+  const searchCustomers = useCallback(
+    async (searchTerm, options = {}) => {
+      if (!userType) {
+        return [];
+      }
 
-    try {
-      const result = await customerService.searchCustomers(userType, searchTerm, options);
-      return result.customers || [];
-    } catch (error) {
-      console.error('Search customers error:', error);
-      return [];
-    }
-  }, [userType]);
+      try {
+        const result = await customerService.searchCustomers(
+          userType,
+          searchTerm,
+          options
+        );
+        return result.customers || [];
+      } catch (error) {
+        console.error("Search customers error:", error);
+        return [];
+      }
+    },
+    [userType]
+  );
 
   // Get customer statistics
-  const getCustomerStats = useCallback(async (customerId) => {
-    if (!userType || !customerId) {
-      return null;
-    }
+  const getCustomerStats = useCallback(
+    async (customerId) => {
+      if (!userType || !customerId) {
+        return null;
+      }
 
-    try {
-      const stats = await customerService.getCustomerStats(userType, customerId);
-      return stats;
-    } catch (error) {
-      console.error('Get customer stats error:', error);
-      return null;
-    }
-  }, [userType]);
+      try {
+        const stats = await customerService.getCustomerStats(
+          userType,
+          customerId
+        );
+        return stats;
+      } catch (error) {
+        console.error("Get customer stats error:", error);
+        return null;
+      }
+    },
+    [userType]
+  );
 
   // Reset state (useful for logout)
   const resetState = useCallback(() => {
@@ -342,7 +400,7 @@ const CustomerProvider = ({ children }) => {
   const contextValue = {
     // State
     ...state,
-    
+
     // Actions
     getCustomers,
     getCustomerById,
@@ -354,7 +412,7 @@ const CustomerProvider = ({ children }) => {
     setFilters,
     clearError,
     setLoading,
-    resetState
+    resetState,
   };
 
   return (

@@ -56,11 +56,12 @@ import { useUserType } from "../../contexts/UserTypeContext/UserTypeContext";
 import { USER_ROLES } from "../../utils/constants/appConstants";
 import LoadingSpinner from "../../components/common/UI/LoadingSpinner";
 import checklistService from "../../services/checklistService";
-import customerService from "../../services/api/customerService";
 import employeeService from "../../services/api/employeeService";
-import salesService from "../../services/api/salesService";
 import DrawerContent from "../../components/common/Navigation/DrawerContent";
 import { formatCurrency, formatDate } from "../../utils/helpers/formatHelpers";
+
+import optimizedCustomerService from "../../services/api/optimizedCustomerService";
+import optimizedSalesService from "../../services/api/optimizedSalesService";
 
 const DRAWER_WIDTH = 240;
 
@@ -140,9 +141,10 @@ const DashboardPage = () => {
 
       const promises = [];
 
-      promises.push(customerService.getCustomerStats(userType));
-      promises.push(salesService.getSalesStats(userType));
-      promises.push(salesService.getSales(userType, {}));
+      promises.push(optimizedCustomerService.getCustomerStats(userType));
+      promises.push(optimizedSalesService.getSalesStats(userType));
+      promises.push(optimizedSalesService.getRecentSales(userType, 10));
+      promises.push(optimizedSalesService.getPendingDeliveriesCount(userType));
 
       if (canManageEmployees()) {
         promises.push(employeeService.getEmployeeStats(userType));
@@ -157,7 +159,8 @@ const DashboardPage = () => {
       const [
         customerStats,
         salesStats,
-        allSales,
+        recentSales,
+        pendingDeliveriesCount,
         employeeStats,
         checklistStats,
         generationStatus,
@@ -166,14 +169,9 @@ const DashboardPage = () => {
       console.log("Raw salesStats:", salesStats);
       console.log("Raw customerStats:", customerStats);
 
-      const recentSales = allSales
-        .filter((sale) => sale.saleDate)
-        .sort((a, b) => new Date(b.saleDate) - new Date(a.saleDate))
-        .slice(0, 10);
-
       const monthlyGrowth = salesStats.todaysRevenue > 0 && salesStats.totalRevenue > 0
         ? ((salesStats.todaysRevenue / 30) / (salesStats.totalRevenue / 365)) * 100 - 100
-        : 0;
+          : 0;
 
       const mappedSalesData = {
         totalSales: salesStats.totalSales || 0,
@@ -183,7 +181,7 @@ const DashboardPage = () => {
         todaysAmount: salesStats.todaysRevenue || 0,
         todaysAmountPaid: salesStats.statsByCategory?.paid?.paidAmount || 0,
         pendingPayments: salesStats.pendingInvoices || 0,
-        pendingDeliveries: allSales.filter(s => s.deliveryStatus !== 'delivered').length,
+        pendingDeliveries: pendingDeliveriesCount || 0,
         paidInvoices: salesStats.paidInvoices || 0,
         outstandingAmount: salesStats.outstandingAmount || 0,
         statsByCategory: salesStats.statsByCategory || {},
@@ -278,7 +276,7 @@ const DashboardPage = () => {
 
   const getStatsCards = () => {
     const data = dashboardData;
-    
+
     const baseCards = [
       {
         title: "Total Customers",
@@ -338,9 +336,11 @@ const DashboardPage = () => {
             : `${data.checklists.todayPending} pending tasks`,
         icon: ChecklistIcon,
         color: "#9c27b0",
-        progress: data.checklists.todayTotal > 0 
-          ? (data.checklists.todayCompleted / data.checklists.todayTotal) * 100 
-          : 0,
+        progress:
+          data.checklists.todayTotal > 0
+            ? (data.checklists.todayCompleted / data.checklists.todayTotal) *
+              100
+            : 0,
         action: () => navigate("/checklists"),
       });
 
@@ -363,9 +363,11 @@ const DashboardPage = () => {
             : `${data.checklists.todayPending} pending tasks`,
         icon: TaskIcon,
         color: "#9c27b0",
-        progress: data.checklists.todayTotal > 0 
-          ? (data.checklists.todayCompleted / data.checklists.todayTotal) * 100 
-          : 0,
+        progress:
+          data.checklists.todayTotal > 0
+            ? (data.checklists.todayCompleted / data.checklists.todayTotal) *
+              100
+            : 0,
         action: () => navigate("/my-checklists"),
       });
     }
@@ -378,7 +380,9 @@ const DashboardPage = () => {
   }
 
   const statsCards = getStatsCards();
-  const notificationCount = (dashboardData.sales.pendingPayments || 0) + (dashboardData.sales.pendingDeliveries || 0);
+  const notificationCount =
+    (dashboardData.sales.pendingPayments || 0) +
+    (dashboardData.sales.pendingDeliveries || 0);
 
   return (
     <Box sx={{ display: "flex" }}>
@@ -409,10 +413,7 @@ const DashboardPage = () => {
               color="inherit"
               onClick={() => navigate("/notifications")}
             >
-              <Badge
-                badgeContent={notificationCount}
-                color="error"
-              >
+              <Badge badgeContent={notificationCount} color="error">
                 <NotificationsIcon />
               </Badge>
             </IconButton>
@@ -486,7 +487,16 @@ const DashboardPage = () => {
           )}
 
           <Box mb={4}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 2,
+                flexWrap: "wrap",
+                gap: 2,
+              }}
+            >
               <Box>
                 <Typography
                   variant="h4"
@@ -504,32 +514,32 @@ const DashboardPage = () => {
                   color="text.secondary"
                   sx={{ fontSize: { xs: "0.875rem", sm: "1rem" } }}
                 >
-                  Here's what's happening in your {getDisplayName().toLowerCase()}{" "}
-                  showroom today.
+                  Here's what's happening in your{" "}
+                  {getDisplayName().toLowerCase()} showroom today.
                 </Typography>
               </Box>
-              
-              <Box sx={{ display: 'flex', gap: 1 }}>
+
+              <Box sx={{ display: "flex", gap: 1 }}>
                 <Button
                   variant="outlined"
                   startIcon={<RefreshIcon />}
                   onClick={loadDashboardData}
                   disabled={refreshing}
-                  size={isMobile ? 'small' : 'medium'}
+                  size={isMobile ? "small" : "medium"}
                 >
                   Refresh
                 </Button>
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
-                  onClick={() => navigate('/sales/create')}
-                  size={isMobile ? 'small' : 'medium'}
+                  onClick={() => navigate("/sales/create")}
+                  size={isMobile ? "small" : "medium"}
                 >
                   New Invoice
                 </Button>
               </Box>
             </Box>
-            
+
             {refreshing && <LinearProgress sx={{ mb: 2 }} />}
           </Box>
 
@@ -561,49 +571,46 @@ const DashboardPage = () => {
                         Check-in Based Checklist System
                       </Typography>
 
-                      <Box
-                        display="flex"
-                        alignItems="center"
-                        gap={1}
-                        mb={2}
-                      >
+                      <Box display="flex" alignItems="center" gap={1} mb={2}>
                         <CheckCircleIcon
                           color="success"
                           sx={{ fontSize: "1.5rem" }}
                         />
-                        <Typography
-                          variant="body2"
-                          color="success.main"
-                        >
-                          Assignments generated automatically on employee check-in
+                        <Typography variant="body2" color="success.main">
+                          Assignments generated automatically on employee
+                          check-in
                         </Typography>
                       </Box>
 
-                      {checklistGenerationInfo && checklistGenerationInfo.todayStats && (
-                        <Box>
-                          <Typography variant="body2" color="textSecondary">
-                            Today's Status:{" "}
-                            {checklistGenerationInfo.todayStats.todayCompleted}/
-                            {checklistGenerationInfo.todayStats.todayTotal} assignments completed
-                          </Typography>
-
-                          {checklistGenerationInfo.todayStats.todayTotal === 0 && (
-                            <Typography
-                              variant="caption"
-                              color="info.main"
-                              sx={{ display: "block", mt: 1 }}
-                            >
-                              ℹ️ No assignments yet - employees will get assignments when they check in
+                      {checklistGenerationInfo &&
+                        checklistGenerationInfo.todayStats && (
+                          <Box>
+                            <Typography variant="body2" color="textSecondary">
+                              Today's Status:{" "}
+                              {
+                                checklistGenerationInfo.todayStats
+                                  .todayCompleted
+                              }
+                              /{checklistGenerationInfo.todayStats.todayTotal}{" "}
+                              assignments completed
                             </Typography>
-                          )}
-                        </Box>
-                      )}
+
+                            {checklistGenerationInfo.todayStats.todayTotal ===
+                              0 && (
+                              <Typography
+                                variant="caption"
+                                color="info.main"
+                                sx={{ display: "block", mt: 1 }}
+                              >
+                                ℹ️ No assignments yet - employees will get
+                                assignments when they check in
+                              </Typography>
+                            )}
+                          </Box>
+                        )}
                     </Box>
 
-                    <Box
-                      display="flex"
-                      gap={2}
-                    >
+                    <Box display="flex" gap={2}>
                       <Button
                         variant="outlined"
                         startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
@@ -640,11 +647,14 @@ const DashboardPage = () => {
                     sx={{
                       cursor: "pointer",
                       transition: "all 0.3s ease",
-                      height: '100%',
-                      border: card.urgent ? `2px solid ${card.color}` : 'none',
-                      background: card.urgent 
-                        ? `linear-gradient(135deg, ${alpha(card.color, 0.05)}, ${alpha(card.color, 0.02)})`
-                        : 'none',
+                      height: "100%",
+                      border: card.urgent ? `2px solid ${card.color}` : "none",
+                      background: card.urgent
+                        ? `linear-gradient(135deg, ${alpha(
+                            card.color,
+                            0.05
+                          )}, ${alpha(card.color, 0.02)})`
+                        : "none",
                       "&:hover": {
                         transform: "translateY(-4px)",
                         boxShadow: 6,
@@ -653,7 +663,12 @@ const DashboardPage = () => {
                     onClick={card.action}
                   >
                     <CardContent>
-                      <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={2}>
+                      <Box
+                        display="flex"
+                        alignItems="flex-start"
+                        justifyContent="space-between"
+                        mb={2}
+                      >
                         <Box
                           sx={{
                             p: 1.5,
@@ -663,13 +678,13 @@ const DashboardPage = () => {
                         >
                           <Icon sx={{ color: card.color, fontSize: 32 }} />
                         </Box>
-                        
+
                         {card.badge && (
                           <Chip
                             label="Action Required"
                             size="small"
                             color="error"
-                            sx={{ fontSize: '0.625rem' }}
+                            sx={{ fontSize: "0.625rem" }}
                           />
                         )}
                       </Box>
@@ -693,13 +708,22 @@ const DashboardPage = () => {
                       </Typography>
 
                       {card.subtitle && (
-                        <Typography variant="caption" color="textSecondary" display="block">
+                        <Typography
+                          variant="caption"
+                          color="textSecondary"
+                          display="block"
+                        >
                           {card.subtitle}
                         </Typography>
                       )}
 
                       {card.trend !== undefined && card.trend !== 0 && (
-                        <Box display="flex" alignItems="center" gap={0.5} mt={1}>
+                        <Box
+                          display="flex"
+                          alignItems="center"
+                          gap={0.5}
+                          mt={1}
+                        >
                           {card.trend > 0 ? (
                             <TrendingUpIcon fontSize="small" color="success" />
                           ) : (
@@ -707,7 +731,9 @@ const DashboardPage = () => {
                           )}
                           <Typography
                             variant="caption"
-                            color={card.trend > 0 ? "success.main" : "error.main"}
+                            color={
+                              card.trend > 0 ? "success.main" : "error.main"
+                            }
                             fontWeight={600}
                           >
                             {Math.abs(card.trend).toFixed(1)}%
@@ -717,16 +743,16 @@ const DashboardPage = () => {
 
                       {card.progress !== undefined && (
                         <Box mt={2}>
-                          <LinearProgress 
-                            variant="determinate" 
+                          <LinearProgress
+                            variant="determinate"
                             value={card.progress}
                             sx={{
                               height: 6,
                               borderRadius: 3,
                               backgroundColor: alpha(card.color, 0.1),
-                              '& .MuiLinearProgress-bar': {
+                              "& .MuiLinearProgress-bar": {
                                 backgroundColor: card.color,
-                              }
+                              },
                             }}
                           />
                         </Box>
@@ -740,72 +766,105 @@ const DashboardPage = () => {
 
           <Grid container spacing={3}>
             <Grid item xs={12} lg={8}>
-              <Card sx={{ height: '100%' }}>
+              <Card sx={{ height: "100%" }}>
                 <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      mb: 3,
+                    }}
+                  >
                     <Typography variant="h6" fontWeight={600}>
                       Recent Sales
                     </Typography>
                     <Button
                       size="small"
-                      onClick={() => navigate('/sales/history')}
+                      onClick={() => navigate("/sales/history")}
                     >
                       View All
                     </Button>
                   </Box>
-                  
+
                   {dashboardData.recentSales.length > 0 ? (
                     <Box>
-                      {dashboardData.recentSales.slice(0, 5).map((sale, index) => (
-                        <Box
-                          key={sale.id || index}
-                          sx={{
-                            p: 2,
-                            mb: 1,
-                            borderRadius: 1,
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                            '&:hover': {
-                              backgroundColor: alpha(themeColors.primary, 0.04),
-                              borderColor: themeColors.primary,
-                            }
-                          }}
-                          onClick={() => navigate(`/sales/view/${sale.id}`)}
-                        >
-                          <Box display="flex" justifyContent="space-between" alignItems="center">
-                            <Box flex={1}>
-                              <Typography variant="subtitle2" fontWeight={600}>
-                                {sale.customerName || 'Unknown Customer'}
-                              </Typography>
-                              <Typography variant="caption" color="textSecondary">
-                                Invoice #{sale.invoiceNumber} • {formatDate(sale.saleDate || sale.createdAt)}
-                              </Typography>
-                            </Box>
-                            <Box textAlign="right">
-                              <Typography variant="subtitle1" fontWeight={600} color="success.main">
-                                {formatCurrency(sale.grandTotal || sale.totalAmount || 0)}
-                              </Typography>
-                              <Chip
-                                label={sale.paymentStatus || 'pending'}
-                                size="small"
-                                color={sale.paymentStatus === 'paid' ? 'success' : 'warning'}
-                                sx={{ fontSize: '0.625rem', height: 20 }}
-                              />
+                      {dashboardData.recentSales
+                        .slice(0, 5)
+                        .map((sale, index) => (
+                          <Box
+                            key={sale.id || index}
+                            sx={{
+                              p: 2,
+                              mb: 1,
+                              borderRadius: 1,
+                              border: "1px solid",
+                              borderColor: "divider",
+                              cursor: "pointer",
+                              transition: "all 0.2s",
+                              "&:hover": {
+                                backgroundColor: alpha(
+                                  themeColors.primary,
+                                  0.04
+                                ),
+                                borderColor: themeColors.primary,
+                              },
+                            }}
+                            onClick={() => navigate(`/sales/view/${sale.id}`)}
+                          >
+                            <Box
+                              display="flex"
+                              justifyContent="space-between"
+                              alignItems="center"
+                            >
+                              <Box flex={1}>
+                                <Typography
+                                  variant="subtitle2"
+                                  fontWeight={600}
+                                >
+                                  {sale.customerName || "Unknown Customer"}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  color="textSecondary"
+                                >
+                                  Invoice #{sale.invoiceNumber} •{" "}
+                                  {formatDate(sale.saleDate || sale.createdAt)}
+                                </Typography>
+                              </Box>
+                              <Box textAlign="right">
+                                <Typography
+                                  variant="subtitle1"
+                                  fontWeight={600}
+                                  color="success.main"
+                                >
+                                  {formatCurrency(
+                                    sale.grandTotal || sale.totalAmount || 0
+                                  )}
+                                </Typography>
+                                <Chip
+                                  label={sale.paymentStatus || "pending"}
+                                  size="small"
+                                  color={
+                                    sale.paymentStatus === "paid"
+                                      ? "success"
+                                      : "warning"
+                                  }
+                                  sx={{ fontSize: "0.625rem", height: 20 }}
+                                />
+                              </Box>
                             </Box>
                           </Box>
-                        </Box>
-                      ))}
+                        ))}
                     </Box>
                   ) : (
                     <Box
                       sx={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
                         py: 6,
-                        color: 'text.secondary'
+                        color: "text.secondary",
                       }}
                     >
                       <ReceiptIcon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
@@ -818,7 +877,7 @@ const DashboardPage = () => {
                       <Button
                         variant="outlined"
                         startIcon={<AddIcon />}
-                        onClick={() => navigate('/sales/create')}
+                        onClick={() => navigate("/sales/create")}
                       >
                         Create Invoice
                       </Button>
@@ -829,12 +888,12 @@ const DashboardPage = () => {
             </Grid>
 
             <Grid item xs={12} lg={4}>
-              <Card sx={{ height: '100%' }}>
+              <Card sx={{ height: "100%" }}>
                 <CardContent>
                   <Typography variant="h6" fontWeight={600} gutterBottom>
                     Quick Actions
                   </Typography>
-                  
+
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
                       <Button
@@ -842,19 +901,25 @@ const DashboardPage = () => {
                         variant="contained"
                         startIcon={<AddIcon />}
                         onClick={() => navigate("/customers/add")}
-                        sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                        sx={{
+                          justifyContent: "flex-start",
+                          textTransform: "none",
+                        }}
                       >
                         Add Customer
                       </Button>
                     </Grid>
-                    
+
                     <Grid item xs={12}>
                       <Button
                         fullWidth
                         variant="contained"
                         startIcon={<ReceiptIcon />}
                         onClick={() => navigate("/sales/create")}
-                        sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                        sx={{
+                          justifyContent: "flex-start",
+                          textTransform: "none",
+                        }}
                       >
                         Create Invoice
                       </Button>
@@ -868,19 +933,25 @@ const DashboardPage = () => {
                             variant="outlined"
                             startIcon={<BadgeIcon />}
                             onClick={() => navigate("/employees/add")}
-                            sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                            sx={{
+                              justifyContent: "flex-start",
+                              textTransform: "none",
+                            }}
                           >
                             Add Employee
                           </Button>
                         </Grid>
-                        
+
                         <Grid item xs={12}>
                           <Button
                             fullWidth
                             variant="outlined"
                             startIcon={<ChecklistIcon />}
                             onClick={() => navigate("/checklists/create")}
-                            sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                            sx={{
+                              justifyContent: "flex-start",
+                              textTransform: "none",
+                            }}
                           >
                             Create New Checklist
                           </Button>
@@ -893,7 +964,10 @@ const DashboardPage = () => {
                             startIcon={<RefreshIcon />}
                             onClick={handleManualGeneration}
                             disabled={refreshing}
-                            sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                            sx={{
+                              justifyContent: "flex-start",
+                              textTransform: "none",
+                            }}
                             color="primary"
                           >
                             {refreshing ? "Generating..." : "Generate for Checked-in"}
@@ -905,8 +979,13 @@ const DashboardPage = () => {
                             fullWidth
                             variant="outlined"
                             startIcon={<AssessmentIcon />}
-                            onClick={() => navigate("/analytics/employee-sales")}
-                            sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                            onClick={() =>
+                              navigate("/analytics/employee-sales")
+                            }
+                            sx={{
+                              justifyContent: "flex-start",
+                              textTransform: "none",
+                            }}
                           >
                             Employee Analytics
                           </Button>
@@ -918,7 +997,10 @@ const DashboardPage = () => {
                             variant="outlined"
                             startIcon={<AssessmentIcon />}
                             onClick={() => navigate("/reports/employees")}
-                            sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                            sx={{
+                              justifyContent: "flex-start",
+                              textTransform: "none",
+                            }}
                           >
                             Employee Reports
                           </Button>
@@ -934,19 +1016,25 @@ const DashboardPage = () => {
                             variant="outlined"
                             startIcon={<ScheduleIcon />}
                             onClick={() => navigate("/attendance")}
-                            sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                            sx={{
+                              justifyContent: "flex-start",
+                              textTransform: "none",
+                            }}
                           >
                             Check In (Get Checklists)
                           </Button>
                         </Grid>
-                        
+
                         <Grid item xs={12}>
                           <Button
                             fullWidth
                             variant="outlined"
                             startIcon={<TaskIcon />}
                             onClick={() => navigate("/my-checklists")}
-                            sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                            sx={{
+                              justifyContent: "flex-start",
+                              textTransform: "none",
+                            }}
                           >
                             My Checklists
                           </Button>
@@ -960,15 +1048,29 @@ const DashboardPage = () => {
                         variant="outlined"
                         startIcon={<HistoryIcon />}
                         onClick={() => navigate("/sales/history")}
-                        sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                        sx={{
+                          justifyContent: "flex-start",
+                          textTransform: "none",
+                        }}
                       >
                         View Sales
                       </Button>
                     </Grid>
                   </Grid>
 
-                  <Box mt={3} p={2} sx={{ bgcolor: alpha(themeColors.primary, 0.05), borderRadius: 1 }}>
-                    <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                  <Box
+                    mt={3}
+                    p={2}
+                    sx={{
+                      bgcolor: alpha(themeColors.primary, 0.05),
+                      borderRadius: 1,
+                    }}
+                  >
+                    <Typography
+                      variant="subtitle2"
+                      fontWeight={600}
+                      gutterBottom
+                    >
                       Business Summary
                     </Typography>
                     <Box display="flex" justifyContent="space-between" mb={1}>
@@ -991,7 +1093,11 @@ const DashboardPage = () => {
                       <Typography variant="caption" color="textSecondary">
                         Revenue Collected:
                       </Typography>
-                      <Typography variant="caption" fontWeight={600} color="success.main">
+                      <Typography
+                        variant="caption"
+                        fontWeight={600}
+                        color="success.main"
+                      >
                         {formatCurrency(dashboardData.sales.totalAmountPaid)}
                       </Typography>
                     </Box>
@@ -1019,7 +1125,7 @@ const DashboardPage = () => {
         onClose={handleProfileMenuClose}
         onClick={handleProfileMenuClose}
       >
-        <MenuItem onClick={() => navigate('/profile')}>
+        <MenuItem onClick={() => navigate("/profile")}>
           <ListItemIcon>
             <PersonIcon fontSize="small" />
           </ListItemIcon>
