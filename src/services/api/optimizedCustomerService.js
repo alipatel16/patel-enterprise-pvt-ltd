@@ -8,7 +8,6 @@ import {
   limitToLast,
   startAt,
   endAt,
-  startAfter,
   equalTo
 } from 'firebase/database';
 import { database } from '../firebase/config';
