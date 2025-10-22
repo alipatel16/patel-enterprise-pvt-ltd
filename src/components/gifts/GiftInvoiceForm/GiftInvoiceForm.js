@@ -214,7 +214,7 @@ const GiftInvoiceForm = ({
       // Convert items to objects with delivery status
       const itemsWithStatus = giftSet.items.map(item => ({
         name: item,
-        deliveryStatus: ITEM_DELIVERY_STATUS.PENDING
+        deliveryStatus: ITEM_DELIVERY_STATUS.DELIVERED
       }));
       
       setFormData(prev => ({
