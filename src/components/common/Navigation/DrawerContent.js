@@ -31,6 +31,8 @@ import {
   Add as AddQuotationIcon,
   LocalShipping as DeliveriesIcon,
   SwapHoriz as ExchangesIcon,
+  CardGiftcard as CardGiftcardIcon,
+  Settings as SettingsIcon,
 } from "@mui/icons-material";
 
 import { useAuth } from "../../../contexts/AuthContext/AuthContext";
@@ -142,6 +144,32 @@ const DrawerContent = ({ onItemClick }) => {
         location.pathname.startsWith("/sales/view") ||
         location.pathname.startsWith("/sales/edit") ||
         location.pathname === "/sales",
+    },
+    {
+      type: "divider",
+      label: "Gifts & Complimentary",
+    },
+    {
+      label: "Gift Invoices",
+      icon: CardGiftcardIcon, // Add import: import { CardGiftcard as CardGiftcardIcon } from '@mui/icons-material';
+      path: "/gifts",
+      active:
+        location.pathname === "/gifts" ||
+        location.pathname.startsWith("/gifts/view") ||
+        location.pathname.startsWith("/gifts/edit"),
+    },
+    {
+      label: "Create Gift Invoice",
+      icon: AddQuotationIcon,
+      path: "/gifts/create",
+      active: location.pathname === "/gifts/create",
+    },
+    {
+      label: "Gift Settings",
+      icon: SettingsIcon,
+      path: "/gifts/settings",
+      active: location.pathname === "/gifts/settings",
+      adminOnly: true, // Only admins can manage gift sets
     },
     // Reports section separator
     {

@@ -81,7 +81,47 @@ export const COLLECTIONS = {
   INVOICES: 'invoices',
   SETTINGS: 'settings',
   NOTIFICATIONS: 'notifications',
-  AUDIT_LOGS: 'audit_logs'
+  AUDIT_LOGS: 'audit_logs',
+  GIFT_INVOICES: 'gift_invoices',
+  GIFT_SETS: 'gift_sets'
+};
+
+// Gift Invoice Status (overall invoice status)
+export const GIFT_INVOICE_STATUS = {
+  ACTIVE: 'active',
+  COMPLETED: 'completed', // When all items delivered
+  CANCELLED: 'cancelled'
+};
+
+export const GIFT_INVOICE_STATUS_DISPLAY = {
+  active: 'Active',
+  completed: 'Completed',
+  cancelled: 'Cancelled'
+};
+
+export const GIFT_INVOICE_STATUS_COLORS = {
+  active: 'info',
+  completed: 'success',
+  cancelled: 'error'
+};
+
+// NEW: Item Delivery Status (per-item status)
+export const ITEM_DELIVERY_STATUS = {
+  PENDING: 'pending',
+  DELIVERED: 'delivered',
+  CANCELLED: 'cancelled'
+};
+
+export const ITEM_DELIVERY_STATUS_DISPLAY = {
+  pending: 'Pending',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled'
+};
+
+export const ITEM_DELIVERY_STATUS_COLORS = {
+  pending: 'warning',
+  delivered: 'success',
+  cancelled: 'error'
 };
 
 // Payment Status

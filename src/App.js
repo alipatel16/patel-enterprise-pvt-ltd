@@ -81,6 +81,13 @@ import DeliveriesPage from "./pages/deliveries/DeliveriesPage";
 // NEW: Pages - Exchanges
 import ExchangesPage from "./pages/exchanges/ExchangesPage";
 
+// Add these imports to your src/App.js file
+import GiftInvoicesPage from "./pages/gifts/GiftInvoicesPage";
+import CreateGiftInvoicePage from "./pages/gifts/CreateGiftInvoicePage";
+import EditGiftInvoicePage from "./pages/gifts/EditGiftInvoicePage";
+import ViewGiftInvoicePage from "./pages/gifts/ViewGiftInvoicePage";
+import GiftSettingsPage from "./pages/gifts/GiftSettingsPage";
+
 // Pages - Error
 import NotFoundPage from "./pages/NotFoundPage";
 
@@ -271,6 +278,48 @@ const AppContent = () => {
             element={
               <ProtectedRoute requiredRole={USER_ROLES.ADMIN}>
                 <SalesStatisticsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Gift Invoice Routes */}
+          <Route
+            path="/gifts"
+            element={
+              <ProtectedRoute>
+                <GiftInvoicesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/gifts/create"
+            element={
+              <ProtectedRoute>
+                <CreateGiftInvoicePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/gifts/view/:id"
+            element={
+              <ProtectedRoute>
+                <ViewGiftInvoicePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/gifts/edit/:id"
+            element={
+              <ProtectedRoute>
+                <EditGiftInvoicePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/gifts/settings"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <GiftSettingsPage />
               </ProtectedRoute>
             }
           />
