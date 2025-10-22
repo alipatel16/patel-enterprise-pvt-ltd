@@ -71,8 +71,7 @@ const DashboardPage = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const { user, signOut, canManageEmployees } = useAuth();
-  const { getDisplayName, getAppTitle, getThemeColors, userType } =
-    useUserType();
+  const { getDisplayName, getAppTitle, getThemeColors, userType } = useUserType();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -614,13 +613,7 @@ const DashboardPage = () => {
                     <Box display="flex" gap={2}>
                       <Button
                         variant="outlined"
-                        startIcon={
-                          refreshing ? (
-                            <CircularProgress size={16} />
-                          ) : (
-                            <RefreshIcon />
-                          )
-                        }
+                        startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
                         onClick={loadDashboardData}
                         disabled={refreshing}
                         size="small"
@@ -630,21 +623,13 @@ const DashboardPage = () => {
 
                       <Button
                         variant="contained"
-                        startIcon={
-                          refreshing ? (
-                            <CircularProgress size={16} />
-                          ) : (
-                            <AddIcon />
-                          )
-                        }
+                        startIcon={refreshing ? <CircularProgress size={16} /> : <AddIcon />}
                         onClick={handleManualGeneration}
                         disabled={refreshing}
                         color="primary"
                         size="small"
                       >
-                        {refreshing
-                          ? "Generating..."
-                          : "Generate for Checked-in"}
+                        {refreshing ? "Generating..." : "Generate for Checked-in"}
                       </Button>
                     </Box>
                   </Box>
@@ -985,9 +970,7 @@ const DashboardPage = () => {
                             }}
                             color="primary"
                           >
-                            {refreshing
-                              ? "Generating..."
-                              : "Generate for Checked-in"}
+                            {refreshing ? "Generating..." : "Generate for Checked-in"}
                           </Button>
                         </Grid>
 
