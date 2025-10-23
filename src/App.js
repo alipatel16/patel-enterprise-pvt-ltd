@@ -88,6 +88,13 @@ import EditGiftInvoicePage from "./pages/gifts/EditGiftInvoicePage";
 import ViewGiftInvoicePage from "./pages/gifts/ViewGiftInvoicePage";
 import GiftSettingsPage from "./pages/gifts/GiftSettingsPage";
 
+// Pages - Appointments
+import AppointmentsPage from "./pages/appointments/AppointmentsPage";
+import AddAppointmentPage from "./pages/appointments/AddAppointmentPage";
+import ViewAppointmentPage from "./pages/appointments/ViewAppointmentPage";
+import EditAppointmentPage from "./pages/appointments/EditAppointmentPage";
+import { AppointmentProvider } from "./contexts/AppointmentProvider";
+
 // Pages - Error
 import NotFoundPage from "./pages/NotFoundPage";
 
@@ -218,6 +225,40 @@ const AppContent = () => {
             element={
               <ProtectedRoute requiredRole={USER_ROLES.ADMIN}>
                 <ViewEmployeePage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Appointment routes */}
+          <Route
+            path="/appointments"
+            element={
+              <ProtectedRoute>
+                <AppointmentsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/appointments/add"
+            element={
+              <ProtectedRoute>
+                <AddAppointmentPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/appointments/view/:id"
+            element={
+              <ProtectedRoute>
+                <ViewAppointmentPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/appointments/edit/:id"
+            element={
+              <ProtectedRoute>
+                <EditAppointmentPage />
               </ProtectedRoute>
             }
           />
@@ -485,7 +526,9 @@ const App = () => {
     <Router>
       <AuthProvider>
         <UserTypeProvider>
-          <AppContent />
+          <AppointmentProvider>
+            <AppContent />
+          </AppointmentProvider>
         </UserTypeProvider>
       </AuthProvider>
     </Router>

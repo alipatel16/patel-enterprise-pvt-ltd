@@ -32,7 +32,7 @@ const giftInvoicePrintStyles = {
   "@media print": {
     "@page": {
       size: "A4",
-      margin: "0.6in 0.5in",
+      margin: "0.5in",
       "@top-left": { content: "none" },
       "@top-center": { content: "none" },
       "@top-right": { content: "none" },
@@ -91,7 +91,7 @@ const giftInvoicePrintStyles = {
     },
     ".print-gift-company-section": {
       flex: "1",
-      paddingRight: "30px",
+      paddingRight: "10px",
     },
     ".print-gift-details-section": {
       textAlign: "right",
@@ -477,10 +477,9 @@ const PrintableGiftInvoice = ({
       <Box
         className="print-gift-invoice-only"
         sx={{
-          maxWidth: "210mm",
           margin: "0 auto",
           backgroundColor: "white",
-          padding: "20mm",
+          padding: "2mm",
           display: "none", // Hidden in screen view, only visible during print
           "@media screen": {
             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",

@@ -457,7 +457,7 @@ const GiftInvoiceForm = ({
           </Card>
 
           {/* Gift Items with Delivery Status */}
-          {formData.items.length > 0 && (
+          {formData.items.length >= 0 && (
             <Card sx={{ mb: 3 }}>
               <CardContent>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
