@@ -49,6 +49,7 @@ import {
   Assessment as AssessmentIcon,
   Warning as WarningIcon,
   ShoppingCart as ShoppingCartIcon,
+  Event as EventIcon,
 } from "@mui/icons-material";
 
 import { useAuth } from "../../contexts/AuthContext/AuthContext";
@@ -63,6 +64,8 @@ import { formatCurrency, formatDate } from "../../utils/helpers/formatHelpers";
 import optimizedCustomerService from "../../services/api/optimizedCustomerService";
 import optimizedSalesService from "../../services/api/optimizedSalesService";
 
+import useAppointments from '../../hooks/useAppointments';
+
 const DRAWER_WIDTH = 240;
 
 const DashboardPage = () => {
@@ -72,6 +75,10 @@ const DashboardPage = () => {
 
   const { user, signOut, canManageEmployees } = useAuth();
   const { getDisplayName, getAppTitle, getThemeColors, userType } = useUserType();
+
+  const { getTodayAppointments, getUpcomingAppointments } = useAppointments();
+  const todayAppointments = getTodayAppointments();
+  const upcomingAppointments = getUpcomingAppointments();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -613,7 +620,13 @@ const DashboardPage = () => {
                     <Box display="flex" gap={2}>
                       <Button
                         variant="outlined"
-                        startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
+                        startIcon={
+                          refreshing ? (
+                            <CircularProgress size={16} />
+                          ) : (
+                            <RefreshIcon />
+                          )
+                        }
                         onClick={loadDashboardData}
                         disabled={refreshing}
                         size="small"
@@ -623,19 +636,104 @@ const DashboardPage = () => {
 
                       <Button
                         variant="contained"
-                        startIcon={refreshing ? <CircularProgress size={16} /> : <AddIcon />}
+                        startIcon={
+                          refreshing ? (
+                            <CircularProgress size={16} />
+                          ) : (
+                            <AddIcon />
+                          )
+                        }
                         onClick={handleManualGeneration}
                         disabled={refreshing}
                         color="primary"
                         size="small"
                       >
-                        {refreshing ? "Generating..." : "Generate for Checked-in"}
+                        {refreshing
+                          ? "Generating..."
+                          : "Generate for Checked-in"}
                       </Button>
                     </Box>
                   </Box>
                 </CardContent>
               </Card>
             </Box>
+          )}
+
+          {user?.role === USER_ROLES.ADMIN && (
+            <Grid item xs={12} sm={6} md={3} marginBottom={4}>
+              <Card
+                sx={{
+                  cursor: 'pointer',
+                  transition: 'all 0.3s',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 4
+                  }
+                }}
+                onClick={() => navigate('/appointments')}
+              >
+                <CardContent>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      mb: 2
+                    }}
+                  >
+                    <Box>
+                      <Typography color="textSecondary" variant="body2" gutterBottom>
+                        Appointments
+                      </Typography>
+                      <Typography variant="h4" fontWeight={600}>
+                        {todayAppointments.length + upcomingAppointments.length}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: alpha('#667eea', 0.1)
+                      }}
+                    >
+                      <EventIcon sx={{ color: '#667eea', fontSize: 28 }} />
+                    </Box>
+                  </Box>
+
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      pt: 1.5,
+                      borderTop: '1px solid',
+                      borderColor: 'divider'
+                    }}
+                  >
+                    <Box display="flex" alignItems="center" gap={0.5}>
+                      <Typography variant="body2" color="textSecondary">
+                        Today:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        {todayAppointments.length}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" alignItems="center" gap={0.5}>
+                      <Typography variant="body2" color="textSecondary">
+                        Upcoming:
+                      </Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        {upcomingAppointments.length}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
           )}
 
           <Grid container spacing={3} mb={4}>
@@ -970,7 +1068,9 @@ const DashboardPage = () => {
                             }}
                             color="primary"
                           >
-                            {refreshing ? "Generating..." : "Generate for Checked-in"}
+                            {refreshing
+                              ? "Generating..."
+                              : "Generate for Checked-in"}
                           </Button>
                         </Grid>
 

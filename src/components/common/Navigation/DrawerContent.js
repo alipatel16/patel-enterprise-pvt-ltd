@@ -33,6 +33,7 @@ import {
   SwapHoriz as ExchangesIcon,
   CardGiftcard as CardGiftcardIcon,
   Settings as SettingsIcon,
+  Event as EventIcon,
 } from "@mui/icons-material";
 
 import { useAuth } from "../../../contexts/AuthContext/AuthContext";
@@ -107,6 +108,12 @@ const DrawerContent = ({ onItemClick }) => {
       path: "/my-checklists",
       active: location.pathname.startsWith("/my-checklists"),
       employeeOnly: true,
+    },
+    {
+      label: "Appointments",
+      icon: EventIcon,
+      path: "/appointments",
+      active: location.pathname.startsWith("/appointments") && !location.pathname.includes("/add"),
     },
     // Quotation section separator
     {
