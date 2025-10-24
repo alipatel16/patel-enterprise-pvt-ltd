@@ -359,7 +359,7 @@ const AppContent = () => {
           <Route
             path="/gifts/settings"
             element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute>
                 <GiftSettingsPage />
               </ProtectedRoute>
             }

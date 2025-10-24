@@ -176,7 +176,6 @@ const DrawerContent = ({ onItemClick }) => {
       icon: SettingsIcon,
       path: "/gifts/settings",
       active: location.pathname === "/gifts/settings",
-      adminOnly: true, // Only admins can manage gift sets
     },
     // Reports section separator
     {
