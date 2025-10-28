@@ -1,7 +1,7 @@
 // User Types
 export const USER_TYPES = {
   ELECTRONICS: 'electronics',
-  FURNITURE: 'furniture'
+  FURNITURE: 'furniture',
 };
 
 // User Roles
@@ -9,20 +9,20 @@ export const USER_ROLES = {
   ADMIN: 'admin',
   EMPLOYEE: 'employee',
   MANAGER: 'manager',
-  INTERN: 'intern'
+  INTERN: 'intern',
 };
 
 // Customer Types
 export const CUSTOMER_TYPES = {
   WHOLESALER: 'wholesaler',
-  RETAILER: 'retailer'
+  RETAILER: 'retailer',
 };
 
 // Customer Categories
 export const CUSTOMER_CATEGORIES = {
   INDIVIDUAL: 'individual',
   FIRM: 'firm',
-  SCHOOL: 'school'
+  SCHOOL: 'school',
 };
 
 // Payment Status
@@ -32,24 +32,24 @@ export const PAYMENT_STATUS = {
   EMI: 'emi',
   FINANCE: 'finance',
   BANK_TRANSFER: 'bank_transfer',
-  CREDIT_CARD: 'credit_card'
+  CREDIT_CARD: 'credit_card',
 };
 
 export const QUOTATION_STATUS = {
   ACTIVE: 'active',
   CONVERTED: 'converted',
   EXPIRED: 'expired',
-  CANCELLED: 'cancelled'
+  CANCELLED: 'cancelled',
 };
 
 // Payment Status Display Names
 export const PAYMENT_STATUS_DISPLAY = {
   [PAYMENT_STATUS.PAID]: 'Paid in Full',
-  [PAYMENT_STATUS.PENDING]: 'Pay At Delivery',
+  [PAYMENT_STATUS.PENDING]: 'Payment Pending',
   [PAYMENT_STATUS.EMI]: 'EMI Payment',
   [PAYMENT_STATUS.FINANCE]: 'Finance Payment',
   [PAYMENT_STATUS.BANK_TRANSFER]: 'Bank Transfer',
-  [PAYMENT_STATUS.CREDIT_CARD]: 'Credit Card'
+  [PAYMENT_STATUS.CREDIT_CARD]: 'Credit Card',
 };
 
 // Payment Method Options
@@ -61,7 +61,7 @@ export const PAYMENT_METHODS = {
   NET_BANKING: 'net_banking',
   CHEQUE: 'cheque',
   FINANCE: 'finance',
-  BANK_TRANSFER: 'bank_transfer'
+  BANK_TRANSFER: 'bank_transfer',
 };
 
 // Payment Method Display Names
@@ -73,7 +73,7 @@ export const PAYMENT_METHOD_DISPLAY = {
   [PAYMENT_METHODS.NET_BANKING]: 'Net Banking',
   [PAYMENT_METHODS.CHEQUE]: 'Cheque',
   [PAYMENT_METHODS.FINANCE]: 'Finance',
-  [PAYMENT_METHODS.BANK_TRANSFER]: 'Bank Transfer'
+  [PAYMENT_METHODS.BANK_TRANSFER]: 'Bank Transfer',
 };
 
 // Payment Categories for tracking
@@ -84,18 +84,18 @@ export const PAYMENT_CATEGORIES = {
   FINANCE_PAYMENT: 'finance_payment',
   BANK_TRANSFER_PAYMENT: 'bank_transfer_payment',
   EMI_PAYMENT: 'emi_payment',
-  PENDING_PAYMENT: 'pending_payment'
+  PENDING_PAYMENT: 'pending_payment',
 };
 
 // Payment Category Display Names
 export const PAYMENT_CATEGORY_DISPLAY = {
   [PAYMENT_CATEGORIES.CASH_PAYMENT]: 'Cash Payment',
-  [PAYMENT_CATEGORIES.CARD_PAYMENT]: 'Card Payment', 
+  [PAYMENT_CATEGORIES.CARD_PAYMENT]: 'Card Payment',
   [PAYMENT_CATEGORIES.CREDIT_CARD_PAYMENT]: 'Credit Card Payment',
   [PAYMENT_CATEGORIES.FINANCE_PAYMENT]: 'Finance Payment',
   [PAYMENT_CATEGORIES.BANK_TRANSFER_PAYMENT]: 'Bank Transfer Payment',
   [PAYMENT_CATEGORIES.EMI_PAYMENT]: 'EMI Payment',
-  [PAYMENT_CATEGORIES.PENDING_PAYMENT]: 'PAYMENT_CATEGORY_DISPLAY'
+  [PAYMENT_CATEGORIES.PENDING_PAYMENT]: 'Pending Payment',
 };
 
 // Helper function to get payment category from status and method
@@ -132,21 +132,21 @@ export const getPaymentCategory = (paymentStatus, paymentMethod = null) => {
 export const DELIVERY_STATUS = {
   DELIVERED: 'delivered',
   PENDING: 'pending',
-  SCHEDULED: 'scheduled'
+  SCHEDULED: 'scheduled',
 };
 
 // GST Types
 export const GST_TYPES = {
   IGST: 'igst',
   CGST_SGST: 'cgst_sgst',
-  NO_GST: 'no_gst'
+  NO_GST: 'no_gst',
 };
 
 // GST Rates
 export const GST_RATES = {
   CGST: 9,
   SGST: 9,
-  IGST: 18
+  IGST: 18,
 };
 
 // States for GST calculation
@@ -155,7 +155,7 @@ export const GUJARAT_STATE = 'gujarat';
 // Pagination
 export const PAGINATION = {
   DEFAULT_PAGE_SIZE: 10,
-  PAGE_SIZE_OPTIONS: [5, 10, 25, 50]
+  PAGE_SIZE_OPTIONS: [5, 10, 25, 50],
 };
 
 // Firebase Collections - UPDATED with checklist collections
@@ -164,7 +164,7 @@ export const COLLECTIONS = {
   EMPLOYEES: 'employees',
   SALES: 'sales',
   INVOICES: 'invoices',
-  QUOTATIONS: 'quotations', 
+  QUOTATIONS: 'quotations',
   USERS: 'users',
   ATTENDANCE: 'attendance',
   PENALTIES: 'penalties',
@@ -175,7 +175,7 @@ export const COLLECTIONS = {
   CHECKLISTS: 'checklists',
   CHECKLIST_COMPLETIONS: 'checklist_completions',
   COMPLAINTS: 'complaints',
-  UPAAD: 'upaad_records'
+  UPAAD: 'upaad_records',
 };
 
 // NEW: Complaint Constants
@@ -184,7 +184,7 @@ export const COMPLAINT_STATUS = {
   IN_PROGRESS: 'in_progress',
   RESOLVED: 'resolved',
   CLOSED: 'closed',
-  ESCALATED: 'escalated'
+  ESCALATED: 'escalated',
 };
 
 export const COMPLAINT_STATUS_DISPLAY = {
@@ -192,28 +192,28 @@ export const COMPLAINT_STATUS_DISPLAY = {
   [COMPLAINT_STATUS.IN_PROGRESS]: 'In Progress',
   [COMPLAINT_STATUS.RESOLVED]: 'Resolved',
   [COMPLAINT_STATUS.CLOSED]: 'Closed',
-  [COMPLAINT_STATUS.ESCALATED]: 'Escalated'
+  [COMPLAINT_STATUS.ESCALATED]: 'Escalated',
 };
 
 export const COMPLAINT_SEVERITY = {
   LOW: 'low',
   MEDIUM: 'medium',
   HIGH: 'high',
-  CRITICAL: 'critical'
+  CRITICAL: 'critical',
 };
 
 export const COMPLAINT_SEVERITY_DISPLAY = {
   [COMPLAINT_SEVERITY.LOW]: 'Low',
   [COMPLAINT_SEVERITY.MEDIUM]: 'Medium',
   [COMPLAINT_SEVERITY.HIGH]: 'High',
-  [COMPLAINT_SEVERITY.CRITICAL]: 'Critical'
+  [COMPLAINT_SEVERITY.CRITICAL]: 'Critical',
 };
 
 export const COMPLAINT_SEVERITY_COLORS = {
   [COMPLAINT_SEVERITY.LOW]: '#4caf50',
   [COMPLAINT_SEVERITY.MEDIUM]: '#ff9800',
   [COMPLAINT_SEVERITY.HIGH]: '#f44336',
-  [COMPLAINT_SEVERITY.CRITICAL]: '#d32f2f'
+  [COMPLAINT_SEVERITY.CRITICAL]: '#d32f2f',
 };
 
 export const COMPLAINT_CATEGORIES = {
@@ -225,7 +225,7 @@ export const COMPLAINT_CATEGORIES = {
   TECHNICAL_SUPPORT: 'technical_support',
   WARRANTY_CLAIM: 'warranty_claim',
   RETURN_REFUND: 'return_refund',
-  OTHER: 'other'
+  OTHER: 'other',
 };
 
 export const COMPLAINT_CATEGORY_DISPLAY = {
@@ -237,17 +237,17 @@ export const COMPLAINT_CATEGORY_DISPLAY = {
   [COMPLAINT_CATEGORIES.TECHNICAL_SUPPORT]: 'Technical Support',
   [COMPLAINT_CATEGORIES.WARRANTY_CLAIM]: 'Warranty Claim',
   [COMPLAINT_CATEGORIES.RETURN_REFUND]: 'Return/Refund',
-  [COMPLAINT_CATEGORIES.OTHER]: 'Other'
+  [COMPLAINT_CATEGORIES.OTHER]: 'Other',
 };
 
 export const ASSIGNEE_TYPE = {
   EMPLOYEE: 'employee',
-  SERVICE_PERSON: 'service_person'
+  SERVICE_PERSON: 'service_person',
 };
 
 export const ASSIGNEE_TYPE_DISPLAY = {
   [ASSIGNEE_TYPE.EMPLOYEE]: 'Internal Employee',
-  [ASSIGNEE_TYPE.SERVICE_PERSON]: 'External Service Person'
+  [ASSIGNEE_TYPE.SERVICE_PERSON]: 'External Service Person',
 };
 
 // Complaint Validation Rules
@@ -255,29 +255,29 @@ export const COMPLAINT_VALIDATION_RULES = {
   TITLE: {
     MIN_LENGTH: 5,
     MAX_LENGTH: 100,
-    REQUIRED: true
+    REQUIRED: true,
   },
   DESCRIPTION: {
     MIN_LENGTH: 10,
     MAX_LENGTH: 1000,
-    REQUIRED: true
+    REQUIRED: true,
   },
   CUSTOMER_ID: {
-    REQUIRED: true
+    REQUIRED: true,
   },
   EXPECTED_RESOLUTION_DATE: {
     REQUIRED: true,
-    MIN_DAYS_FROM_NOW: 1
+    MIN_DAYS_FROM_NOW: 1,
   },
   SERVICE_PERSON_NAME: {
     MIN_LENGTH: 2,
     MAX_LENGTH: 50,
-    REQUIRED: true // when assignee type is service_person
+    REQUIRED: true, // when assignee type is service_person
   },
   SERVICE_PERSON_CONTACT: {
     PATTERN: /^[6-9]\d{9}$/,
-    REQUIRED: true // when assignee type is service_person
-  }
+    REQUIRED: true, // when assignee type is service_person
+  },
 };
 
 // UPDATED permissions with checklist permissions
@@ -287,26 +287,26 @@ export const PERMISSIONS = {
   CREATE_CUSTOMER: 'create_customer',
   EDIT_CUSTOMER: 'edit_customer',
   DELETE_CUSTOMER: 'delete_customer',
-  
+
   // Employee permissions
   VIEW_EMPLOYEE: 'view_employee',
   CREATE_EMPLOYEE: 'create_employee',
   EDIT_EMPLOYEE: 'edit_employee',
   DELETE_EMPLOYEE: 'delete_employee',
-  
+
   // Sales permissions
   VIEW_INVOICE: 'view_invoice',
   CREATE_INVOICE: 'create_invoice',
   EDIT_INVOICE: 'edit_invoice',
   DELETE_INVOICE: 'delete_invoice',
-  
+
   // Attendance permissions
   VIEW_OWN_ATTENDANCE: 'view_own_attendance',
   MANAGE_OWN_ATTENDANCE: 'manage_own_attendance',
   VIEW_ALL_ATTENDANCE: 'view_all_attendance',
   MANAGE_ALL_ATTENDANCE: 'manage_all_attendance',
   EXPORT_ATTENDANCE_REPORTS: 'export_attendance_reports',
-  
+
   // NEW: Checklist permissions
   VIEW_OWN_CHECKLISTS: 'view_own_checklists',
   COMPLETE_CHECKLIST: 'complete_checklist',
@@ -317,13 +317,13 @@ export const PERMISSIONS = {
   VIEW_CHECKLIST_REPORTS: 'view_checklist_reports',
   EXPORT_CHECKLIST_REPORTS: 'export_checklist_reports',
   MANAGE_CHECKLIST_ASSIGNMENTS: 'manage_checklist_assignments',
-  
+
   // Reports permissions
   VIEW_SALES_REPORTS: 'view_sales_reports',
   VIEW_CUSTOMER_REPORTS: 'view_customer_reports',
   VIEW_EMPLOYEE_REPORTS: 'view_employee_reports',
   VIEW_ATTENDANCE_REPORTS: 'view_attendance_reports',
-  
+
   // System permissions
   MANAGE_SETTINGS: 'manage_settings',
   MANAGE_NOTIFICATIONS: 'manage_notifications',
@@ -351,14 +351,14 @@ export const VALIDATION_MESSAGES = {
   INVALID_PHONE: 'Please enter a valid phone number',
   INVALID_NUMBER: 'Please enter a valid number',
   MIN_LENGTH: (length) => `Minimum ${length} characters required`,
-  MAX_LENGTH: (length) => `Maximum ${length} characters allowed`
+  MAX_LENGTH: (length) => `Maximum ${length} characters allowed`,
 };
 
 // Date Formats
 export const DATE_FORMATS = {
   DISPLAY: 'dd/MM/yyyy',
   STORAGE: 'yyyy-MM-dd',
-  DATETIME: 'dd/MM/yyyy HH:mm'
+  DATETIME: 'dd/MM/yyyy HH:mm',
 };
 
 // App Colors based on business type
@@ -370,7 +370,7 @@ export const APP_COLORS = {
     success: '#4caf50',
     warning: '#ff9800',
     error: '#f44336',
-    background: '#f5f5f5'
+    background: '#f5f5f5',
   },
   FURNITURE: {
     primary: '#8d6e63',
@@ -379,8 +379,8 @@ export const APP_COLORS = {
     success: '#4caf50',
     warning: '#ff9800',
     error: '#f44336',
-    background: '#fafafa'
-  }
+    background: '#fafafa',
+  },
 };
 
 export const GST_TAX_SLABS = [
@@ -388,7 +388,7 @@ export const GST_TAX_SLABS = [
   { rate: 5, description: 'Essential goods' },
   { rate: 12, description: 'Standard goods' },
   { rate: 18, description: 'Most goods and services' },
-  { rate: 28, description: 'Luxury and sin goods' }
+  { rate: 28, description: 'Luxury and sin goods' },
 ];
 
 // NEW: Checklist Constants
@@ -398,7 +398,7 @@ export const RECURRENCE_TYPES = {
   DAILY: 'daily',
   WEEKLY: 'weekly',
   MONTHLY: 'monthly',
-  ONCE: 'once'
+  ONCE: 'once',
 };
 
 // Recurrence Type Display Names
@@ -406,7 +406,7 @@ export const RECURRENCE_TYPE_DISPLAY_NAMES = {
   [RECURRENCE_TYPES.DAILY]: 'Daily',
   [RECURRENCE_TYPES.WEEKLY]: 'Weekly',
   [RECURRENCE_TYPES.MONTHLY]: 'Monthly',
-  [RECURRENCE_TYPES.ONCE]: 'One Time'
+  [RECURRENCE_TYPES.ONCE]: 'One Time',
 };
 
 // Checklist Status
@@ -414,7 +414,7 @@ export const CHECKLIST_STATUS = {
   ACTIVE: 'active',
   INACTIVE: 'inactive',
   DRAFT: 'draft',
-  ARCHIVED: 'archived'
+  ARCHIVED: 'archived',
 };
 
 // Completion Status
@@ -422,7 +422,7 @@ export const COMPLETION_STATUS = {
   PENDING: 'pending',
   COMPLETED: 'completed',
   NOT_COMPLETED: 'not_completed',
-  OVERDUE: 'overdue'
+  OVERDUE: 'overdue',
 };
 
 // Days of Week
@@ -433,7 +433,7 @@ export const DAYS_OF_WEEK = {
   WEDNESDAY: 3,
   THURSDAY: 4,
   FRIDAY: 5,
-  SATURDAY: 6
+  SATURDAY: 6,
 };
 
 // Days of Week Display Names
@@ -444,7 +444,7 @@ export const DAYS_OF_WEEK_NAMES = {
   [DAYS_OF_WEEK.WEDNESDAY]: 'Wednesday',
   [DAYS_OF_WEEK.THURSDAY]: 'Thursday',
   [DAYS_OF_WEEK.FRIDAY]: 'Friday',
-  [DAYS_OF_WEEK.SATURDAY]: 'Saturday'
+  [DAYS_OF_WEEK.SATURDAY]: 'Saturday',
 };
 
 // Common reasons for not completing checklists
@@ -458,7 +458,7 @@ export const COMMON_NOT_COMPLETION_REASONS = {
   SUPPLY_SHORTAGE: 'Required supplies not available',
   WEATHER_CONDITIONS: 'Adverse weather conditions',
   EMERGENCY_SITUATION: 'Emergency situation',
-  OTHER: 'Other (please specify)'
+  OTHER: 'Other (please specify)',
 };
 
 // Performance Thresholds
@@ -467,8 +467,8 @@ export const PERFORMANCE_THRESHOLDS = {
     EXCELLENT: 95,
     GOOD: 85,
     AVERAGE: 70,
-    POOR: 50
-  }
+    POOR: 50,
+  },
 };
 
 // Checklist Validation Rules
@@ -476,23 +476,23 @@ export const CHECKLIST_VALIDATION_RULES = {
   TITLE: {
     MIN_LENGTH: 3,
     MAX_LENGTH: 100,
-    REQUIRED: true
+    REQUIRED: true,
   },
   DESCRIPTION: {
     MIN_LENGTH: 0,
     MAX_LENGTH: 500,
-    REQUIRED: false
+    REQUIRED: false,
   },
   ASSIGNED_EMPLOYEES: {
     MIN_COUNT: 1,
     MAX_COUNT: 50,
-    REQUIRED: true
+    REQUIRED: true,
   },
   REASON: {
     MIN_LENGTH: 10,
     MAX_LENGTH: 200,
-    REQUIRED: true // when not completing
-  }
+    REQUIRED: true, // when not completing
+  },
 };
 
 // Helper functions for checklists
@@ -516,10 +516,14 @@ export const getOrdinalSuffix = (day) => {
     return 'th';
   }
   switch (day % 10) {
-    case 1: return 'st';
-    case 2: return 'nd';
-    case 3: return 'rd';
-    default: return 'th';
+    case 1:
+      return 'st';
+    case 2:
+      return 'nd';
+    case 3:
+      return 'rd';
+    default:
+      return 'th';
   }
 };
 
@@ -540,7 +544,7 @@ export const getComplaintStatusColor = (status) => {
     [COMPLAINT_STATUS.IN_PROGRESS]: '#ff9800',
     [COMPLAINT_STATUS.RESOLVED]: '#4caf50',
     [COMPLAINT_STATUS.CLOSED]: '#9e9e9e',
-    [COMPLAINT_STATUS.ESCALATED]: '#d32f2f'
+    [COMPLAINT_STATUS.ESCALATED]: '#d32f2f',
   };
   return colors[status] || colors[COMPLAINT_STATUS.OPEN];
 };
@@ -559,7 +563,7 @@ export const getComplaintPriorityFromSeverity = (severity) => {
     [COMPLAINT_SEVERITY.LOW]: 'low',
     [COMPLAINT_SEVERITY.MEDIUM]: 'medium',
     [COMPLAINT_SEVERITY.HIGH]: 'high',
-    [COMPLAINT_SEVERITY.CRITICAL]: 'high'
+    [COMPLAINT_SEVERITY.CRITICAL]: 'high',
   };
   return priorityMap[severity] || 'medium';
 };
@@ -570,7 +574,7 @@ export const ROLE_CONFIG = {
     label: 'Administrator',
     description: 'Full system access',
     color: '#f44336',
-    permissions: Object.values(PERMISSIONS) // All permissions including checklists
+    permissions: Object.values(PERMISSIONS), // All permissions including checklists
   },
   [USER_ROLES.MANAGER]: {
     label: 'Manager',
@@ -607,8 +611,8 @@ export const ROLE_CONFIG = {
       PERMISSIONS.VIEW_ALL_COMPLAINTS,
       PERMISSIONS.EXPORT_COMPLAINTS,
       PERMISSIONS.VIEW_QUOTATIONS,
-      PERMISSIONS.MANAGE_QUOTATIONS
-    ]
+      PERMISSIONS.MANAGE_QUOTATIONS,
+    ],
   },
   [USER_ROLES.EMPLOYEE]: {
     label: 'Employee',
@@ -635,8 +639,8 @@ export const ROLE_CONFIG = {
       PERMISSIONS.VIEW_ALL_COMPLAINTS,
       PERMISSIONS.EXPORT_COMPLAINTS,
       PERMISSIONS.VIEW_QUOTATIONS,
-      PERMISSIONS.MANAGE_QUOTATIONS
-    ]
+      PERMISSIONS.MANAGE_QUOTATIONS,
+    ],
   },
   [USER_ROLES.INTERN]: {
     label: 'Intern',
@@ -649,9 +653,9 @@ export const ROLE_CONFIG = {
       PERMISSIONS.MANAGE_OWN_ATTENDANCE,
       // NEW: Intern checklist permissions
       PERMISSIONS.VIEW_OWN_CHECKLISTS,
-      PERMISSIONS.COMPLETE_CHECKLIST
-    ]
-  }
+      PERMISSIONS.COMPLETE_CHECKLIST,
+    ],
+  },
 };
 
 // Attendance Status Constants
@@ -659,7 +663,7 @@ export const ATTENDANCE_STATUS = {
   NOT_CHECKED_IN: 'not_checked_in',
   CHECKED_IN: 'checked_in',
   ON_BREAK: 'on_break',
-  CHECKED_OUT: 'checked_out'
+  CHECKED_OUT: 'checked_out',
 };
 
 // Break Types
@@ -668,7 +672,7 @@ export const BREAK_TYPES = {
   TEA: 'tea',
   PERSONAL: 'personal',
   MEETING: 'meeting',
-  OTHER: 'other'
+  OTHER: 'other',
 };
 
 // Time Constants
@@ -680,7 +684,7 @@ export const TIME_CONSTANTS = {
   DEFAULT_WORK_END_TIME: '18:00',
   MAX_DAILY_WORK_HOURS: 12,
   MIN_BREAK_DURATION: 5,
-  MAX_BREAK_DURATION: 120
+  MAX_BREAK_DURATION: 120,
 };
 
 // Attendance Report Types
@@ -688,7 +692,7 @@ export const ATTENDANCE_REPORT_TYPES = {
   DAILY: 'daily',
   WEEKLY: 'weekly',
   MONTHLY: 'monthly',
-  CUSTOM: 'custom'
+  CUSTOM: 'custom',
 };
 
 // Departments
@@ -697,7 +701,7 @@ export const DEPARTMENTS = {
   MARKETING: 'marketing',
   TECHNICAL: 'technical',
   ADMINISTRATION: 'administration',
-  FINANCE: 'finance'
+  FINANCE: 'finance',
 };
 
 // Department Configuration - UPDATED with checklist permissions
@@ -717,8 +721,8 @@ export const DEPARTMENT_CONFIG = {
       PERMISSIONS.MANAGE_OWN_ATTENDANCE,
       // NEW: Checklist permissions for sales
       PERMISSIONS.VIEW_OWN_CHECKLISTS,
-      PERMISSIONS.COMPLETE_CHECKLIST
-    ]
+      PERMISSIONS.COMPLETE_CHECKLIST,
+    ],
   },
   [DEPARTMENTS.MARKETING]: {
     label: 'Marketing',
@@ -731,8 +735,8 @@ export const DEPARTMENT_CONFIG = {
       PERMISSIONS.VIEW_OWN_ATTENDANCE,
       PERMISSIONS.MANAGE_OWN_ATTENDANCE,
       PERMISSIONS.VIEW_OWN_CHECKLISTS,
-      PERMISSIONS.COMPLETE_CHECKLIST
-    ]
+      PERMISSIONS.COMPLETE_CHECKLIST,
+    ],
   },
   [DEPARTMENTS.ADMINISTRATION]: {
     label: 'Administration',
@@ -750,8 +754,8 @@ export const DEPARTMENT_CONFIG = {
       PERMISSIONS.CREATE_CHECKLIST,
       PERMISSIONS.EDIT_CHECKLIST,
       PERMISSIONS.VIEW_ALL_CHECKLISTS,
-      PERMISSIONS.VIEW_CHECKLIST_REPORTS
-    ]
+      PERMISSIONS.VIEW_CHECKLIST_REPORTS,
+    ],
   },
   [DEPARTMENTS.FINANCE]: {
     label: 'Finance',
@@ -766,8 +770,8 @@ export const DEPARTMENT_CONFIG = {
       PERMISSIONS.VIEW_OWN_ATTENDANCE,
       PERMISSIONS.MANAGE_OWN_ATTENDANCE,
       PERMISSIONS.VIEW_OWN_CHECKLISTS,
-      PERMISSIONS.COMPLETE_CHECKLIST
-    ]
+      PERMISSIONS.COMPLETE_CHECKLIST,
+    ],
   },
   [DEPARTMENTS.TECHNICAL]: {
     label: 'Technical',
@@ -779,9 +783,9 @@ export const DEPARTMENT_CONFIG = {
       PERMISSIONS.VIEW_OWN_ATTENDANCE,
       PERMISSIONS.MANAGE_OWN_ATTENDANCE,
       PERMISSIONS.VIEW_OWN_CHECKLISTS,
-      PERMISSIONS.COMPLETE_CHECKLIST
-    ]
-  }
+      PERMISSIONS.COMPLETE_CHECKLIST,
+    ],
+  },
 };
 
 // Access Levels
@@ -790,7 +794,7 @@ export const ACCESS_LEVELS = {
   READ: 1,
   WRITE: 2,
   DELETE: 3,
-  ADMIN: 4
+  ADMIN: 4,
 };
 
 // UPDATED Feature Permissions Map with checklists
@@ -798,63 +802,63 @@ export const FEATURE_PERMISSIONS = {
   customers: {
     route: '/customers',
     requiredPermission: PERMISSIONS.VIEW_CUSTOMER,
-    adminOnly: false
+    adminOnly: false,
   },
   employees: {
     route: '/employees',
     requiredPermission: PERMISSIONS.VIEW_EMPLOYEE,
     adminOnly: false,
-    managerAccess: true
+    managerAccess: true,
   },
   attendance: {
     route: '/attendance',
     requiredPermission: PERMISSIONS.VIEW_OWN_ATTENDANCE,
     adminOnly: false,
-    employeeOnly: true
+    employeeOnly: true,
   },
   // NEW: Checklist features
   checklists: {
     route: '/checklists',
     requiredPermission: PERMISSIONS.VIEW_ALL_CHECKLISTS,
-    adminOnly: true
+    adminOnly: true,
   },
   myChecklists: {
     route: '/my-checklists',
     requiredPermission: PERMISSIONS.VIEW_OWN_CHECKLISTS,
-    employeeOnly: true
+    employeeOnly: true,
   },
   checklistReports: {
     route: '/checklists/reports',
     requiredPermission: PERMISSIONS.VIEW_CHECKLIST_REPORTS,
-    adminOnly: true
+    adminOnly: true,
   },
   sales: {
     route: '/sales',
     requiredPermission: PERMISSIONS.VIEW_INVOICE,
-    adminOnly: false
+    adminOnly: false,
   },
   reports: {
     route: '/reports',
     requiredPermission: PERMISSIONS.VIEW_SALES_REPORTS,
-    adminOnly: false
+    adminOnly: false,
   },
   employeeReports: {
     route: '/reports/employees',
     requiredPermission: PERMISSIONS.VIEW_ATTENDANCE_REPORTS,
-    adminOnly: true
+    adminOnly: true,
   },
   settings: {
     route: '/settings',
     requiredPermission: PERMISSIONS.MANAGE_SETTINGS,
-    adminOnly: true
-  }
+    adminOnly: true,
+  },
 };
 
 // Default Role Assignment Rules
 export const DEFAULT_ROLE_ASSIGNMENTS = {
   FIRST_USER: USER_ROLES.ADMIN,
   NEW_EMPLOYEE: USER_ROLES.EMPLOYEE,
-  SELF_REGISTRATION: USER_ROLES.EMPLOYEE
+  SELF_REGISTRATION: USER_ROLES.EMPLOYEE,
 };
 
 // Role Hierarchy (higher number = more authority)
@@ -862,7 +866,7 @@ export const ROLE_HIERARCHY = {
   [USER_ROLES.INTERN]: 1,
   [USER_ROLES.EMPLOYEE]: 2,
   [USER_ROLES.MANAGER]: 3,
-  [USER_ROLES.ADMIN]: 4
+  [USER_ROLES.ADMIN]: 4,
 };
 
 // Session and Security Settings
@@ -871,14 +875,14 @@ export const SECURITY_SETTINGS = {
     [USER_ROLES.ADMIN]: 8 * 60 * 60 * 1000,
     [USER_ROLES.MANAGER]: 6 * 60 * 60 * 1000,
     [USER_ROLES.EMPLOYEE]: 4 * 60 * 60 * 1000,
-    [USER_ROLES.INTERN]: 2 * 60 * 60 * 1000
+    [USER_ROLES.INTERN]: 2 * 60 * 60 * 1000,
   },
   PASSWORD_REQUIREMENTS: {
     minLength: 6,
     requireUppercase: false,
     requireNumbers: true,
-    requireSpecialChars: false
-  }
+    requireSpecialChars: false,
+  },
 };
 
 // Photo/Camera Settings
@@ -887,7 +891,7 @@ export const PHOTO_SETTINGS = {
   COMPRESSION_QUALITY: 0.7,
   MAX_WIDTH: 800,
   MAX_HEIGHT: 600,
-  SUPPORTED_FORMATS: ['image/jpeg', 'image/png', 'image/webp']
+  SUPPORTED_FORMATS: ['image/jpeg', 'image/png', 'image/webp'],
 };
 
 // UPDATED Notification Types with checklists
@@ -915,7 +919,7 @@ export const NOTIFICATION_TYPES = {
   COMPLAINT_STATUS_CHANGED: 'complaint_status_changed',
   COMPLAINT_OVERDUE: 'complaint_overdue',
   COMPLAINT_ESCALATED: 'complaint_escalated',
-  COMPLAINT_RESOLVED: 'complaint_resolved'
+  COMPLAINT_RESOLVED: 'complaint_resolved',
 };
 
 export default {
