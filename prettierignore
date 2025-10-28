@@ -1,0 +1,33 @@
+# Dependencies
+node_modules
+package-lock.json
+yarn.lock
+
+# Build outputs
+build
+dist
+coverage
+
+# Firebase
+.firebase
+.firebaserc
+
+# Cache
+.cache
+.eslintcache
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode
+.idea
+
+# Other
+*.min.js
+*.min.css

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -23,7 +23,7 @@ import {
   Avatar,
   Tooltip,
   Paper,
-} from "@mui/material";
+} from '@mui/material';
 import {
   Receipt as ReceiptIcon,
   Person as PersonIcon,
@@ -46,42 +46,43 @@ import {
   TrendingDown as TrendingDownIcon,
   PaymentOutlined as RecordPaymentIcon,
   DateRange as DateRangeIcon,
-} from "@mui/icons-material";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+} from '@mui/icons-material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
-import { useSales } from "../../../contexts/SalesContext/SalesContext";
-import { useAuth } from "../../../contexts/AuthContext/AuthContext";
-import SearchBar from "../../common/UI/SearchBar";
-import Pagination from "../../common/UI/Pagination";
+import { useSales } from '../../../contexts/SalesContext/SalesContext';
+import { useAuth } from '../../../contexts/AuthContext/AuthContext';
+import SearchBar from '../../common/UI/SearchBar';
+import Pagination from '../../common/UI/Pagination';
 import {
   PAYMENT_STATUS,
   PAYMENT_STATUS_DISPLAY,
   DELIVERY_STATUS,
   PAYMENT_CATEGORY_DISPLAY,
-} from "../../../utils/constants/appConstants";
-import RecordPaymentDialog from "../Payment/RecordPaymentDialog";
+} from '../../../utils/constants/appConstants';
+import RecordPaymentDialog from '../Payment/RecordPaymentDialog';
+
+import PaymentReceiptDialog from '../Payment/PaymentReceiptDialog';
 
 const SalesHistory = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const { sales, loading, error, loadSales, deleteInvoice, clearError } =
-    useSales();
+  const { sales, loading, error, loadSales, deleteInvoice, clearError } = useSales();
 
   const { canDelete } = useAuth();
 
   // Get customer ID from URL query parameter
-  const customerIdFromUrl = searchParams.get("customer");
+  const customerIdFromUrl = searchParams.get('customer');
 
   // Local state for search and filters (no debouncing to avoid focus loss)
-  const [searchValue, setSearchValue] = useState("");
+  const [searchValue, setSearchValue] = useState('');
   const [localFilters, setLocalFilters] = useState({
-    paymentStatus: "",
-    deliveryStatus: "",
-    originalPaymentCategory: "", // NEW - Filter by original payment category
-    sortBy: "createdAt",
-    sortOrder: "desc",
+    paymentStatus: '',
+    deliveryStatus: '',
+    originalPaymentCategory: '', // NEW - Filter by original payment category
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
   });
 
   // NEW - Date range filter state
@@ -99,8 +100,10 @@ const SalesHistory = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] =
-    useState(null);
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState(null);
+
+  const [printReceiptDialogOpen, setPrintReceiptDialogOpen] = useState(false);
+  const [selectedInvoiceForReceipt, setSelectedInvoiceForReceipt] = useState(null);
 
   // Load sales on component mount
   useEffect(() => {
@@ -123,13 +126,21 @@ const SalesHistory = () => {
     dateFilters.toDate, // NEW
   ]);
 
+  const handlePrintReceipt = () => {
+    setSelectedInvoiceForReceipt(selectedInvoice);
+    setPrintReceiptDialogOpen(true);
+    handleActionMenuClose();
+  };
+
+  const hasPaymentRecords = (invoice) => {
+    return invoice?.paymentDetails?.paymentHistory?.length > 0;
+  };
+
   // Find customer name for filtered customer
   const filteredCustomerName = useMemo(() => {
     if (!customerIdFromUrl || !sales.length) return null;
 
-    const customerSale = sales.find(
-      (sale) => sale.customerId === customerIdFromUrl
-    );
+    const customerSale = sales.find((sale) => sale.customerId === customerIdFromUrl);
     return customerSale?.customerName || null;
   }, [customerIdFromUrl, sales]);
 
@@ -139,9 +150,7 @@ const SalesHistory = () => {
 
     // FIRST: Apply customer filter if customer ID is provided in URL
     if (customerIdFromUrl) {
-      filtered = filtered.filter(
-        (sale) => sale.customerId === customerIdFromUrl
-      );
+      filtered = filtered.filter((sale) => sale.customerId === customerIdFromUrl);
     }
 
     // Apply search filter
@@ -152,32 +161,25 @@ const SalesHistory = () => {
           sale.invoiceNumber?.toLowerCase().includes(searchTerm) ||
           sale.customerName?.toLowerCase().includes(searchTerm) ||
           sale.customerPhone?.includes(searchTerm) ||
-          sale.items?.some((item) =>
-            item.name?.toLowerCase().includes(searchTerm)
-          )
+          sale.items?.some((item) => item.name?.toLowerCase().includes(searchTerm))
         );
       });
     }
 
     // Apply payment status filter
     if (localFilters.paymentStatus) {
-      filtered = filtered.filter(
-        (sale) => sale.paymentStatus === localFilters.paymentStatus
-      );
+      filtered = filtered.filter((sale) => sale.paymentStatus === localFilters.paymentStatus);
     }
 
     // Apply delivery status filter
     if (localFilters.deliveryStatus) {
-      filtered = filtered.filter(
-        (sale) => sale.deliveryStatus === localFilters.deliveryStatus
-      );
+      filtered = filtered.filter((sale) => sale.deliveryStatus === localFilters.deliveryStatus);
     }
 
     // NEW - Apply original payment category filter
     if (localFilters.originalPaymentCategory) {
       filtered = filtered.filter(
-        (sale) =>
-          sale.originalPaymentCategory === localFilters.originalPaymentCategory
+        (sale) => sale.originalPaymentCategory === localFilters.originalPaymentCategory
       );
     }
 
@@ -210,37 +212,34 @@ const SalesHistory = () => {
 
     // Apply sorting
     filtered.sort((a, b) => {
-      let aValue = a[localFilters.sortBy] || "";
-      let bValue = b[localFilters.sortBy] || "";
+      let aValue = a[localFilters.sortBy] || '';
+      let bValue = b[localFilters.sortBy] || '';
 
       // Handle different data types
-      if (typeof aValue === "string") {
+      if (typeof aValue === 'string') {
         aValue = aValue.toLowerCase();
         bValue = bValue.toLowerCase();
       }
 
       if (
-        localFilters.sortBy === "createdAt" ||
-        localFilters.sortBy === "saleDate" ||
-        localFilters.sortBy === "updatedAt"
+        localFilters.sortBy === 'createdAt' ||
+        localFilters.sortBy === 'saleDate' ||
+        localFilters.sortBy === 'updatedAt'
       ) {
         aValue = new Date(aValue).getTime() || 0;
         bValue = new Date(bValue).getTime() || 0;
       }
 
-      if (
-        localFilters.sortBy === "grandTotal" ||
-        localFilters.sortBy === "totalAmount"
-      ) {
+      if (localFilters.sortBy === 'grandTotal' || localFilters.sortBy === 'totalAmount') {
         aValue = parseFloat(aValue) || 0;
         bValue = parseFloat(bValue) || 0;
       }
 
       if (aValue < bValue) {
-        return localFilters.sortOrder === "asc" ? -1 : 1;
+        return localFilters.sortOrder === 'asc' ? -1 : 1;
       }
       if (aValue > bValue) {
-        return localFilters.sortOrder === "asc" ? 1 : -1;
+        return localFilters.sortOrder === 'asc' ? 1 : -1;
       }
       return 0;
     });
@@ -273,7 +272,7 @@ const SalesHistory = () => {
   const handleClearCustomerFilter = () => {
     // Remove customer parameter from URL
     const newSearchParams = new URLSearchParams(searchParams);
-    newSearchParams.delete("customer");
+    newSearchParams.delete('customer');
     setSearchParams(newSearchParams);
   };
 
@@ -284,7 +283,7 @@ const SalesHistory = () => {
 
   // Handle search clear
   const handleSearchClear = () => {
-    setSearchValue("");
+    setSearchValue('');
   };
 
   // Handle filter change
@@ -311,9 +310,7 @@ const SalesHistory = () => {
   // Handle sort change
   const handleSortChange = (sortBy) => {
     const newSortOrder =
-      localFilters.sortBy === sortBy && localFilters.sortOrder === "asc"
-        ? "desc"
-        : "asc";
+      localFilters.sortBy === sortBy && localFilters.sortOrder === 'asc' ? 'desc' : 'asc';
     setLocalFilters((prev) => ({
       ...prev,
       sortBy,
@@ -351,7 +348,7 @@ const SalesHistory = () => {
         loadSales();
       }
     } catch (error) {
-      console.error("Delete error:", error);
+      console.error('Delete error:', error);
     } finally {
       setDeleting(false);
     }
@@ -395,23 +392,23 @@ const SalesHistory = () => {
   // Get payment status color with new statuses
   const getPaymentStatusColor = (status) => {
     const statusColors = {
-      [PAYMENT_STATUS.PAID]: "success",
-      [PAYMENT_STATUS.PENDING]: "error",
-      [PAYMENT_STATUS.EMI]: "warning",
-      [PAYMENT_STATUS.FINANCE]: "info",
-      [PAYMENT_STATUS.BANK_TRANSFER]: "primary",
+      [PAYMENT_STATUS.PAID]: 'success',
+      [PAYMENT_STATUS.PENDING]: 'error',
+      [PAYMENT_STATUS.EMI]: 'warning',
+      [PAYMENT_STATUS.FINANCE]: 'info',
+      [PAYMENT_STATUS.BANK_TRANSFER]: 'primary',
     };
-    return statusColors[status] || "default";
+    return statusColors[status] || 'default';
   };
 
   // Get delivery status color
   const getDeliveryStatusColor = (status) => {
     const statusColors = {
-      [DELIVERY_STATUS.DELIVERED]: "success",
-      [DELIVERY_STATUS.PENDING]: "error",
-      [DELIVERY_STATUS.SCHEDULED]: "info",
+      [DELIVERY_STATUS.DELIVERED]: 'success',
+      [DELIVERY_STATUS.PENDING]: 'error',
+      [DELIVERY_STATUS.SCHEDULED]: 'info',
     };
-    return statusColors[status] || "default";
+    return statusColors[status] || 'default';
   };
 
   // Get payment status icon
@@ -437,16 +434,13 @@ const SalesHistory = () => {
 
     // Sum all additional payments (excluding initial down payment record)
     const additionalPayments = (sale.paymentDetails?.paymentHistory || [])
-      .filter((payment) => payment.type !== "down_payment") // Exclude down payment record
+      .filter((payment) => payment.type !== 'down_payment') // Exclude down payment record
       .reduce((sum, payment) => sum + (payment.amount || 0), 0);
 
     const totalPaid = downPayment + additionalPayments;
 
     // For EMI, also add paid installments
-    if (
-      sale.paymentStatus === PAYMENT_STATUS.EMI &&
-      sale.emiDetails?.schedule
-    ) {
+    if (sale.paymentStatus === PAYMENT_STATUS.EMI && sale.emiDetails?.schedule) {
       const installmentsPaid = sale.emiDetails.schedule
         .filter((emi) => emi.paid)
         .reduce((sum, emi) => sum + (emi.paidAmount || emi.amount || 0), 0);
@@ -458,25 +452,24 @@ const SalesHistory = () => {
 
   // Get remaining balance
   const getRemainingBalance = (sale) => {
-    const totalAmount =
-      sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
+    const totalAmount = sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
     const paidAmount = getActualAmountPaid(sale);
     return Math.max(0, totalAmount - paidAmount);
   };
 
   // Format date
   const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    const day = String(date.getDate()).padStart(2, "0");
-    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
     return `${day}/${month}/${year}`;
   };
 
   // Format currency
   const formatCurrency = (amount) => {
-    return `₹${parseFloat(amount || 0).toLocaleString("en-IN", {
+    return `₹${parseFloat(amount || 0).toLocaleString('en-IN', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
@@ -485,10 +478,10 @@ const SalesHistory = () => {
   // Filter options for search bar - UPDATED with new payment categories
   const filterOptions = [
     {
-      key: "paymentStatus",
-      label: "Payment Status",
+      key: 'paymentStatus',
+      label: 'Payment Status',
       options: [
-        { value: "", label: "All Payment Status" },
+        { value: '', label: 'All Payment Status' },
         {
           value: PAYMENT_STATUS.PAID,
           label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.PAID],
@@ -512,21 +505,21 @@ const SalesHistory = () => {
       ],
     },
     {
-      key: "deliveryStatus",
-      label: "Delivery Status",
+      key: 'deliveryStatus',
+      label: 'Delivery Status',
       options: [
-        { value: "", label: "All Delivery Status" },
-        { value: DELIVERY_STATUS.DELIVERED, label: "Delivered" },
-        { value: DELIVERY_STATUS.PENDING, label: "Pending" },
-        { value: DELIVERY_STATUS.SCHEDULED, label: "Scheduled" },
+        { value: '', label: 'All Delivery Status' },
+        { value: DELIVERY_STATUS.DELIVERED, label: 'Delivered' },
+        { value: DELIVERY_STATUS.PENDING, label: 'Pending' },
+        { value: DELIVERY_STATUS.SCHEDULED, label: 'Scheduled' },
       ],
     },
     // NEW - Filter by original payment category
     {
-      key: "originalPaymentCategory",
-      label: "Payment Category",
+      key: 'originalPaymentCategory',
+      label: 'Payment Category',
       options: [
-        { value: "", label: "All Payment Categories" },
+        { value: '', label: 'All Payment Categories' },
         ...Object.entries(PAYMENT_CATEGORY_DISPLAY).map(([key, label]) => ({
           value: key,
           label,
@@ -537,10 +530,10 @@ const SalesHistory = () => {
 
   // Sort options
   const sortOptions = {
-    createdAt: "Recent First",
-    invoiceNumber: "Invoice Number",
-    customerName: "Customer Name",
-    grandTotal: "Amount",
+    createdAt: 'Recent First',
+    invoiceNumber: 'Invoice Number',
+    customerName: 'Customer Name',
+    grandTotal: 'Amount',
   };
 
   // Render loading skeletons
@@ -609,7 +602,7 @@ const SalesHistory = () => {
           placeholder={
             customerIdFromUrl
               ? `Search in ${filteredCustomerName}'s invoices...`
-              : "Search by invoice number, customer name, or phone..."
+              : 'Search by invoice number, customer name, or phone...'
           }
           disabled={loading}
           filters={localFilters}
@@ -627,15 +620,15 @@ const SalesHistory = () => {
           sx={{
             p: 2,
             mt: 2,
-            display: "flex",
-            alignItems: "center",
+            display: 'flex',
+            alignItems: 'center',
             gap: 2,
-            flexWrap: "wrap",
-            backgroundColor: "background.paper",
+            flexWrap: 'wrap',
+            backgroundColor: 'background.paper',
           }}
         >
           <Box display="flex" alignItems="center" gap={1}>
-            <DateRangeIcon sx={{ color: "text.secondary" }} />
+            <DateRangeIcon sx={{ color: 'text.secondary' }} />
             <Typography variant="body2" fontWeight={500} color="text.secondary">
               Date Range:
             </Typography>
@@ -644,14 +637,14 @@ const SalesHistory = () => {
           <DatePicker
             label="From Date"
             value={dateFilters.fromDate}
-            onChange={handleDateFilterChange("fromDate")}
+            onChange={handleDateFilterChange('fromDate')}
             disabled={loading}
             format="dd/MM/yyyy"
             maxDate={dateFilters.toDate || new Date()}
             slotProps={{
               textField: {
-                size: "small",
-                sx: { minWidth: { xs: "140px", sm: "160px" } },
+                size: 'small',
+                sx: { minWidth: { xs: '140px', sm: '160px' } },
               },
             }}
           />
@@ -659,15 +652,15 @@ const SalesHistory = () => {
           <DatePicker
             label="To Date"
             value={dateFilters.toDate}
-            onChange={handleDateFilterChange("toDate")}
+            onChange={handleDateFilterChange('toDate')}
             disabled={loading}
             format="dd/MM/yyyy"
             minDate={dateFilters.fromDate}
             maxDate={new Date()}
             slotProps={{
               textField: {
-                size: "small",
-                sx: { minWidth: { xs: "140px", sm: "160px" } },
+                size: 'small',
+                sx: { minWidth: { xs: '140px', sm: '160px' } },
               },
             }}
           />
@@ -685,13 +678,11 @@ const SalesHistory = () => {
 
           {/* Date Range Summary */}
           {(dateFilters.fromDate || dateFilters.toDate) && (
-            <Box sx={{ ml: "auto" }}>
+            <Box sx={{ ml: 'auto' }}>
               <Chip
                 label={
                   dateFilters.fromDate && dateFilters.toDate
-                    ? `${formatDate(dateFilters.fromDate)} - ${formatDate(
-                        dateFilters.toDate
-                      )}`
+                    ? `${formatDate(dateFilters.fromDate)} - ${formatDate(dateFilters.toDate)}`
                     : dateFilters.fromDate
                     ? `From ${formatDate(dateFilters.fromDate)}`
                     : `Until ${formatDate(dateFilters.toDate)}`
@@ -715,12 +706,10 @@ const SalesHistory = () => {
       {/* Empty State */}
       {!loading && filteredAndSortedSales.length === 0 && (
         <Card>
-          <CardContent sx={{ textAlign: "center", py: 6 }}>
-            <ReceiptIcon sx={{ fontSize: 64, color: "text.disabled", mb: 2 }} />
+          <CardContent sx={{ textAlign: 'center', py: 6 }}>
+            <ReceiptIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
             <Typography variant="h6" gutterBottom>
-              {customerIdFromUrl
-                ? `No sales found for ${filteredCustomerName}`
-                : "No sales found"}
+              {customerIdFromUrl ? `No sales found for ${filteredCustomerName}` : 'No sales found'}
             </Typography>
             <Typography variant="body2" color="text.secondary" mb={3}>
               {searchValue ||
@@ -729,10 +718,10 @@ const SalesHistory = () => {
               localFilters.originalPaymentCategory ||
               dateFilters.fromDate ||
               dateFilters.toDate
-                ? "Try adjusting your search criteria or filters."
+                ? 'Try adjusting your search criteria or filters.'
                 : customerIdFromUrl
                 ? `${filteredCustomerName} doesn't have any sales yet. Create their first invoice to get started.`
-                : "Start by creating your first invoice to track sales."}
+                : 'Start by creating your first invoice to track sales.'}
             </Typography>
             <Button
               variant="contained"
@@ -741,7 +730,7 @@ const SalesHistory = () => {
                 navigate(
                   customerIdFromUrl
                     ? `/sales/create?customer=${customerIdFromUrl}`
-                    : "/sales/create"
+                    : '/sales/create'
                 )
               }
             >
@@ -794,8 +783,7 @@ const SalesHistory = () => {
                     <Typography variant="h6" color="success.main">
                       {formatCurrency(
                         filteredAndSortedSales.reduce(
-                          (sum, sale) =>
-                            sum + (sale.grandTotal || sale.totalAmount || 0),
+                          (sum, sale) => sum + (sale.grandTotal || sale.totalAmount || 0),
                           0
                         )
                       )}
@@ -845,13 +833,13 @@ const SalesHistory = () => {
                 <Grid item xs={12} sm={6} lg={4} key={sale.id}>
                   <Card
                     sx={{
-                      cursor: "pointer",
-                      transition: "all 0.2s ease-in-out",
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease-in-out',
                       height: 350,
-                      display: "flex",
-                      flexDirection: "column",
-                      "&:hover": {
-                        transform: "translateY(-2px)",
+                      display: 'flex',
+                      flexDirection: 'column',
+                      '&:hover': {
+                        transform: 'translateY(-2px)',
                         boxShadow: 4,
                       },
                     }}
@@ -860,8 +848,8 @@ const SalesHistory = () => {
                     <CardContent
                       sx={{
                         flex: 1,
-                        display: "flex",
-                        flexDirection: "column",
+                        display: 'flex',
+                        flexDirection: 'column',
                         p: 2.5,
                       }}
                     >
@@ -872,17 +860,11 @@ const SalesHistory = () => {
                         justifyContent="space-between"
                         mb={2}
                       >
-                        <Box
-                          display="flex"
-                          alignItems="center"
-                          gap={2}
-                          flex={1}
-                          minWidth={0}
-                        >
+                        <Box display="flex" alignItems="center" gap={2} flex={1} minWidth={0}>
                           <Avatar
                             sx={{
                               bgcolor: theme.palette.primary.main,
-                              color: "white",
+                              color: 'white',
                               width: 40,
                               height: 40,
                             }}
@@ -894,7 +876,7 @@ const SalesHistory = () => {
                               variant="h6"
                               component="h3"
                               noWrap
-                              sx={{ fontSize: "1.1rem", fontWeight: 700 }}
+                              sx={{ fontSize: '1.1rem', fontWeight: 700 }}
                             >
                               {sale.customerName}
                             </Typography>
@@ -902,7 +884,7 @@ const SalesHistory = () => {
                               variant="body2"
                               color="text.secondary"
                               noWrap
-                              sx={{ fontSize: "0.85rem" }}
+                              sx={{ fontSize: '0.85rem' }}
                             >
                               {formatDate(sale.saleDate || sale.createdAt)}
                             </Typography>
@@ -910,7 +892,7 @@ const SalesHistory = () => {
                               variant="body2"
                               color="text.secondary"
                               noWrap
-                              sx={{ fontSize: "0.85rem" }}
+                              sx={{ fontSize: '0.85rem' }}
                             >
                               {sale.invoiceNumber}
                             </Typography>
@@ -929,20 +911,9 @@ const SalesHistory = () => {
                       {/* Customer Info - Fixed height section */}
                       <Box mb={2} sx={{ flex: 1, minHeight: 160 }}>
                         {sale.customerPhone && (
-                          <Box
-                            display="flex"
-                            alignItems="center"
-                            gap={1}
-                            mb={1}
-                          >
-                            <PhoneIcon
-                              sx={{ fontSize: 16, color: "text.secondary" }}
-                            />
-                            <Typography
-                              variant="body2"
-                              noWrap
-                              sx={{ fontSize: "0.875rem" }}
-                            >
+                          <Box display="flex" alignItems="center" gap={1} mb={1}>
+                            <PhoneIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                            <Typography variant="body2" noWrap sx={{ fontSize: '0.875rem' }}>
                               {sale.customerPhone}
                             </Typography>
                           </Box>
@@ -950,18 +921,14 @@ const SalesHistory = () => {
 
                         {/* Total Amount */}
                         <Box display="flex" alignItems="center" gap={1} mb={1}>
-                          <MoneyIcon
-                            sx={{ fontSize: 16, color: "text.secondary" }}
-                          />
+                          <MoneyIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                           <Typography
                             variant="h6"
                             color="primary.main"
                             fontWeight="bold"
-                            sx={{ fontSize: "1.1rem" }}
+                            sx={{ fontSize: '1.1rem' }}
                           >
-                            {formatCurrency(
-                              sale.grandTotal || sale.totalAmount
-                            )}
+                            {formatCurrency(sale.grandTotal || sale.totalAmount)}
                           </Typography>
                         </Box>
 
@@ -970,13 +937,12 @@ const SalesHistory = () => {
                           <Box mb={1}>
                             <Chip
                               label={
-                                PAYMENT_CATEGORY_DISPLAY[
-                                  sale.originalPaymentCategory
-                                ] || sale.originalPaymentCategory
+                                PAYMENT_CATEGORY_DISPLAY[sale.originalPaymentCategory] ||
+                                sale.originalPaymentCategory
                               }
                               size="small"
                               variant="outlined"
-                              sx={{ fontSize: "0.7rem", height: 20 }}
+                              sx={{ fontSize: '0.7rem', height: 20 }}
                             />
                           </Box>
                         )}
@@ -984,31 +950,16 @@ const SalesHistory = () => {
                         {/* Payment Progress for Partial Payments */}
                         {isPartialPayment && (
                           <Box mt={1}>
-                            <Box
-                              display="flex"
-                              alignItems="center"
-                              gap={1}
-                              mb={0.5}
-                            >
-                              <TrendingUpIcon
-                                sx={{ fontSize: 14, color: "success.main" }}
-                              />
-                              <Typography
-                                variant="caption"
-                                color="success.main"
-                              >
+                            <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                              <TrendingUpIcon sx={{ fontSize: 14, color: 'success.main' }} />
+                              <Typography variant="caption" color="success.main">
                                 Paid: {formatCurrency(actualPaid)}
                               </Typography>
                             </Box>
                             {remainingBalance > 0 && (
                               <Box display="flex" alignItems="center" gap={1}>
-                                <TrendingDownIcon
-                                  sx={{ fontSize: 14, color: "warning.main" }}
-                                />
-                                <Typography
-                                  variant="caption"
-                                  color="warning.main"
-                                >
+                                <TrendingDownIcon sx={{ fontSize: 14, color: 'warning.main' }} />
+                                <Typography variant="caption" color="warning.main">
                                   Balance: {formatCurrency(remainingBalance)}
                                 </Typography>
                               </Box>
@@ -1017,17 +968,16 @@ const SalesHistory = () => {
                         )}
 
                         {/* NEW - Show if fully paid flag */}
-                        {sale.fullyPaid &&
-                          sale.paymentStatus !== PAYMENT_STATUS.PAID && (
-                            <Box mt={1}>
-                              <Chip
-                                label="Fully Paid"
-                                size="small"
-                                color="success"
-                                sx={{ fontSize: "0.7rem", height: 20 }}
-                              />
-                            </Box>
-                          )}
+                        {sale.fullyPaid && sale.paymentStatus !== PAYMENT_STATUS.PAID && (
+                          <Box mt={1}>
+                            <Chip
+                              label="Fully Paid"
+                              size="small"
+                              color="success"
+                              sx={{ fontSize: '0.7rem', height: 20 }}
+                            />
+                          </Box>
+                        )}
                       </Box>
 
                       {/* Status Chips and Additional Info */}
@@ -1035,10 +985,7 @@ const SalesHistory = () => {
                         {/* Status Chips */}
                         <Box display="flex" gap={1} flexWrap="wrap" mb={2}>
                           <Tooltip
-                            title={
-                              PAYMENT_STATUS_DISPLAY[sale.paymentStatus] ||
-                              sale.paymentStatus
-                            }
+                            title={PAYMENT_STATUS_DISPLAY[sale.paymentStatus] || sale.paymentStatus}
                           >
                             <Chip
                               label={sale.paymentStatus?.toUpperCase()}
@@ -1046,8 +993,8 @@ const SalesHistory = () => {
                               color={getPaymentStatusColor(sale.paymentStatus)}
                               icon={getPaymentStatusIcon(sale.paymentStatus)}
                               sx={{
-                                textTransform: "capitalize",
-                                fontSize: "0.75rem",
+                                textTransform: 'capitalize',
+                                fontSize: '0.75rem',
                                 height: 24,
                               }}
                             />
@@ -1058,8 +1005,8 @@ const SalesHistory = () => {
                             color={getDeliveryStatusColor(sale.deliveryStatus)}
                             icon={<DeliveryIcon />}
                             sx={{
-                              textTransform: "capitalize",
-                              fontSize: "0.75rem",
+                              textTransform: 'capitalize',
+                              fontSize: '0.75rem',
                               height: 24,
                             }}
                           />
@@ -1068,19 +1015,9 @@ const SalesHistory = () => {
                         {/* Additional Info */}
                         <Box>
                           {sale.paymentStatus === PAYMENT_STATUS.EMI && (
-                            <Box
-                              display="flex"
-                              alignItems="center"
-                              gap={1}
-                              mb={1}
-                            >
-                              <ScheduleIcon
-                                sx={{ fontSize: 16, color: "warning.main" }}
-                              />
-                              <Typography
-                                variant="caption"
-                                color="warning.main"
-                              >
+                            <Box display="flex" alignItems="center" gap={1} mb={1}>
+                              <ScheduleIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                              <Typography variant="caption" color="warning.main">
                                 EMI Payment Plan
                               </Typography>
                             </Box>
@@ -1088,37 +1025,19 @@ const SalesHistory = () => {
 
                           {sale.paymentStatus === PAYMENT_STATUS.FINANCE &&
                             sale.paymentDetails?.financeCompany && (
-                              <Box
-                                display="flex"
-                                alignItems="center"
-                                gap={1}
-                                mb={1}
-                              >
-                                <BankIcon
-                                  sx={{ fontSize: 16, color: "info.main" }}
-                                />
+                              <Box display="flex" alignItems="center" gap={1} mb={1}>
+                                <BankIcon sx={{ fontSize: 16, color: 'info.main' }} />
                                 <Typography variant="caption" color="info.main">
                                   Finance: {sale.paymentDetails.financeCompany}
                                 </Typography>
                               </Box>
                             )}
 
-                          {sale.paymentStatus ===
-                            PAYMENT_STATUS.BANK_TRANSFER &&
+                          {sale.paymentStatus === PAYMENT_STATUS.BANK_TRANSFER &&
                             sale.paymentDetails?.bankName && (
-                              <Box
-                                display="flex"
-                                alignItems="center"
-                                gap={1}
-                                mb={1}
-                              >
-                                <CardIcon
-                                  sx={{ fontSize: 16, color: "primary.main" }}
-                                />
-                                <Typography
-                                  variant="caption"
-                                  color="primary.main"
-                                >
+                              <Box display="flex" alignItems="center" gap={1} mb={1}>
+                                <CardIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                                <Typography variant="caption" color="primary.main">
                                   Bank: {sale.paymentDetails.bankName}
                                 </Typography>
                               </Box>
@@ -1127,12 +1046,9 @@ const SalesHistory = () => {
                           {sale.deliveryStatus === DELIVERY_STATUS.SCHEDULED &&
                             sale.scheduledDeliveryDate && (
                               <Box display="flex" alignItems="center" gap={1}>
-                                <CalendarIcon
-                                  sx={{ fontSize: 16, color: "info.main" }}
-                                />
+                                <CalendarIcon sx={{ fontSize: 16, color: 'info.main' }} />
                                 <Typography variant="caption" color="info.main">
-                                  Delivery:{" "}
-                                  {formatDate(sale.scheduledDeliveryDate)}
+                                  Delivery: {formatDate(sale.scheduledDeliveryDate)}
                                 </Typography>
                               </Box>
                             )}
@@ -1155,11 +1071,7 @@ const SalesHistory = () => {
               pageSizeOptions={[5, 10, 25, 50]}
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
-              itemName={
-                customerIdFromUrl
-                  ? `invoices for ${filteredCustomerName}`
-                  : "invoices"
-              }
+              itemName={customerIdFromUrl ? `invoices for ${filteredCustomerName}` : 'invoices'}
               disabled={loading}
             />
           </Box>
@@ -1207,6 +1119,16 @@ const SalesHistory = () => {
           </MenuItem>
         )}
 
+        {/* Print Payment Receipt option */}
+        {hasPaymentRecords(selectedInvoice) && (
+          <MenuItem onClick={handlePrintReceipt}>
+            <ListItemIcon>
+              <ReceiptIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Print Receipt</ListItemText>
+          </MenuItem>
+        )}
+
         {canDelete() && (
           <MenuItem onClick={handleDeleteClick}>
             <ListItemIcon>
@@ -1218,18 +1140,12 @@ const SalesHistory = () => {
       </Menu>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={handleDeleteCancel}
-        maxWidth="sm"
-        fullWidth
-      >
+      <Dialog open={deleteDialogOpen} onClose={handleDeleteCancel} maxWidth="sm" fullWidth>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete invoice "
-            {selectedInvoice?.invoiceNumber}"? This action cannot be undone and
-            will permanently remove this sales record.
+            Are you sure you want to delete invoice "{selectedInvoice?.invoiceNumber}"? This action
+            cannot be undone and will permanently remove this sales record.
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -1242,7 +1158,7 @@ const SalesHistory = () => {
             variant="contained"
             disabled={deleting}
           >
-            {deleting ? "Deleting..." : "Delete"}
+            {deleting ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1256,6 +1172,15 @@ const SalesHistory = () => {
           await loadSales();
           setSelectedInvoiceForPayment(null);
         }}
+      />
+
+      <PaymentReceiptDialog
+        open={printReceiptDialogOpen}
+        onClose={() => {
+          setPrintReceiptDialogOpen(false);
+          setSelectedInvoiceForReceipt(null);
+        }}
+        invoice={selectedInvoiceForReceipt}
       />
     </Box>
   );

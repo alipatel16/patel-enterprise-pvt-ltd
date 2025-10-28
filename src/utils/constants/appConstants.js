@@ -45,7 +45,7 @@ export const QUOTATION_STATUS = {
 // Payment Status Display Names
 export const PAYMENT_STATUS_DISPLAY = {
   [PAYMENT_STATUS.PAID]: 'Paid in Full',
-  [PAYMENT_STATUS.PENDING]: 'Payment Pending',
+  [PAYMENT_STATUS.PENDING]: 'Pay At Delivery',
   [PAYMENT_STATUS.EMI]: 'EMI Payment',
   [PAYMENT_STATUS.FINANCE]: 'Finance Payment',
   [PAYMENT_STATUS.BANK_TRANSFER]: 'Bank Transfer',
@@ -95,7 +95,7 @@ export const PAYMENT_CATEGORY_DISPLAY = {
   [PAYMENT_CATEGORIES.FINANCE_PAYMENT]: 'Finance Payment',
   [PAYMENT_CATEGORIES.BANK_TRANSFER_PAYMENT]: 'Bank Transfer Payment',
   [PAYMENT_CATEGORIES.EMI_PAYMENT]: 'EMI Payment',
-  [PAYMENT_CATEGORIES.PENDING_PAYMENT]: 'Pending Payment'
+  [PAYMENT_CATEGORIES.PENDING_PAYMENT]: 'PAYMENT_CATEGORY_DISPLAY'
 };
 
 // Helper function to get payment category from status and method

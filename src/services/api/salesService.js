@@ -722,8 +722,6 @@ class SalesService extends BaseService {
       }
 
       if (cleanUpdates.items) {
-        console.log("📊 Recalculating item totals...");
-
         let subtotal = 0;
         let totalGST = 0;
         const processedItems = [];
@@ -802,10 +800,6 @@ class SalesService extends BaseService {
           0,
           cleanUpdates.grandTotal - exchangeAmount
         );
-
-        console.log(
-          `💰 New totals - Grand: ₹${cleanUpdates.grandTotal}, Net: ₹${cleanUpdates.netPayable}`
-        );
       }
 
       if (updates.exchangeDetails !== undefined && !updates.items) {
@@ -813,10 +807,6 @@ class SalesService extends BaseService {
         const exchangeAmount =
           cleanUpdates.exchangeDetails?.exchangeAmount || 0;
         cleanUpdates.netPayable = Math.max(0, grandTotal - exchangeAmount);
-
-        console.log(
-          `💰 Exchange updated - Net payable: ₹${cleanUpdates.netPayable}`
-        );
       }
 
       if (existingInvoice.paymentStatus === PAYMENT_STATUS.EMI) {
@@ -840,7 +830,6 @@ class SalesService extends BaseService {
           Math.abs(newDownPayment - oldDownPayment) >= 0.01;
 
         if (amountChanged || downPaymentChanged) {
-          console.log("🔄 Triggering EMI recalculation...");
           if (downPaymentChanged) {
             console.log(
               `💰 Down payment change: ₹${oldDownPayment} → ₹${newDownPayment}`
@@ -861,10 +850,24 @@ class SalesService extends BaseService {
           existingInvoice.customerDueDateChangeFlags;
       }
 
+      // 🔥 CRITICAL: PRESERVE PAYMENT HISTORY
+      // This prevents payment history from being lost during invoice updates      
+      if (existingInvoice.paymentDetails?.paymentHistory?.length > 0) {
+
+        // If updates contain paymentDetails but no explicit paymentHistory
+        if (cleanUpdates.paymentDetails && !cleanUpdates.paymentDetails.paymentHistory) {
+          cleanUpdates.paymentDetails.paymentHistory =
+            existingInvoice.paymentDetails.paymentHistory;
+        }
+        // If updates don't have paymentDetails at all, preserve the entire object
+        else if (!cleanUpdates.paymentDetails) {
+          cleanUpdates.paymentDetails = {
+            ...existingInvoice.paymentDetails,
+          };
+        }
+      }
+
       cleanUpdates.updatedAt = new Date().toISOString();
-
-      console.log("✅ Invoice update complete");
-
       return await this.update(userType, invoiceId, cleanUpdates);
     } catch (error) {
       console.error("❌ Error updating invoice:", error);
