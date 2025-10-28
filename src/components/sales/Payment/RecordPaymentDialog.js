@@ -1,187 +1,360 @@
-// PaymentReceiptDialog.js - Updated to remove companyDetails prop
-import React, { useRef, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  TextField,
   Button,
+  Grid,
+  Typography,
   Box,
   Alert,
-  FormControl,
-  Select,
-  MenuItem,
-  Typography,
-  Divider,
+  InputAdornment,
+  CircularProgress,
 } from '@mui/material';
 import {
-  Print as PrintIcon,
+  PaymentOutlined as RecordPaymentIcon,
+  Save as SaveIcon,
   Close as CloseIcon,
-  Receipt as ReceiptIcon,
+  DateRange as DateRangeIcon,
 } from '@mui/icons-material';
-import { useReactToPrint } from 'react-to-print';
-import PaymentReceipt from './PaymentReceipt';
-import { formatCurrency, formatDate } from '../../../utils/helpers/formatHelpers';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
-const PaymentReceiptDialog = ({ open, onClose, invoice }) => {
-  const receiptRef = useRef();
-  const [selectedPayment, setSelectedPayment] = useState('latest');
+import salesService from '../../../services/api/salesService';
+import { useAuth } from '../../../contexts/AuthContext/AuthContext';
+import { useUserType } from '../../../contexts/UserTypeContext/UserTypeContext';
+import { formatCurrency } from '../../../utils/helpers/formatHelpers';
+import { PAYMENT_METHODS, PAYMENT_METHOD_DISPLAY } from '../../../utils/constants/appConstants';
 
-  const handlePrint = useReactToPrint({
-    contentRef: receiptRef,
-    documentTitle: `Payment_Receipt_${invoice?.invoiceNumber || 'Invoice'}`,
+/**
+ * Reusable Record Payment Dialog Component
+ * @param {Object} props
+ * @param {boolean} props.open - Dialog open state
+ * @param {Function} props.onClose - Close handler
+ * @param {Object} props.invoice - Invoice data
+ * @param {Function} props.onSuccess - Success callback after payment recorded
+ */
+const RecordPaymentDialog = ({ open, onClose, invoice, onSuccess }) => {
+  const { user } = useAuth();
+  const { userType } = useUserType();
+
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    paymentMethod: PAYMENT_METHODS.CASH,
+    reference: '',
+    notes: '',
+    paymentDate: new Date(),
   });
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
 
-  if (!invoice) return null;
+  // Calculate remaining balance
+  const getRemainingBalance = (inv) => {
+    if (!inv) return 0;
+    const totalAmount = inv.netPayable || inv.grandTotal || inv.totalAmount || 0;
+    const paidAmount = inv.paymentDetails?.downPayment || 0;
+    return Math.max(0, totalAmount - paidAmount);
+  };
 
-  const paymentHistory = invoice.paymentDetails?.paymentHistory || [];
+  // Initialize form when dialog opens
+  useEffect(() => {
+    if (open && invoice) {
+      const remainingBalance = getRemainingBalance(invoice);
+      setPaymentForm({
+        amount: remainingBalance.toString(),
+        paymentMethod: PAYMENT_METHODS.CASH,
+        reference: '',
+        notes: '',
+        paymentDate: new Date(),
+      });
+      setPaymentError('');
+    }
+  }, [open, invoice]);
 
-  // Get the selected payment details
-  const getSelectedPaymentData = () => {
-    if (selectedPayment === 'latest' && paymentHistory.length > 0) {
-      return paymentHistory[paymentHistory.length - 1];
-    } else if (selectedPayment === 'all') {
-      // For "all payments", calculate TOTAL paid including down payment
-      const downPayment = parseFloat(invoice.paymentDetails?.downPayment || 0);
+  // Handle form field changes
+  const handlePaymentFormChange = (field) => (event) => {
+    setPaymentForm((prev) => ({
+      ...prev,
+      [field]: event.target.value,
+    }));
+  };
 
-      // Sum all additional payments (excluding down payment records)
-      const additionalPayments = paymentHistory
-        .filter((p) => p.type !== 'down_payment')
-        .reduce((sum, p) => sum + (p.amount || 0), 0);
+  // Handle payment date change
+  const handlePaymentDateChange = (date) => {
+    setPaymentForm((prev) => ({
+      ...prev,
+      paymentDate: date,
+    }));
+  };
 
-      const totalPaid = downPayment + additionalPayments;
+  // Handle payment submission
+  const handlePaymentSubmit = async () => {
+    if (!invoice) return;
 
-      return {
-        amount: totalPaid,
-        date: new Date().toISOString(),
-        method: 'Multiple',
-        reference: 'All Payments Summary',
-        recordedBy: invoice.createdBy || 'system',
-        recordedByName: invoice.createdByName || 'System',
-        type: 'summary',
-        notes: `Summary of all payments (Initial: ${formatCurrency(
-          downPayment
-        )}, Additional: ${formatCurrency(additionalPayments)})`,
+    const amount = parseFloat(paymentForm.amount);
+    const remainingBalance = getRemainingBalance(invoice);
+
+    // Validation
+    if (!amount || amount <= 0) {
+      setPaymentError('Please enter a valid payment amount');
+      return;
+    }
+
+    if (amount > remainingBalance) {
+      setPaymentError(
+        `Payment amount cannot exceed remaining balance of ${formatCurrency(remainingBalance)}`
+      );
+      return;
+    }
+
+    if (!paymentForm.paymentDate) {
+      setPaymentError('Please select a payment date');
+      return;
+    }
+
+    setPaymentLoading(true);
+    setPaymentError('');
+
+    try {
+      // Automatically capture logged-in user information
+      const paymentDetails = {
+        paymentMethod: paymentForm.paymentMethod,
+        reference: paymentForm.reference,
+        notes: paymentForm.notes,
+        paymentDate: paymentForm.paymentDate.toISOString(),
+        recordedBy: user?.uid || user?.id || 'unknown',
+        recordedByName: user?.displayName || user?.name || user?.email || 'Unknown User',
+        recordedByEmail: user?.email || '',
       };
-    } else {
-      // Selected specific payment by index
-      const index = parseInt(selectedPayment);
-      return paymentHistory[index];
+
+      await salesService.recordAdditionalPayment(userType, invoice.id, amount, paymentDetails);
+
+      // Reset form
+      setPaymentForm({
+        amount: '',
+        paymentMethod: PAYMENT_METHODS.CASH,
+        reference: '',
+        notes: '',
+        paymentDate: new Date(),
+      });
+
+      // Call success callback
+      if (onSuccess) {
+        await onSuccess();
+      }
+
+      // Close dialog
+      onClose();
+    } catch (error) {
+      setPaymentError(error.message || 'Failed to record payment');
+    } finally {
+      setPaymentLoading(false);
     }
   };
 
-  const selectedPaymentData = getSelectedPaymentData();
-  const hasPayments = paymentHistory.length > 0;
+  // Handle cancel
+  const handleCancel = () => {
+    if (!paymentLoading) {
+      setPaymentForm({
+        amount: '',
+        paymentMethod: PAYMENT_METHODS.CASH,
+        reference: '',
+        notes: '',
+        paymentDate: new Date(),
+      });
+      setPaymentError('');
+      onClose();
+    }
+  };
+
+  if (!invoice) return null;
+
+  const remainingBalance = getRemainingBalance(invoice);
 
   return (
-    <>
-      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <ReceiptIcon color="primary" />
-          Print Payment Receipt
-        </DialogTitle>
-
-        <DialogContent>
-          {!hasPayments ? (
-            <Alert severity="info">
-              No payment records found for this invoice. Payments must be recorded before printing
-              receipts.
-            </Alert>
-          ) : (
-            <>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Select which payment receipt to print:
+    <Dialog open={open} onClose={paymentLoading ? undefined : handleCancel} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <RecordPaymentIcon color="primary" />
+        Record Payment - {invoice.invoiceNumber}
+      </DialogTitle>
+      <DialogContent>
+        {/* Invoice Summary */}
+        <Box sx={{ mb: 3, mt: 2 }}>
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <Typography variant="body2" color="text.secondary">
+                Customer:
               </Typography>
+              <Typography variant="body1" fontWeight={500}>
+                {invoice.customerName}
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2" color="text.secondary">
+                Invoice Total:
+              </Typography>
+              <Typography variant="body1" fontWeight={500}>
+                {formatCurrency(invoice.grandTotal || invoice.totalAmount)}
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2" color="text.secondary">
+                Amount Paid:
+              </Typography>
+              <Typography variant="body1" fontWeight={500} color="success.main">
+                {formatCurrency(invoice.paymentDetails?.downPayment || 0)}
+              </Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2" color="text.secondary">
+                Remaining Balance:
+              </Typography>
+              <Typography variant="body1" fontWeight={500} color="warning.main">
+                {formatCurrency(remainingBalance)}
+              </Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <Typography variant="body2" color="text.secondary">
+                Recorded By:
+              </Typography>
+              <Typography variant="body1" fontWeight={500} color="primary.main">
+                {user?.displayName || user?.name || user?.email || 'Current User'}
+              </Typography>
+            </Grid>
+          </Grid>
+        </Box>
 
-              <FormControl fullWidth sx={{ mt: 2, mb: 3 }}>
-                <Select
-                  value={selectedPayment}
-                  onChange={(e) => setSelectedPayment(e.target.value)}
-                >
-                  <MenuItem value="latest">
-                    Latest Payment (
-                    {formatCurrency(paymentHistory[paymentHistory.length - 1]?.amount || 0)} on{' '}
-                    {formatDate(paymentHistory[paymentHistory.length - 1]?.date)})
-                  </MenuItem>
+        {/* Error Alert */}
+        {paymentError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {paymentError}
+          </Alert>
+        )}
 
-                  <Divider />
+        {/* Payment Form */}
+        <Grid container spacing={2}>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Payment Amount"
+              type="number"
+              value={paymentForm.amount}
+              onChange={handlePaymentFormChange('amount')}
+              disabled={paymentLoading}
+              inputProps={{
+                min: 0,
+                max: remainingBalance,
+                step: 0.01,
+              }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start">₹</InputAdornment>,
+              }}
+              helperText={`Maximum: ${formatCurrency(remainingBalance)}`}
+            />
+          </Grid>
 
-                  {paymentHistory.length >= 1 && (
-                    <MenuItem value="all">
-                      All Payments Summary (
-                      {formatCurrency(
-                        parseFloat(invoice.paymentDetails?.downPayment || 0) +
-                          paymentHistory
-                            .filter((p) => p.type !== 'down_payment')
-                            .reduce((sum, p) => sum + (p.amount || 0), 0)
-                      )}{' '}
-                      total paid)
-                    </MenuItem>
-                  )}
+          <Grid item xs={12} sm={6}>
+            <DatePicker
+              label="Payment Date"
+              value={paymentForm.paymentDate}
+              onChange={handlePaymentDateChange}
+              disabled={paymentLoading}
+              format="dd/MM/yyyy"
+              maxDate={new Date()}
+              slotProps={{
+                textField: {
+                  fullWidth: true,
+                  InputProps: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <DateRangeIcon />
+                      </InputAdornment>
+                    ),
+                  },
+                },
+              }}
+            />
+          </Grid>
 
-                  {paymentHistory.length > 1 && <Divider />}
-
-                  {paymentHistory.map((payment, index) => (
-                    <MenuItem key={index} value={index.toString()}>
-                      Payment {index + 1}: {formatCurrency(payment.amount || 0)} on{' '}
-                      {formatDate(payment.date)} ({payment.method?.toUpperCase() || 'CASH'})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              {/* Preview of selected payment */}
-              <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Receipt Preview:
-                </Typography>
-                <Typography variant="body2">
-                  Amount: <strong>{formatCurrency(selectedPaymentData?.amount || 0)}</strong>
-                </Typography>
-                <Typography variant="body2">
-                  Date: {formatDate(selectedPaymentData?.date)}
-                </Typography>
-                <Typography variant="body2">
-                  Method: {selectedPaymentData?.method?.toUpperCase() || 'CASH'}
-                </Typography>
-                {selectedPaymentData?.reference && (
-                  <Typography variant="body2">
-                    Reference: {selectedPaymentData.reference}
-                  </Typography>
-                )}
-                {selectedPaymentData?.type === 'summary' && (
-                  <Typography variant="body2" color="primary" sx={{ mt: 1 }}>
-                    This will show all payments combined
-                  </Typography>
-                )}
-              </Box>
-            </>
-          )}
-        </DialogContent>
-
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={onClose} startIcon={<CloseIcon />}>
-            Close
-          </Button>
-          {hasPayments && (
-            <Button
-              onClick={handlePrint}
-              color="primary"
-              variant="contained"
-              startIcon={<PrintIcon />}
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              select
+              label="Payment Method"
+              value={paymentForm.paymentMethod}
+              onChange={handlePaymentFormChange('paymentMethod')}
+              disabled={paymentLoading}
+              SelectProps={{
+                native: true,
+              }}
             >
-              Print Receipt
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
+              <option value={PAYMENT_METHODS.CASH}>
+                {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CASH]}
+              </option>
+              <option value={PAYMENT_METHODS.CARD}>
+                {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CARD]}
+              </option>
+              <option value={PAYMENT_METHODS.CREDIT_CARD}>
+                {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CREDIT_CARD]}
+              </option>
+              <option value={PAYMENT_METHODS.UPI}>
+                {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.UPI]}
+              </option>
+              <option value={PAYMENT_METHODS.NET_BANKING}>
+                {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.NET_BANKING]}
+              </option>
+              <option value={PAYMENT_METHODS.CHEQUE}>
+                {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.CHEQUE]}
+              </option>
+              <option value={PAYMENT_METHODS.BANK_TRANSFER}>
+                {PAYMENT_METHOD_DISPLAY[PAYMENT_METHODS.BANK_TRANSFER]}
+              </option>
+            </TextField>
+          </Grid>
 
-      {/* Hidden receipt for printing - No companyDetails prop needed */}
-      <div style={{ display: 'none' }}>
-        <PaymentReceipt ref={receiptRef} paymentData={selectedPaymentData} invoice={invoice} />
-      </div>
-    </>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Payment Reference"
+              placeholder="Transaction ID, Cheque No, etc."
+              value={paymentForm.reference}
+              onChange={handlePaymentFormChange('reference')}
+              disabled={paymentLoading}
+            />
+          </Grid>
+
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Notes"
+              placeholder="Additional notes about this payment..."
+              value={paymentForm.notes}
+              onChange={handlePaymentFormChange('notes')}
+              disabled={paymentLoading}
+              multiline
+              rows={2}
+            />
+          </Grid>
+        </Grid>
+      </DialogContent>
+
+      <DialogActions sx={{ p: 2 }}>
+        <Button onClick={handleCancel} disabled={paymentLoading} startIcon={<CloseIcon />}>
+          Cancel
+        </Button>
+        <Button
+          onClick={handlePaymentSubmit}
+          color="primary"
+          variant="contained"
+          disabled={paymentLoading || !paymentForm.amount || !paymentForm.paymentDate}
+          startIcon={paymentLoading ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+        >
+          {paymentLoading ? 'Recording...' : 'Record Payment'}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };
 
-export default PaymentReceiptDialog;
+export default RecordPaymentDialog;
