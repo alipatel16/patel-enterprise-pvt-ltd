@@ -7,14 +7,14 @@ export const STORE_COORDINATES = {
     latitude: 23.1266973,
     longitude: 72.0487812,
     name: 'Electronics Store',
-    address: 'Electronics Store Location'
+    address: 'Electronics Store Location',
   },
   [USER_TYPES.FURNITURE]: {
     latitude: 23.1251434,
     longitude: 72.0449629,
     name: 'Furniture Store',
-    address: 'Furniture Store Location'
-  }
+    address: 'Furniture Store Location',
+  },
 };
 
 // Maximum allowed distance from store (in meters)
@@ -29,7 +29,7 @@ export const getCurrentPosition = (options = {}) => {
   const defaultOptions = {
     enableHighAccuracy: true,
     timeout: 10000,
-    maximumAge: 0
+    maximumAge: 0,
   };
 
   return new Promise((resolve, reject) => {
@@ -48,12 +48,12 @@ export const getCurrentPosition = (options = {}) => {
           altitude: position.coords.altitude,
           altitudeAccuracy: position.coords.altitudeAccuracy,
           heading: position.coords.heading,
-          speed: position.coords.speed
+          speed: position.coords.speed,
         });
       },
       (error) => {
         let errorMessage = 'Failed to get location';
-        
+
         switch (error.code) {
           case error.PERMISSION_DENIED:
             errorMessage = 'Location access denied by user';
@@ -68,7 +68,7 @@ export const getCurrentPosition = (options = {}) => {
             errorMessage = 'An unknown error occurred while retrieving location';
             break;
         }
-        
+
         reject(new Error(errorMessage));
       },
       { ...defaultOptions, ...options }
@@ -86,14 +86,14 @@ export const getCurrentPosition = (options = {}) => {
  */
 export const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371e3; // Earth's radius in meters
-  const φ1 = lat1 * Math.PI / 180; // φ, λ in radians
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const φ1 = (lat1 * Math.PI) / 180; // φ, λ in radians
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
 
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) *
-    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return R * c; // Distance in meters
@@ -110,7 +110,7 @@ export const validateLocationProximity = (currentLocation, userType) => {
     return {
       isValid: false,
       distance: null,
-      error: 'Location or user type not provided'
+      error: 'Location or user type not provided',
     };
   }
 
@@ -119,27 +119,47 @@ export const validateLocationProximity = (currentLocation, userType) => {
     return {
       isValid: false,
       distance: null,
-      error: 'Store coordinates not found'
+      error: 'Store coordinates not found',
     };
   }
 
-  const distance = calculateDistance(
+  // ✅ Existing main store
+  const mainStoreDistance = calculateDistance(
     currentLocation.latitude,
     currentLocation.longitude,
     storeCoords.latitude,
     storeCoords.longitude
   );
 
-  const isValid = distance <= MAX_ALLOWED_DISTANCE;
+  // ✅ New allowed location
+  const secondaryLocation = { latitude: 23.133915, longitude: 72.038712, name: 'Aligarh Address' };
+  const secondaryDistance = calculateDistance(
+    currentLocation.latitude,
+    currentLocation.longitude,
+    secondaryLocation.latitude,
+    secondaryLocation.longitude
+  );
+
+  // ✅ Check if either is within allowed range
+  const isMainValid = mainStoreDistance <= MAX_ALLOWED_DISTANCE;
+  const isSecondaryValid = secondaryDistance <= MAX_ALLOWED_DISTANCE;
+
+  const isValid = isMainValid || isSecondaryValid;
+  const closestDistance = Math.min(mainStoreDistance, secondaryDistance);
+  const closestStore = isMainValid ? storeCoords : secondaryLocation;
 
   return {
     isValid,
-    distance: Math.round(distance),
+    distance: Math.round(closestDistance),
     maxAllowedDistance: MAX_ALLOWED_DISTANCE,
-    storeName: storeCoords.name,
-    storeCoordinates: storeCoords,
+    storeName: closestStore.name,
+    storeCoordinates: closestStore,
     currentCoordinates: currentLocation,
-    error: isValid ? null : `You are ${Math.round(distance)}m away from the store. Please move within ${MAX_ALLOWED_DISTANCE}m to check in.`
+    error: isValid
+      ? null
+      : `You are ${Math.round(closestDistance)}m away from the ${
+          closestStore.name
+        }. Please move within ${MAX_ALLOWED_DISTANCE}meters to check in.`,
   };
 };
 
@@ -178,7 +198,7 @@ export const isGeolocationSupported = () => {
  */
 export const formatCoordinates = (latitude, longitude) => {
   if (latitude == null || longitude == null) return 'N/A';
-  
+
   return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 };
 
@@ -209,7 +229,7 @@ export const getAddressFromCoordinates = async (latitude, longitude) => {
  */
 export const generateMapsLink = (latitude, longitude, zoom = 15) => {
   if (latitude == null || longitude == null) return '';
-  
+
   return `https://www.google.com/maps?q=${latitude},${longitude}&z=${zoom}`;
 };
 
@@ -248,7 +268,7 @@ export const watchPosition = (callback, options = {}) => {
   const defaultOptions = {
     enableHighAccuracy: true,
     timeout: 5000,
-    maximumAge: 0
+    maximumAge: 0,
   };
 
   return navigator.geolocation.watchPosition(
@@ -257,7 +277,7 @@ export const watchPosition = (callback, options = {}) => {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         accuracy: position.coords.accuracy,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
       callback(locationData);
     },
@@ -291,17 +311,17 @@ export const getDistanceStatus = (distance, maxDistance = MAX_ALLOWED_DISTANCE) 
   }
 
   if (distance <= maxDistance) {
-    return { 
-      status: 'within', 
-      color: 'success', 
-      text: `Within range (${distance}m)` 
+    return {
+      status: 'within',
+      color: 'success',
+      text: `Within range (${distance}m)`,
     };
   } else {
     const excess = distance - maxDistance;
-    return { 
-      status: 'outside', 
-      color: 'error', 
-      text: `${excess}m too far` 
+    return {
+      status: 'outside',
+      color: 'error',
+      text: `${excess}m too far`,
     };
   }
 };
@@ -320,5 +340,5 @@ export default {
   getAccuracyStatus,
   watchPosition,
   clearPositionWatch,
-  getDistanceStatus
+  getDistanceStatus,
 };

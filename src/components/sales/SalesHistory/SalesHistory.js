@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
@@ -60,7 +60,6 @@ import {
   PAYMENT_CATEGORY_DISPLAY,
 } from '../../../utils/constants/appConstants';
 import RecordPaymentDialog from '../Payment/RecordPaymentDialog';
-
 import PaymentReceiptDialog from '../Payment/PaymentReceiptDialog';
 
 const SalesHistory = () => {
@@ -68,62 +67,114 @@ const SalesHistory = () => {
   const theme = useTheme();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const { sales, loading, error, loadSales, deleteInvoice, clearError } = useSales();
-
+  // SERVER-SIDE PAGINATION: Use getSalesPaginated
+  const { getSalesPaginated, deleteInvoice, clearError, loading, error } = useSales();
   const { canDelete } = useAuth();
 
-  // Get customer ID from URL query parameter
   const customerIdFromUrl = searchParams.get('customer');
 
-  // Local state for search and filters (no debouncing to avoid focus loss)
+  // Server-side state
+  const [sales, setSales] = useState([]);
+  const [paginationInfo, setPaginationInfo] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    total: 0,
+    hasMore: false,
+  });
+
+  // Filters
   const [searchValue, setSearchValue] = useState('');
   const [localFilters, setLocalFilters] = useState({
     paymentStatus: '',
     deliveryStatus: '',
-    originalPaymentCategory: '', // NEW - Filter by original payment category
+    originalPaymentCategory: '',
     sortBy: 'createdAt',
     sortOrder: 'desc',
   });
-
-  // NEW - Date range filter state
   const [dateFilters, setDateFilters] = useState({
     fromDate: null,
     toDate: null,
   });
 
-  // Client-side pagination state
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Action menu state
+  // UI state
   const [actionMenuAnchor, setActionMenuAnchor] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState(null);
-
   const [printReceiptDialogOpen, setPrintReceiptDialogOpen] = useState(false);
   const [selectedInvoiceForReceipt, setSelectedInvoiceForReceipt] = useState(null);
+  const [filteredCustomerName, setFilteredCustomerName] = useState(null);
 
-  // Load sales on component mount
-  useEffect(() => {
-    loadSales();
-  }, [loadSales]);
+  // SERVER-SIDE: Load sales
+  const loadSalesData = useCallback(async () => {
+    try {
+      const result = await getSalesPaginated({
+        page: currentPage,
+        limit: pageSize,
+        sortBy: localFilters.sortBy,
+        sortOrder: localFilters.sortOrder,
+        paymentStatus: localFilters.paymentStatus,
+        deliveryStatus: localFilters.deliveryStatus,
+        customerId: customerIdFromUrl || '',
+        searchTerm: searchValue,
+        dateFrom: dateFilters.fromDate,
+        dateTo: dateFilters.toDate,
+      });
 
-  // Reset to first page when filters change
+      setSales(result.sales || []);
+      setPaginationInfo({
+        currentPage: result.currentPage,
+        totalPages: result.totalPages,
+        total: result.total,
+        hasMore: result.hasMore,
+      });
+
+      if (customerIdFromUrl && result.sales?.length > 0) {
+        setFilteredCustomerName(result.sales[0].customerName);
+      }
+    } catch (error) {
+      console.error('Error loading sales:', error);
+      setSales([]);
+    }
+  }, [
+    getSalesPaginated,
+    currentPage,
+    pageSize,
+    localFilters.sortBy,
+    localFilters.sortOrder,
+    localFilters.paymentStatus,
+    localFilters.deliveryStatus,
+    customerIdFromUrl,
+    searchValue,
+    dateFilters.fromDate,
+    dateFilters.toDate,
+  ]);
+
   useEffect(() => {
-    setCurrentPage(1);
+    loadSalesData();
+  }, [loadSalesData]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
   }, [
     searchValue,
     localFilters.paymentStatus,
     localFilters.deliveryStatus,
-    localFilters.originalPaymentCategory, // NEW
+    localFilters.originalPaymentCategory,
     localFilters.sortBy,
     localFilters.sortOrder,
     pageSize,
     customerIdFromUrl,
-    dateFilters.fromDate, // NEW
-    dateFilters.toDate, // NEW
+    dateFilters.fromDate,
+    dateFilters.toDate,
   ]);
 
   const handlePrintReceipt = () => {
@@ -136,162 +187,25 @@ const SalesHistory = () => {
     return invoice?.paymentDetails?.paymentHistory?.length > 0;
   };
 
-  // Find customer name for filtered customer
-  const filteredCustomerName = useMemo(() => {
-    if (!customerIdFromUrl || !sales.length) return null;
-
-    const customerSale = sales.find((sale) => sale.customerId === customerIdFromUrl);
-    return customerSale?.customerName || null;
-  }, [customerIdFromUrl, sales]);
-
-  // Apply client-side filtering and sorting
-  const filteredAndSortedSales = useMemo(() => {
-    let filtered = [...sales];
-
-    // FIRST: Apply customer filter if customer ID is provided in URL
-    if (customerIdFromUrl) {
-      filtered = filtered.filter((sale) => sale.customerId === customerIdFromUrl);
-    }
-
-    // Apply search filter
-    if (searchValue.trim()) {
-      const searchTerm = searchValue.toLowerCase().trim();
-      filtered = filtered.filter((sale) => {
-        return (
-          sale.invoiceNumber?.toLowerCase().includes(searchTerm) ||
-          sale.customerName?.toLowerCase().includes(searchTerm) ||
-          sale.customerPhone?.includes(searchTerm) ||
-          sale.items?.some((item) => item.name?.toLowerCase().includes(searchTerm))
-        );
-      });
-    }
-
-    // Apply payment status filter
-    if (localFilters.paymentStatus) {
-      filtered = filtered.filter((sale) => sale.paymentStatus === localFilters.paymentStatus);
-    }
-
-    // Apply delivery status filter
-    if (localFilters.deliveryStatus) {
-      filtered = filtered.filter((sale) => sale.deliveryStatus === localFilters.deliveryStatus);
-    }
-
-    // NEW - Apply original payment category filter
-    if (localFilters.originalPaymentCategory) {
-      filtered = filtered.filter(
-        (sale) => sale.originalPaymentCategory === localFilters.originalPaymentCategory
-      );
-    }
-
-    // NEW - Apply date range filter
-    if (dateFilters.fromDate || dateFilters.toDate) {
-      filtered = filtered.filter((sale) => {
-        const saleDate = new Date(sale.saleDate || sale.createdAt);
-
-        // Check from date
-        if (dateFilters.fromDate) {
-          const fromDate = new Date(dateFilters.fromDate);
-          fromDate.setHours(0, 0, 0, 0); // Start of day
-          if (saleDate < fromDate) {
-            return false;
-          }
-        }
-
-        // Check to date
-        if (dateFilters.toDate) {
-          const toDate = new Date(dateFilters.toDate);
-          toDate.setHours(23, 59, 59, 999); // End of day
-          if (saleDate > toDate) {
-            return false;
-          }
-        }
-
-        return true;
-      });
-    }
-
-    // Apply sorting
-    filtered.sort((a, b) => {
-      let aValue = a[localFilters.sortBy] || '';
-      let bValue = b[localFilters.sortBy] || '';
-
-      // Handle different data types
-      if (typeof aValue === 'string') {
-        aValue = aValue.toLowerCase();
-        bValue = bValue.toLowerCase();
-      }
-
-      if (
-        localFilters.sortBy === 'createdAt' ||
-        localFilters.sortBy === 'saleDate' ||
-        localFilters.sortBy === 'updatedAt'
-      ) {
-        aValue = new Date(aValue).getTime() || 0;
-        bValue = new Date(bValue).getTime() || 0;
-      }
-
-      if (localFilters.sortBy === 'grandTotal' || localFilters.sortBy === 'totalAmount') {
-        aValue = parseFloat(aValue) || 0;
-        bValue = parseFloat(bValue) || 0;
-      }
-
-      if (aValue < bValue) {
-        return localFilters.sortOrder === 'asc' ? -1 : 1;
-      }
-      if (aValue > bValue) {
-        return localFilters.sortOrder === 'asc' ? 1 : -1;
-      }
-      return 0;
-    });
-
-    return filtered;
-  }, [sales, searchValue, localFilters, customerIdFromUrl, dateFilters]);
-
-  // Calculate client-side pagination
-  const paginatedSales = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return filteredAndSortedSales.slice(startIndex, endIndex);
-  }, [filteredAndSortedSales, currentPage, pageSize]);
-
-  // Calculate pagination info
-  const paginationInfo = useMemo(() => {
-    const total = filteredAndSortedSales.length;
-    const totalPages = Math.ceil(total / pageSize);
-    const hasMore = currentPage < totalPages;
-
-    return {
-      currentPage,
-      totalPages,
-      total,
-      hasMore,
-    };
-  }, [filteredAndSortedSales.length, currentPage, pageSize]);
-
-  // Handle clearing customer filter
   const handleClearCustomerFilter = () => {
-    // Remove customer parameter from URL
     const newSearchParams = new URLSearchParams(searchParams);
     newSearchParams.delete('customer');
     setSearchParams(newSearchParams);
+    setFilteredCustomerName(null);
   };
 
-  // Handle search input change (no debouncing)
   const handleSearchChange = (value) => {
     setSearchValue(value);
   };
 
-  // Handle search clear
   const handleSearchClear = () => {
     setSearchValue('');
   };
 
-  // Handle filter change
   const handleFilterChange = (newFilters) => {
     setLocalFilters((prev) => ({ ...prev, ...newFilters }));
   };
 
-  // NEW - Handle date filter changes
   const handleDateFilterChange = (field) => (date) => {
     setDateFilters((prev) => ({
       ...prev,
@@ -299,7 +213,6 @@ const SalesHistory = () => {
     }));
   };
 
-  // NEW - Clear date filters
   const handleClearDateFilters = () => {
     setDateFilters({
       fromDate: null,
@@ -307,7 +220,6 @@ const SalesHistory = () => {
     });
   };
 
-  // Handle sort change
   const handleSortChange = (sortBy) => {
     const newSortOrder =
       localFilters.sortBy === sortBy && localFilters.sortOrder === 'asc' ? 'desc' : 'asc';
@@ -318,7 +230,6 @@ const SalesHistory = () => {
     }));
   };
 
-  // Handle action menu
   const handleActionMenuOpen = (event, invoice) => {
     event.stopPropagation();
     setActionMenuAnchor(event.currentTarget);
@@ -329,7 +240,6 @@ const SalesHistory = () => {
     setActionMenuAnchor(null);
   };
 
-  // Handle delete
   const handleDeleteClick = () => {
     setDeleteDialogOpen(true);
     handleActionMenuClose();
@@ -344,8 +254,7 @@ const SalesHistory = () => {
       if (success) {
         setDeleteDialogOpen(false);
         setSelectedInvoice(null);
-        // Reload sales
-        loadSales();
+        loadSalesData();
       }
     } catch (error) {
       console.error('Delete error:', error);
@@ -359,17 +268,15 @@ const SalesHistory = () => {
     setSelectedInvoice(null);
   };
 
-  // Handle pagination change - now works with client-side data
   const handlePageChange = (page) => {
     setCurrentPage(page);
   };
 
   const handlePageSizeChange = (newPageSize) => {
     setPageSize(newPageSize);
-    setCurrentPage(1); // Reset to first page when page size changes
+    setCurrentPage(1);
   };
 
-  // Payment recording functions
   const canRecordPayment = (invoice) => {
     if (!invoice) return false;
 
@@ -389,7 +296,6 @@ const SalesHistory = () => {
     handleActionMenuClose();
   };
 
-  // Get payment status color with new statuses
   const getPaymentStatusColor = (status) => {
     const statusColors = {
       [PAYMENT_STATUS.PAID]: 'success',
@@ -401,7 +307,6 @@ const SalesHistory = () => {
     return statusColors[status] || 'default';
   };
 
-  // Get delivery status color
   const getDeliveryStatusColor = (status) => {
     const statusColors = {
       [DELIVERY_STATUS.DELIVERED]: 'success',
@@ -411,7 +316,6 @@ const SalesHistory = () => {
     return statusColors[status] || 'default';
   };
 
-  // Get payment status icon
   const getPaymentStatusIcon = (status) => {
     const iconMap = {
       [PAYMENT_STATUS.PAID]: <MoneyIcon />,
@@ -423,23 +327,18 @@ const SalesHistory = () => {
     return iconMap[status] || <PaymentIcon />;
   };
 
-  // FIXED: Replace the getActualAmountPaid function in SalesHistory.jsx with this:
   const getActualAmountPaid = (sale) => {
     if (sale.paymentStatus === PAYMENT_STATUS.PAID || sale.fullyPaid) {
       return sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
     }
 
-    // CRITICAL FIX: Calculate from downPayment + all additional payments in history
     const downPayment = parseFloat(sale.paymentDetails?.downPayment || 0);
-
-    // Sum all additional payments (excluding initial down payment record)
     const additionalPayments = (sale.paymentDetails?.paymentHistory || [])
-      .filter((payment) => payment.type !== 'down_payment') // Exclude down payment record
+      .filter((payment) => payment.type !== 'down_payment')
       .reduce((sum, payment) => sum + (payment.amount || 0), 0);
 
     const totalPaid = downPayment + additionalPayments;
 
-    // For EMI, also add paid installments
     if (sale.paymentStatus === PAYMENT_STATUS.EMI && sale.emiDetails?.schedule) {
       const installmentsPaid = sale.emiDetails.schedule
         .filter((emi) => emi.paid)
@@ -450,14 +349,12 @@ const SalesHistory = () => {
     return totalPaid;
   };
 
-  // Get remaining balance
   const getRemainingBalance = (sale) => {
     const totalAmount = sale.netPayable || sale.grandTotal || sale.totalAmount || 0;
     const paidAmount = getActualAmountPaid(sale);
     return Math.max(0, totalAmount - paidAmount);
   };
 
-  // Format date
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -467,7 +364,6 @@ const SalesHistory = () => {
     return `${day}/${month}/${year}`;
   };
 
-  // Format currency
   const formatCurrency = (amount) => {
     return `₹${parseFloat(amount || 0).toLocaleString('en-IN', {
       minimumFractionDigits: 2,
@@ -475,29 +371,16 @@ const SalesHistory = () => {
     })}`;
   };
 
-  // Filter options for search bar - UPDATED with new payment categories
   const filterOptions = [
     {
       key: 'paymentStatus',
       label: 'Payment Status',
       options: [
         { value: '', label: 'All Payment Status' },
-        {
-          value: PAYMENT_STATUS.PAID,
-          label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.PAID],
-        },
-        {
-          value: PAYMENT_STATUS.PENDING,
-          label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.PENDING],
-        },
-        {
-          value: PAYMENT_STATUS.EMI,
-          label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.EMI],
-        },
-        {
-          value: PAYMENT_STATUS.FINANCE,
-          label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.FINANCE],
-        },
+        { value: PAYMENT_STATUS.PAID, label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.PAID] },
+        { value: PAYMENT_STATUS.PENDING, label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.PENDING] },
+        { value: PAYMENT_STATUS.EMI, label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.EMI] },
+        { value: PAYMENT_STATUS.FINANCE, label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.FINANCE] },
         {
           value: PAYMENT_STATUS.BANK_TRANSFER,
           label: PAYMENT_STATUS_DISPLAY[PAYMENT_STATUS.BANK_TRANSFER],
@@ -514,21 +397,16 @@ const SalesHistory = () => {
         { value: DELIVERY_STATUS.SCHEDULED, label: 'Scheduled' },
       ],
     },
-    // NEW - Filter by original payment category
     {
       key: 'originalPaymentCategory',
       label: 'Payment Category',
       options: [
         { value: '', label: 'All Payment Categories' },
-        ...Object.entries(PAYMENT_CATEGORY_DISPLAY).map(([key, label]) => ({
-          value: key,
-          label,
-        })),
+        ...Object.entries(PAYMENT_CATEGORY_DISPLAY).map(([key, label]) => ({ value: key, label })),
       ],
     },
   ];
 
-  // Sort options
   const sortOptions = {
     createdAt: 'Recent First',
     invoiceNumber: 'Invoice Number',
@@ -536,7 +414,6 @@ const SalesHistory = () => {
     grandTotal: 'Amount',
   };
 
-  // Render loading skeletons
   if (loading && sales.length === 0) {
     return (
       <Box>
@@ -570,7 +447,6 @@ const SalesHistory = () => {
 
   return (
     <Box>
-      {/* Customer Filter Indicator */}
       {customerIdFromUrl && filteredCustomerName && (
         <Alert
           severity="info"
@@ -593,7 +469,6 @@ const SalesHistory = () => {
         </Alert>
       )}
 
-      {/* Search and Filters */}
       <Box mb={3}>
         <SearchBar
           value={searchValue}
@@ -614,7 +489,6 @@ const SalesHistory = () => {
           showSort
         />
 
-        {/* NEW - Date Range Filters */}
         <Paper
           elevation={1}
           sx={{
@@ -642,10 +516,7 @@ const SalesHistory = () => {
             format="dd/MM/yyyy"
             maxDate={dateFilters.toDate || new Date()}
             slotProps={{
-              textField: {
-                size: 'small',
-                sx: { minWidth: { xs: '140px', sm: '160px' } },
-              },
+              textField: { size: 'small', sx: { minWidth: { xs: '140px', sm: '160px' } } },
             }}
           />
 
@@ -658,10 +529,7 @@ const SalesHistory = () => {
             minDate={dateFilters.fromDate}
             maxDate={new Date()}
             slotProps={{
-              textField: {
-                size: 'small',
-                sx: { minWidth: { xs: '140px', sm: '160px' } },
-              },
+              textField: { size: 'small', sx: { minWidth: { xs: '140px', sm: '160px' } } },
             }}
           />
 
@@ -676,7 +544,6 @@ const SalesHistory = () => {
             </Button>
           )}
 
-          {/* Date Range Summary */}
           {(dateFilters.fromDate || dateFilters.toDate) && (
             <Box sx={{ ml: 'auto' }}>
               <Chip
@@ -696,15 +563,13 @@ const SalesHistory = () => {
         </Paper>
       </Box>
 
-      {/* Error Alert */}
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={clearError}>
           {error}
         </Alert>
       )}
 
-      {/* Empty State */}
-      {!loading && filteredAndSortedSales.length === 0 && (
+      {!loading && sales.length === 0 && (
         <Card>
           <CardContent sx={{ textAlign: 'center', py: 6 }}>
             <ReceiptIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
@@ -740,10 +605,8 @@ const SalesHistory = () => {
         </Card>
       )}
 
-      {/* Sales Grid */}
-      {filteredAndSortedSales.length > 0 && (
+      {sales.length > 0 && (
         <>
-          {/* Summary for filtered customer */}
           {customerIdFromUrl && (
             <Card sx={{ mb: 3 }}>
               <CardContent>
@@ -773,7 +636,7 @@ const SalesHistory = () => {
                       Total Invoices
                     </Typography>
                     <Typography variant="h6" color="primary">
-                      {filteredAndSortedSales.length}
+                      {paginationInfo.total}
                     </Typography>
                   </Grid>
                   <Grid item xs={6} sm={3}>
@@ -782,7 +645,7 @@ const SalesHistory = () => {
                     </Typography>
                     <Typography variant="h6" color="success.main">
                       {formatCurrency(
-                        filteredAndSortedSales.reduce(
+                        sales.reduce(
                           (sum, sale) => sum + (sale.grandTotal || sale.totalAmount || 0),
                           0
                         )
@@ -795,10 +658,7 @@ const SalesHistory = () => {
                     </Typography>
                     <Typography variant="h6" color="success.main">
                       {formatCurrency(
-                        filteredAndSortedSales.reduce(
-                          (sum, sale) => sum + getActualAmountPaid(sale),
-                          0
-                        )
+                        sales.reduce((sum, sale) => sum + getActualAmountPaid(sale), 0)
                       )}
                     </Typography>
                   </Grid>
@@ -808,10 +668,7 @@ const SalesHistory = () => {
                     </Typography>
                     <Typography variant="h6" color="error.main">
                       {formatCurrency(
-                        filteredAndSortedSales.reduce(
-                          (sum, sale) => sum + getRemainingBalance(sale),
-                          0
-                        )
+                        sales.reduce((sum, sale) => sum + getRemainingBalance(sale), 0)
                       )}
                     </Typography>
                   </Grid>
@@ -821,7 +678,7 @@ const SalesHistory = () => {
           )}
 
           <Grid container spacing={3}>
-            {paginatedSales.map((sale) => {
+            {sales.map((sale) => {
               const actualPaid = getActualAmountPaid(sale);
               const remainingBalance = getRemainingBalance(sale);
               const isPartialPayment =
@@ -838,22 +695,11 @@ const SalesHistory = () => {
                       height: 350,
                       display: 'flex',
                       flexDirection: 'column',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                        boxShadow: 4,
-                      },
+                      '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 },
                     }}
                     onClick={() => navigate(`/sales/view/${sale.id}`)}
                   >
-                    <CardContent
-                      sx={{
-                        flex: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        p: 2.5,
-                      }}
-                    >
-                      {/* Header */}
+                    <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 2.5 }}>
                       <Box
                         display="flex"
                         alignItems="flex-start"
@@ -898,7 +744,6 @@ const SalesHistory = () => {
                             </Typography>
                           </Box>
                         </Box>
-
                         <IconButton
                           size="small"
                           onClick={(e) => handleActionMenuOpen(e, sale)}
@@ -908,7 +753,6 @@ const SalesHistory = () => {
                         </IconButton>
                       </Box>
 
-                      {/* Customer Info - Fixed height section */}
                       <Box mb={2} sx={{ flex: 1, minHeight: 160 }}>
                         {sale.customerPhone && (
                           <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -919,7 +763,6 @@ const SalesHistory = () => {
                           </Box>
                         )}
 
-                        {/* Total Amount */}
                         <Box display="flex" alignItems="center" gap={1} mb={1}>
                           <MoneyIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                           <Typography
@@ -932,7 +775,6 @@ const SalesHistory = () => {
                           </Typography>
                         </Box>
 
-                        {/* NEW - Show original payment category */}
                         {sale.originalPaymentCategory && (
                           <Box mb={1}>
                             <Chip
@@ -947,7 +789,6 @@ const SalesHistory = () => {
                           </Box>
                         )}
 
-                        {/* Payment Progress for Partial Payments */}
                         {isPartialPayment && (
                           <Box mt={1}>
                             <Box display="flex" alignItems="center" gap={1} mb={0.5}>
@@ -967,7 +808,6 @@ const SalesHistory = () => {
                           </Box>
                         )}
 
-                        {/* NEW - Show if fully paid flag */}
                         {sale.fullyPaid && sale.paymentStatus !== PAYMENT_STATUS.PAID && (
                           <Box mt={1}>
                             <Chip
@@ -980,9 +820,7 @@ const SalesHistory = () => {
                         )}
                       </Box>
 
-                      {/* Status Chips and Additional Info */}
                       <Box mt="auto">
-                        {/* Status Chips */}
                         <Box display="flex" gap={1} flexWrap="wrap" mb={2}>
                           <Tooltip
                             title={PAYMENT_STATUS_DISPLAY[sale.paymentStatus] || sale.paymentStatus}
@@ -992,11 +830,7 @@ const SalesHistory = () => {
                               size="small"
                               color={getPaymentStatusColor(sale.paymentStatus)}
                               icon={getPaymentStatusIcon(sale.paymentStatus)}
-                              sx={{
-                                textTransform: 'capitalize',
-                                fontSize: '0.75rem',
-                                height: 24,
-                              }}
+                              sx={{ textTransform: 'capitalize', fontSize: '0.75rem', height: 24 }}
                             />
                           </Tooltip>
                           <Chip
@@ -1004,15 +838,10 @@ const SalesHistory = () => {
                             size="small"
                             color={getDeliveryStatusColor(sale.deliveryStatus)}
                             icon={<DeliveryIcon />}
-                            sx={{
-                              textTransform: 'capitalize',
-                              fontSize: '0.75rem',
-                              height: 24,
-                            }}
+                            sx={{ textTransform: 'capitalize', fontSize: '0.75rem', height: 24 }}
                           />
                         </Box>
 
-                        {/* Additional Info */}
                         <Box>
                           {sale.paymentStatus === PAYMENT_STATUS.EMI && (
                             <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -1061,7 +890,6 @@ const SalesHistory = () => {
             })}
           </Grid>
 
-          {/* Pagination */}
           <Box mt={4}>
             <Pagination
               currentPage={paginationInfo.currentPage}
@@ -1078,7 +906,6 @@ const SalesHistory = () => {
         </>
       )}
 
-      {/* Action Menu */}
       <Menu
         anchorEl={actionMenuAnchor}
         open={Boolean(actionMenuAnchor)}
@@ -1096,7 +923,6 @@ const SalesHistory = () => {
           </ListItemIcon>
           <ListItemText>View Details</ListItemText>
         </MenuItem>
-
         <MenuItem
           onClick={() => {
             navigate(`/sales/edit/${selectedInvoice?.id}`);
@@ -1108,8 +934,6 @@ const SalesHistory = () => {
           </ListItemIcon>
           <ListItemText>Edit Invoice</ListItemText>
         </MenuItem>
-
-        {/* Record Payment option */}
         {canRecordPayment(selectedInvoice) && (
           <MenuItem onClick={handleRecordPayment}>
             <ListItemIcon>
@@ -1118,8 +942,6 @@ const SalesHistory = () => {
             <ListItemText>Record Payment</ListItemText>
           </MenuItem>
         )}
-
-        {/* Print Payment Receipt option */}
         {hasPaymentRecords(selectedInvoice) && (
           <MenuItem onClick={handlePrintReceipt}>
             <ListItemIcon>
@@ -1128,7 +950,6 @@ const SalesHistory = () => {
             <ListItemText>Print Receipt</ListItemText>
           </MenuItem>
         )}
-
         {canDelete() && (
           <MenuItem onClick={handleDeleteClick}>
             <ListItemIcon>
@@ -1139,7 +960,6 @@ const SalesHistory = () => {
         )}
       </Menu>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={handleDeleteCancel} maxWidth="sm" fullWidth>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
@@ -1163,13 +983,12 @@ const SalesHistory = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Payment Recording Dialog with Date Picker */}
       <RecordPaymentDialog
         open={Boolean(selectedInvoiceForPayment)}
         onClose={() => setSelectedInvoiceForPayment(null)}
         invoice={selectedInvoiceForPayment}
         onSuccess={async () => {
-          await loadSales();
+          await loadSalesData();
           setSelectedInvoiceForPayment(null);
         }}
       />

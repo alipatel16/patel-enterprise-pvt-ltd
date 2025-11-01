@@ -1,16 +1,11 @@
-import React, {
-  createContext,
-  useContext,
-  useReducer,
-  useCallback,
-} from "react";
-import salesService from "../../services/api/salesService";
-import { useUserType } from "../UserTypeContext/UserTypeContext";
-import { useAuth } from "../AuthContext/AuthContext";
+import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import salesService from '../../services/api/salesService';
+import { useUserType } from '../UserTypeContext/UserTypeContext';
+import { useAuth } from '../AuthContext/AuthContext';
 
 import optimizedSalesService from '../../services/api/optimizedSalesService';
 
-import { PAYMENT_STATUS } from "../../utils/constants/appConstants";
+import { PAYMENT_STATUS } from '../../utils/constants/appConstants';
 
 // Initial state - simplified for client-side filtering
 const initialState = {
@@ -36,17 +31,17 @@ const initialState = {
 
 // Action types
 const SALES_ACTIONS = {
-  SET_LOADING: "SET_LOADING",
-  SET_SALES: "SET_SALES",
-  SET_CURRENT_INVOICE: "SET_CURRENT_INVOICE",
-  ADD_SALE: "ADD_SALE",
-  UPDATE_SALE: "UPDATE_SALE",
-  DELETE_SALE: "DELETE_SALE",
-  SET_ERROR: "SET_ERROR",
-  CLEAR_ERROR: "CLEAR_ERROR",
-  SET_STATS: "SET_STATS",
-  SET_NOTIFICATIONS: "SET_NOTIFICATIONS",
-  RESET_STATE: "RESET_STATE",
+  SET_LOADING: 'SET_LOADING',
+  SET_SALES: 'SET_SALES',
+  SET_CURRENT_INVOICE: 'SET_CURRENT_INVOICE',
+  ADD_SALE: 'ADD_SALE',
+  UPDATE_SALE: 'UPDATE_SALE',
+  DELETE_SALE: 'DELETE_SALE',
+  SET_ERROR: 'SET_ERROR',
+  CLEAR_ERROR: 'CLEAR_ERROR',
+  SET_STATS: 'SET_STATS',
+  SET_NOTIFICATIONS: 'SET_NOTIFICATIONS',
+  RESET_STATE: 'RESET_STATE',
 };
 
 // Reducer
@@ -86,13 +81,9 @@ const salesReducer = (state, action) => {
     case SALES_ACTIONS.UPDATE_SALE:
       return {
         ...state,
-        sales: state.sales.map((sale) =>
-          sale.id === action.payload.id ? action.payload : sale
-        ),
+        sales: state.sales.map((sale) => (sale.id === action.payload.id ? action.payload : sale)),
         currentInvoice:
-          state.currentInvoice?.id === action.payload.id
-            ? action.payload
-            : state.currentInvoice,
+          state.currentInvoice?.id === action.payload.id ? action.payload : state.currentInvoice,
         loading: false,
         error: null,
       };
@@ -101,10 +92,7 @@ const salesReducer = (state, action) => {
       return {
         ...state,
         sales: state.sales.filter((sale) => sale.id !== action.payload),
-        currentInvoice:
-          state.currentInvoice?.id === action.payload
-            ? null
-            : state.currentInvoice,
+        currentInvoice: state.currentInvoice?.id === action.payload ? null : state.currentInvoice,
         loading: false,
         error: null,
       };
@@ -149,7 +137,7 @@ const SalesContext = createContext();
 export const useSales = () => {
   const context = useContext(SalesContext);
   if (!context) {
-    throw new Error("useSales must be used within a SalesProvider");
+    throw new Error('useSales must be used within a SalesProvider');
   }
   return context;
 };
@@ -203,6 +191,43 @@ export const SalesProvider = ({ children }) => {
     [userType, state.filters]
   );
 
+  // NEW METHOD - Get sales with pagination (for listing views)
+  const getSalesPaginated = useCallback(
+    async (options = {}) => {
+      if (!userType) {
+        dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: 'User type not available' });
+        return { sales: [], total: 0 };
+      }
+
+      try {
+        dispatch({ type: SALES_ACTIONS.SET_LOADING, payload: true });
+
+        const result = await optimizedSalesService.getSalesPaginated(userType, {
+          ...state.filters,
+          ...options,
+        });
+
+        dispatch({ type: SALES_ACTIONS.SET_SALES, payload: result.sales });
+        dispatch({ type: SALES_ACTIONS.SET_INVOICES, payload: result.sales });
+        dispatch({
+          type: SALES_ACTIONS.SET_PAGINATION,
+          payload: {
+            currentPage: result.currentPage,
+            totalPages: result.totalPages,
+            total: result.total,
+            hasMore: result.hasMore,
+          },
+        });
+
+        return result;
+      } catch (error) {
+        dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
+        return { sales: [], total: 0 };
+      }
+    },
+    [userType, state.filters]
+  );
+
   // In loadSalesStats function
   const loadSalesStats = useCallback(async () => {
     if (!userType) {
@@ -213,7 +238,7 @@ export const SalesProvider = ({ children }) => {
       const stats = await optimizedSalesService.getSalesStats(userType);
       dispatch({ type: SALES_ACTIONS.SET_STATS, payload: stats });
     } catch (error) {
-      console.error("Error loading sales stats:", error);
+      console.error('Error loading sales stats:', error);
     }
   }, [userType]);
 
@@ -223,7 +248,7 @@ export const SalesProvider = ({ children }) => {
       if (!userType || !invoiceId) {
         dispatch({
           type: SALES_ACTIONS.SET_ERROR,
-          payload: "Invalid parameters",
+          payload: 'Invalid parameters',
         });
         return null;
       }
@@ -240,7 +265,7 @@ export const SalesProvider = ({ children }) => {
         } else {
           dispatch({
             type: SALES_ACTIONS.SET_ERROR,
-            payload: "Invoice not found",
+            payload: 'Invoice not found',
           });
         }
 
@@ -259,7 +284,7 @@ export const SalesProvider = ({ children }) => {
       if (!userType) {
         dispatch({
           type: SALES_ACTIONS.SET_ERROR,
-          payload: "User type not available",
+          payload: 'User type not available',
         });
         return null;
       }
@@ -276,13 +301,10 @@ export const SalesProvider = ({ children }) => {
           includeGST: invoiceData.includeGST !== false, // Default to true if not specified
         };
 
-        const newInvoice = await salesService.createInvoice(
-          userType,
-          invoiceWithMeta
-        );
+        const newInvoice = await salesService.createInvoice(userType, invoiceWithMeta);
 
         if (newInvoice) {
-          console.log("Invoice created successfully:", {
+          console.log('Invoice created successfully:', {
             invoiceNumber: newInvoice.invoiceNumber,
             includeGST: newInvoice.includeGST,
             customerGSTNumber: newInvoice.customerGSTNumber,
@@ -293,7 +315,7 @@ export const SalesProvider = ({ children }) => {
 
         return newInvoice;
       } catch (error) {
-        console.error("Error creating invoice in context:", error);
+        console.error('Error creating invoice in context:', error);
         dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
         return null;
       }
@@ -307,7 +329,7 @@ export const SalesProvider = ({ children }) => {
       if (!userType || !invoiceId) {
         dispatch({
           type: SALES_ACTIONS.SET_ERROR,
-          payload: "Invalid parameters",
+          payload: 'Invalid parameters',
         });
         return null;
       }
@@ -350,7 +372,7 @@ export const SalesProvider = ({ children }) => {
       if (!userType || !invoiceId) {
         dispatch({
           type: SALES_ACTIONS.SET_ERROR,
-          payload: "Invalid parameters",
+          payload: 'Invalid parameters',
         });
         return false;
       }
@@ -489,7 +511,7 @@ export const SalesProvider = ({ children }) => {
         },
       });
     } catch (error) {
-      console.error("Error loading notifications:", error);
+      console.error('Error loading notifications:', error);
     }
   }, [userType]);
 
@@ -501,10 +523,7 @@ export const SalesProvider = ({ children }) => {
       }
 
       try {
-        return await salesService.getCustomerPurchaseHistory(
-          userType,
-          customerId
-        );
+        return await salesService.getCustomerPurchaseHistory(userType, customerId);
       } catch (error) {
         dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
         return [];
@@ -521,11 +540,7 @@ export const SalesProvider = ({ children }) => {
       }
 
       try {
-        return await salesService.getSalesByDateRange(
-          userType,
-          startDate,
-          endDate
-        );
+        return await salesService.getSalesByDateRange(userType, startDate, endDate);
       } catch (error) {
         dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
         return [];
@@ -551,16 +566,11 @@ export const SalesProvider = ({ children }) => {
 
   // Record installment payment
   const recordInstallmentPayment = useCallback(
-    async (
-      invoiceId,
-      installmentNumber,
-      paymentAmount,
-      paymentDetails = {}
-    ) => {
+    async (invoiceId, installmentNumber, paymentAmount, paymentDetails = {}) => {
       if (!userType || !invoiceId) {
         dispatch({
           type: SALES_ACTIONS.SET_ERROR,
-          payload: "Invalid parameters",
+          payload: 'Invalid parameters',
         });
         return null;
       }
@@ -593,21 +603,15 @@ export const SalesProvider = ({ children }) => {
           try {
             // Import the notification generator dynamically to avoid circular imports
             const { default: emiNotificationGenerator } = await import(
-              "../../services/cleanEMINotificationGenerator"
+              '../../services/cleanEMINotificationGenerator'
             );
 
             // Clean up any notifications for this specific paid installment
-            await emiNotificationGenerator.cleanupPaidInstallmentNotifications(
-              userType,
-              user?.uid
-            );
+            await emiNotificationGenerator.cleanupPaidInstallmentNotifications(userType, user?.uid);
 
-            console.log("Auto-cleaned up notifications for paid installment");
+            console.log('Auto-cleaned up notifications for paid installment');
           } catch (notificationError) {
-            console.warn(
-              "Could not cleanup notifications automatically:",
-              notificationError
-            );
+            console.warn('Could not cleanup notifications automatically:', notificationError);
             // Don't fail the payment recording if notification cleanup fails
           }
         }
@@ -629,10 +633,7 @@ export const SalesProvider = ({ children }) => {
       }
 
       try {
-        return await salesService.getInstallmentPaymentHistory(
-          userType,
-          invoiceId
-        );
+        return await salesService.getInstallmentPaymentHistory(userType, invoiceId);
       } catch (error) {
         dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
         return [];
@@ -669,7 +670,7 @@ export const SalesProvider = ({ children }) => {
       if (!userType || !invoiceId) {
         dispatch({
           type: SALES_ACTIONS.SET_ERROR,
-          payload: "Invalid parameters",
+          payload: 'Invalid parameters',
         });
         return null;
       }
@@ -742,9 +743,7 @@ export const SalesProvider = ({ children }) => {
     }
 
     try {
-      const emiInvoices = state.sales.filter(
-        (sale) => sale.paymentStatus === PAYMENT_STATUS.EMI
-      );
+      const emiInvoices = state.sales.filter((sale) => sale.paymentStatus === PAYMENT_STATUS.EMI);
 
       const allPendingEMIs = [];
 
@@ -756,9 +755,7 @@ export const SalesProvider = ({ children }) => {
             .filter((installment) => !installment.paid)
             .map((installment) => {
               const dueDate = new Date(installment.dueDate);
-              const daysDiff = Math.ceil(
-                (dueDate - today) / (1000 * 60 * 60 * 24)
-              );
+              const daysDiff = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
 
               return {
                 ...installment,
@@ -779,11 +776,9 @@ export const SalesProvider = ({ children }) => {
       }
 
       // Sort by due date
-      return allPendingEMIs.sort(
-        (a, b) => new Date(a.dueDate) - new Date(b.dueDate)
-      );
+      return allPendingEMIs.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
     } catch (error) {
-      console.error("Error getting all pending EMIs:", error);
+      console.error('Error getting all pending EMIs:', error);
       return [];
     }
   }, [userType, state.sales]);
@@ -801,7 +796,7 @@ export const SalesProvider = ({ children }) => {
       if (!userType || !invoiceId) {
         dispatch({
           type: SALES_ACTIONS.SET_ERROR,
-          payload: "Invalid parameters",
+          payload: 'Invalid parameters',
         });
         return null;
       }
@@ -816,7 +811,7 @@ export const SalesProvider = ({ children }) => {
           changedByName: user?.name || user?.displayName,
         };
 
-        console.log("🔄 Updating due date for installment", installmentNumber);
+        console.log('🔄 Updating due date for installment', installmentNumber);
 
         const updatedInvoice = await salesService.updateInstallmentDueDate(
           userType,
@@ -832,34 +827,31 @@ export const SalesProvider = ({ children }) => {
             payload: updatedInvoice,
           });
 
-          console.log("✅ Due date updated successfully");
+          console.log('✅ Due date updated successfully');
 
           // CRITICAL FIX: Proper notification regeneration with error handling
           try {
-            console.log("🔔 Starting notification regeneration...");
+            console.log('🔔 Starting notification regeneration...');
 
             // Dynamic import with proper error handling
             const enhancedEMIGenerator = await import(
-              "../../services/cleanEMINotificationGenerator"
+              '../../services/cleanEMINotificationGenerator'
             );
             const generator = enhancedEMIGenerator.default;
 
             if (!generator) {
-              throw new Error("Enhanced EMI generator not found");
+              throw new Error('Enhanced EMI generator not found');
             }
 
             // First, clear old notifications to ensure fresh data
-            console.log("🧹 Clearing old notifications...");
+            console.log('🧹 Clearing old notifications...');
             await generator.clearAllNotifications(userType, user?.uid);
 
             // Then generate fresh notifications with updated due dates
-            console.log("🚀 Generating fresh notifications...");
-            const result = await generator.generateAllNotifications(
-              userType,
-              user?.uid
-            );
+            console.log('🚀 Generating fresh notifications...');
+            const result = await generator.generateAllNotifications(userType, user?.uid);
 
-            console.log("✅ Notification regeneration completed:", {
+            console.log('✅ Notification regeneration completed:', {
               created: result.total,
               emiNotifications: result.emi?.created || 0,
               deliveryNotifications: result.delivery?.created || 0,
@@ -868,55 +860,45 @@ export const SalesProvider = ({ children }) => {
             // CRITICAL FIX: Force refresh notifications in the UI
             // Dispatch a custom action to trigger notification refresh
             if (window.dispatchEvent) {
-              const notificationUpdateEvent = new CustomEvent(
-                "emi-notification-update",
-                {
-                  detail: {
-                    type: "due-date-change",
-                    invoiceId,
-                    installmentNumber,
-                    result,
-                  },
-                }
-              );
+              const notificationUpdateEvent = new CustomEvent('emi-notification-update', {
+                detail: {
+                  type: 'due-date-change',
+                  invoiceId,
+                  installmentNumber,
+                  result,
+                },
+              });
               window.dispatchEvent(notificationUpdateEvent);
-              console.log("📡 Notification update event dispatched");
+              console.log('📡 Notification update event dispatched');
             }
 
             // Additional fallback: Direct notification context refresh if available
-            if (
-              window.refreshNotifications &&
-              typeof window.refreshNotifications === "function"
-            ) {
-              console.log("🔄 Triggering direct notification refresh...");
+            if (window.refreshNotifications && typeof window.refreshNotifications === 'function') {
+              console.log('🔄 Triggering direct notification refresh...');
               await window.refreshNotifications();
             }
           } catch (notificationError) {
-            console.error(
-              "❌ Notification regeneration failed:",
-              notificationError
-            );
+            console.error('❌ Notification regeneration failed:', notificationError);
 
             // Don't fail the due date update, but show warning
             console.warn(
-              "Due date was updated but notifications may not reflect the change immediately"
+              'Due date was updated but notifications may not reflect the change immediately'
             );
             console.warn(
-              "Please manually refresh notifications or the page to see updated due dates"
+              'Please manually refresh notifications or the page to see updated due dates'
             );
 
             // Optionally, you could dispatch an error or warning action here
             dispatch({
               type: SALES_ACTIONS.SET_ERROR,
-              payload:
-                "Due date updated but notifications may need manual refresh",
+              payload: 'Due date updated but notifications may need manual refresh',
             });
           }
         }
 
         return updatedInvoice;
       } catch (error) {
-        console.error("❌ Error updating installment due date:", error);
+        console.error('❌ Error updating installment due date:', error);
         dispatch({ type: SALES_ACTIONS.SET_ERROR, payload: error.message });
         return null;
       } finally {
@@ -936,13 +918,13 @@ export const SalesProvider = ({ children }) => {
       try {
         // Generate preview invoice number using the same logic but don't save
         const prefix =
-          userType === "electronics"
+          userType === 'electronics'
             ? includeGST
-              ? "EL_GST_"
-              : "EL_NGST_"
+              ? 'EL_GST_'
+              : 'EL_NGST_'
             : includeGST
-            ? "FN_GST_"
-            : "FN_NGST_";
+            ? 'FN_GST_'
+            : 'FN_NGST_';
 
         // Get current max sequence from existing invoices
         const allInvoices = await salesService.getSales(userType);
@@ -950,10 +932,7 @@ export const SalesProvider = ({ children }) => {
 
         if (allInvoices && allInvoices.length > 0) {
           allInvoices.forEach((invoice) => {
-            if (
-              invoice.invoiceNumber &&
-              invoice.invoiceNumber.startsWith(prefix)
-            ) {
+            if (invoice.invoiceNumber && invoice.invoiceNumber.startsWith(prefix)) {
               const match = invoice.invoiceNumber.match(/(\d{3})$/);
               if (match) {
                 const sequence = parseInt(match[1]);
@@ -966,11 +945,11 @@ export const SalesProvider = ({ children }) => {
         }
 
         const nextSequence = maxSequence + 1;
-        const sequenceStr = String(nextSequence).padStart(3, "0");
+        const sequenceStr = String(nextSequence).padStart(3, '0');
 
         return `${prefix}${sequenceStr}`;
       } catch (error) {
-        console.error("Error previewing invoice number:", error);
+        console.error('Error previewing invoice number:', error);
         return null;
       }
     },
@@ -989,6 +968,7 @@ export const SalesProvider = ({ children }) => {
 
     // Actions
     loadSales,
+    getSalesPaginated,
     getInvoiceById,
     createInvoice,
     updateInvoice,
@@ -1020,9 +1000,7 @@ export const SalesProvider = ({ children }) => {
     getPendingExchanges,
   };
 
-  return (
-    <SalesContext.Provider value={value}>{children}</SalesContext.Provider>
-  );
+  return <SalesContext.Provider value={value}>{children}</SalesContext.Provider>;
 };
 
 export default SalesContext;
