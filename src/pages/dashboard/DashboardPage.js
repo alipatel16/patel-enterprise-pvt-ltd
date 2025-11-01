@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -26,7 +26,7 @@ import {
   LinearProgress,
   Chip,
   alpha,
-} from "@mui/material";
+} from '@mui/material';
 import {
   Menu as MenuIcon,
   People as PeopleIcon,
@@ -50,28 +50,30 @@ import {
   Warning as WarningIcon,
   ShoppingCart as ShoppingCartIcon,
   Event as EventIcon,
-} from "@mui/icons-material";
+} from '@mui/icons-material';
 
-import { useAuth } from "../../contexts/AuthContext/AuthContext";
-import { useUserType } from "../../contexts/UserTypeContext/UserTypeContext";
-import { USER_ROLES } from "../../utils/constants/appConstants";
-import LoadingSpinner from "../../components/common/UI/LoadingSpinner";
-import checklistService from "../../services/checklistService";
-import employeeService from "../../services/api/employeeService";
-import DrawerContent from "../../components/common/Navigation/DrawerContent";
-import { formatCurrency, formatDate } from "../../utils/helpers/formatHelpers";
+import { useAuth } from '../../contexts/AuthContext/AuthContext';
+import { useUserType } from '../../contexts/UserTypeContext/UserTypeContext';
+import { USER_ROLES } from '../../utils/constants/appConstants';
+import LoadingSpinner from '../../components/common/UI/LoadingSpinner';
+import checklistService from '../../services/checklistService';
+import employeeService from '../../services/api/employeeService';
+import DrawerContent from '../../components/common/Navigation/DrawerContent';
+import { formatCurrency, formatDate } from '../../utils/helpers/formatHelpers';
 
-import optimizedCustomerService from "../../services/api/optimizedCustomerService";
-import optimizedSalesService from "../../services/api/optimizedSalesService";
+import optimizedCustomerService from '../../services/api/optimizedCustomerService';
+import optimizedSalesService from '../../services/api/optimizedSalesService';
 
 import useAppointments from '../../hooks/useAppointments';
+
+import { DashboardShimmer } from '../../components/common/UI/DashboardShimmers';
 
 const DRAWER_WIDTH = 240;
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const { user, signOut, canManageEmployees } = useAuth();
   const { getDisplayName, getAppTitle, getThemeColors, userType } = useUserType();
@@ -84,8 +86,8 @@ const DashboardPage = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [success, setSuccess] = useState("");
-  const [error, setError] = useState("");
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
 
   const [dashboardData, setDashboardData] = useState({
     customers: {
@@ -138,13 +140,13 @@ const DashboardPage = () => {
 
   const loadDashboardData = async () => {
     if (!userType || !user) {
-      console.log("Waiting for userType and user to be available...");
+      console.log('Waiting for userType and user to be available...');
       return;
     }
 
     try {
       setLoading(true);
-      console.log("Loading comprehensive dashboard analytics...");
+      console.log('Loading comprehensive dashboard analytics...');
 
       const promises = [];
 
@@ -173,11 +175,12 @@ const DashboardPage = () => {
         generationStatus,
       ] = await Promise.all(promises);
 
-      console.log("Raw salesStats:", salesStats);
-      console.log("Raw customerStats:", customerStats);
+      console.log('Raw salesStats:', salesStats);
+      console.log('Raw customerStats:', customerStats);
 
-      const monthlyGrowth = salesStats.todaysRevenue > 0 && salesStats.totalRevenue > 0
-        ? ((salesStats.todaysRevenue / 30) / (salesStats.totalRevenue / 365)) * 100 - 100
+      const monthlyGrowth =
+        salesStats.todaysRevenue > 0 && salesStats.totalRevenue > 0
+          ? (salesStats.todaysRevenue / 30 / (salesStats.totalRevenue / 365)) * 100 - 100
           : 0;
 
       const mappedSalesData = {
@@ -195,7 +198,7 @@ const DashboardPage = () => {
         monthlyGrowth: monthlyGrowth.toFixed(1),
       };
 
-      console.log("Mapped sales data:", mappedSalesData);
+      console.log('Mapped sales data:', mappedSalesData);
 
       setDashboardData({
         customers: {
@@ -220,10 +223,10 @@ const DashboardPage = () => {
 
       setChecklistGenerationInfo(generationStatus);
 
-      console.log("Dashboard data loaded successfully");
+      console.log('Dashboard data loaded successfully');
     } catch (error) {
-      console.error("Error loading dashboard data:", error);
-      setError("Failed to load dashboard data. Please refresh the page.");
+      console.error('Error loading dashboard data:', error);
+      setError('Failed to load dashboard data. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -232,17 +235,14 @@ const DashboardPage = () => {
   const handleManualGeneration = async () => {
     try {
       setRefreshing(true);
-      setSuccess("");
-      setError("");
+      setSuccess('');
+      setError('');
 
-      console.log("Admin triggered manual checklist generation...");
+      console.log('Admin triggered manual checklist generation...');
 
-      const result = await checklistService.manualGenerateAllAssignments(
-        userType,
-        user
-      );
+      const result = await checklistService.manualGenerateAllAssignments(userType, user);
 
-      console.log("Manual generation result:", result);
+      console.log('Manual generation result:', result);
 
       await loadDashboardData();
 
@@ -250,11 +250,11 @@ const DashboardPage = () => {
         `Manual generation completed! Generated ${result.totalGenerated} assignments for checked-in employees`
       );
 
-      setTimeout(() => setSuccess(""), 5000);
+      setTimeout(() => setSuccess(''), 5000);
     } catch (error) {
-      console.error("Error in manual generation:", error);
+      console.error('Error in manual generation:', error);
       setError(`Manual generation failed: ${error.message}`);
-      setTimeout(() => setError(""), 5000);
+      setTimeout(() => setError(''), 5000);
     } finally {
       setRefreshing(false);
     }
@@ -275,9 +275,9 @@ const DashboardPage = () => {
   const handleLogout = async () => {
     try {
       await signOut();
-      navigate("/login");
+      navigate('/login');
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error('Logout error:', error);
     }
   };
 
@@ -286,52 +286,52 @@ const DashboardPage = () => {
 
     const baseCards = [
       {
-        title: "Total Customers",
+        title: 'Total Customers',
         value: data.customers.total,
         subtitle: `${data.customers.wholesalers} Wholesalers • ${data.customers.retailers} Retailers`,
         icon: PeopleIcon,
         color: themeColors.primary,
         trend: data.customers.trend,
-        action: () => navigate("/customers"),
+        action: () => navigate('/customers'),
       },
       {
-        title: "Monthly Revenue",
+        title: 'Monthly Revenue',
         value: formatCurrency(data.sales.totalAmount),
         subtitle: `${formatCurrency(data.sales.totalAmountPaid)} collected`,
         icon: MoneyIcon,
-        color: "#4caf50",
+        color: '#4caf50',
         trend: parseFloat(data.sales.monthlyGrowth),
-        action: () => navigate("/sales/history"),
+        action: () => navigate('/sales/history'),
       },
       {
         title: "Today's Sales",
         value: formatCurrency(data.sales.todaysAmount),
         subtitle: `${data.sales.todaysSales} invoices`,
         icon: ShoppingCartIcon,
-        color: "#2196f3",
+        color: '#2196f3',
         badge: data.sales.todaysSales,
-        action: () => navigate("/sales/create"),
+        action: () => navigate('/sales/create'),
       },
       {
-        title: "Pending Payments",
+        title: 'Pending Payments',
         value: formatCurrency(data.sales.outstandingAmount),
         subtitle: `${data.sales.pendingPayments} invoices pending`,
         icon: WarningIcon,
-        color: "#ff9800",
+        color: '#ff9800',
         badge: data.sales.pendingPayments > 0,
         urgent: data.sales.pendingPayments > 0,
-        action: () => navigate("/sales/history?filter=pending"),
+        action: () => navigate('/sales/history?filter=pending'),
       },
     ];
 
     if (canManageEmployees()) {
       baseCards.splice(1, 0, {
-        title: "Total Employees",
+        title: 'Total Employees',
         value: data.employees.total,
         subtitle: `${data.employees.active} active`,
         icon: BadgeIcon,
         color: themeColors.secondary,
-        action: () => navigate("/employees"),
+        action: () => navigate('/employees'),
       });
 
       baseCards.push({
@@ -339,43 +339,41 @@ const DashboardPage = () => {
         value: `${data.checklists.todayCompleted}/${data.checklists.todayTotal}`,
         subtitle:
           data.checklists.todayTotal === 0
-            ? "Generated on employee check-in"
+            ? 'Generated on employee check-in'
             : `${data.checklists.todayPending} pending tasks`,
         icon: ChecklistIcon,
-        color: "#9c27b0",
+        color: '#9c27b0',
         progress:
           data.checklists.todayTotal > 0
-            ? (data.checklists.todayCompleted / data.checklists.todayTotal) *
-              100
+            ? (data.checklists.todayCompleted / data.checklists.todayTotal) * 100
             : 0,
-        action: () => navigate("/checklists"),
+        action: () => navigate('/checklists'),
       });
 
       baseCards.push({
-        title: "Pending Deliveries",
+        title: 'Pending Deliveries',
         value: data.sales.pendingDeliveries,
-        subtitle: "Orders awaiting delivery",
+        subtitle: 'Orders awaiting delivery',
         icon: DeliveryIcon,
-        color: "#e91e63",
+        color: '#e91e63',
         badge: data.sales.pendingDeliveries > 0,
-        action: () => navigate("/sales/history?filter=pending-delivery"),
+        action: () => navigate('/sales/history?filter=pending-delivery'),
       });
     } else {
       baseCards.push({
-        title: "My Checklists",
+        title: 'My Checklists',
         value: `${data.checklists.todayCompleted}/${data.checklists.todayTotal}`,
         subtitle:
           data.checklists.todayTotal === 0
-            ? "Check in to get your assignments"
+            ? 'Check in to get your assignments'
             : `${data.checklists.todayPending} pending tasks`,
         icon: TaskIcon,
-        color: "#9c27b0",
+        color: '#9c27b0',
         progress:
           data.checklists.todayTotal > 0
-            ? (data.checklists.todayCompleted / data.checklists.todayTotal) *
-              100
+            ? (data.checklists.todayCompleted / data.checklists.todayTotal) * 100
             : 0,
-        action: () => navigate("/my-checklists"),
+        action: () => navigate('/my-checklists'),
       });
     }
 
@@ -383,16 +381,117 @@ const DashboardPage = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner />;
+    return (
+      <Box sx={{ display: 'flex' }}>
+        {/* AppBar */}
+        <AppBar
+          position="fixed"
+          sx={{
+            width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
+            ml: { md: `${DRAWER_WIDTH}px` },
+          }}
+        >
+          <Toolbar>
+            <IconButton
+              color="inherit"
+              aria-label="open drawer"
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ mr: 2, display: { md: 'none' } }}
+            >
+              <MenuIcon />
+            </IconButton>
+
+            <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+              {getAppTitle()} - Dashboard
+            </Typography>
+
+            <Box display="flex" alignItems="center" gap={1}>
+              <IconButton color="inherit">
+                <Badge badgeContent={0} color="error">
+                  <NotificationsIcon />
+                </Badge>
+              </IconButton>
+
+              <IconButton color="inherit" onClick={handleProfileMenuOpen}>
+                <Avatar
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    bgcolor: 'secondary.main',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                </Avatar>
+              </IconButton>
+            </Box>
+          </Toolbar>
+        </AppBar>
+
+        {/* Drawer */}
+        <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}>
+          <Drawer
+            variant={isMobile ? 'temporary' : 'permanent'}
+            open={isMobile ? mobileOpen : true}
+            onClose={handleDrawerToggle}
+            ModalProps={{
+              keepMounted: true,
+            }}
+            sx={{
+              '& .MuiDrawer-paper': {
+                boxSizing: 'border-box',
+                width: DRAWER_WIDTH,
+              },
+            }}
+          >
+            <DrawerContent />
+          </Drawer>
+        </Box>
+
+        {/* Main Content with Shimmer */}
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            p: 3,
+            width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
+            mt: 8,
+          }}
+        >
+          <DashboardShimmer canManageEmployees={canManageEmployees()} />
+        </Box>
+
+        {/* Profile Menu (keeping functionality) */}
+        <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleProfileMenuClose}>
+          <MenuItem disabled>
+            <Typography variant="body2" color="text.secondary">
+              {user?.name}
+            </Typography>
+          </MenuItem>
+          <MenuItem disabled>
+            <Typography variant="caption" color="text.secondary">
+              {user?.email}
+            </Typography>
+          </MenuItem>
+          <Divider />
+          <MenuItem onClick={handleLogout}>
+            <ListItemIcon>
+              <LogoutIcon fontSize="small" />
+            </ListItemIcon>
+            Sign Out
+          </MenuItem>
+        </Menu>
+      </Box>
+    );
   }
 
   const statsCards = getStatsCards();
   const notificationCount =
-    (dashboardData.sales.pendingPayments || 0) +
-    (dashboardData.sales.pendingDeliveries || 0);
+    (dashboardData.sales.pendingPayments || 0) + (dashboardData.sales.pendingDeliveries || 0);
 
   return (
-    <Box sx={{ display: "flex" }}>
+    <Box sx={{ display: 'flex' }}>
       <AppBar
         position="fixed"
         sx={{
@@ -406,7 +505,7 @@ const DashboardPage = () => {
             aria-label="open drawer"
             edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { md: "none" } }}
+            sx={{ mr: 2, display: { md: 'none' } }}
           >
             <MenuIcon />
           </IconButton>
@@ -416,10 +515,7 @@ const DashboardPage = () => {
           </Typography>
 
           <Box display="flex" alignItems="center" gap={1}>
-            <IconButton
-              color="inherit"
-              onClick={() => navigate("/notifications")}
-            >
+            <IconButton color="inherit" onClick={() => navigate('/notifications')}>
               <Badge badgeContent={notificationCount} color="error">
                 <NotificationsIcon />
               </Badge>
@@ -430,31 +526,28 @@ const DashboardPage = () => {
                 sx={{
                   width: 32,
                   height: 32,
-                  bgcolor: "secondary.main",
-                  fontSize: "0.875rem",
+                  bgcolor: 'secondary.main',
+                  fontSize: '0.875rem',
                 }}
               >
-                {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
               </Avatar>
             </IconButton>
           </Box>
         </Toolbar>
       </AppBar>
 
-      <Box
-        component="nav"
-        sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}
-      >
+      <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}>
         <Drawer
-          variant={isMobile ? "temporary" : "permanent"}
+          variant={isMobile ? 'temporary' : 'permanent'}
           open={isMobile ? mobileOpen : true}
           onClose={handleDrawerToggle}
           ModalProps={{
             keepMounted: true,
           }}
           sx={{
-            "& .MuiDrawer-paper": {
-              boxSizing: "border-box",
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
               width: DRAWER_WIDTH,
             },
           }}
@@ -478,17 +571,13 @@ const DashboardPage = () => {
       >
         <Container maxWidth="xl">
           {error && (
-            <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
+            <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
               {error}
             </Alert>
           )}
 
           {success && (
-            <Alert
-              severity="success"
-              sx={{ mb: 3 }}
-              onClose={() => setSuccess("")}
-            >
+            <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>
               {success}
             </Alert>
           )}
@@ -496,11 +585,11 @@ const DashboardPage = () => {
           <Box mb={4}>
             <Box
               sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
                 mb: 2,
-                flexWrap: "wrap",
+                flexWrap: 'wrap',
                 gap: 2,
               }}
             >
@@ -511,7 +600,7 @@ const DashboardPage = () => {
                   gutterBottom
                   sx={{
                     fontWeight: 700,
-                    fontSize: { xs: "1.5rem", sm: "2rem", md: "2.125rem" },
+                    fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' },
                   }}
                 >
                   Welcome back, {user?.name}! 👋
@@ -519,28 +608,27 @@ const DashboardPage = () => {
                 <Typography
                   variant="body1"
                   color="text.secondary"
-                  sx={{ fontSize: { xs: "0.875rem", sm: "1rem" } }}
+                  sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                 >
-                  Here's what's happening in your{" "}
-                  {getDisplayName().toLowerCase()} showroom today.
+                  Here's what's happening in your {getDisplayName().toLowerCase()} showroom today.
                 </Typography>
               </Box>
 
-              <Box sx={{ display: "flex", gap: 1 }}>
+              <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button
                   variant="outlined"
                   startIcon={<RefreshIcon />}
                   onClick={loadDashboardData}
                   disabled={refreshing}
-                  size={isMobile ? "small" : "medium"}
+                  size={isMobile ? 'small' : 'medium'}
                 >
                   Refresh
                 </Button>
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
-                  onClick={() => navigate("/sales/create")}
-                  size={isMobile ? "small" : "medium"}
+                  onClick={() => navigate('/sales/create')}
+                  size={isMobile ? 'small' : 'medium'}
                 >
                   New Invoice
                 </Button>
@@ -554,17 +642,17 @@ const DashboardPage = () => {
             <Box mb={4}>
               <Card
                 sx={{
-                  bgcolor: "background.paper",
+                  bgcolor: 'background.paper',
                   border: 1,
-                  borderColor: "primary.main",
+                  borderColor: 'primary.main',
                 }}
               >
                 <CardContent>
                   <Box
                     display="flex"
-                    flexDirection={{ xs: "column", md: "row" }}
-                    justifyContent={{ xs: "flex-start", md: "space-between" }}
-                    alignItems={{ xs: "stretch", md: "center" }}
+                    flexDirection={{ xs: 'column', md: 'row' }}
+                    justifyContent={{ xs: 'flex-start', md: 'space-between' }}
+                    alignItems={{ xs: 'stretch', md: 'center' }}
                     gap={{ xs: 2, md: 0 }}
                   >
                     <Box flex={1} sx={{ minWidth: 0 }}>
@@ -572,61 +660,44 @@ const DashboardPage = () => {
                         variant="h6"
                         gutterBottom
                         sx={{
-                          fontSize: { xs: "1.1rem", sm: "1.25rem" },
+                          fontSize: { xs: '1.1rem', sm: '1.25rem' },
                         }}
                       >
                         Check-in Based Checklist System
                       </Typography>
 
                       <Box display="flex" alignItems="center" gap={1} mb={2}>
-                        <CheckCircleIcon
-                          color="success"
-                          sx={{ fontSize: "1.5rem" }}
-                        />
+                        <CheckCircleIcon color="success" sx={{ fontSize: '1.5rem' }} />
                         <Typography variant="body2" color="success.main">
-                          Assignments generated automatically on employee
-                          check-in
+                          Assignments generated automatically on employee check-in
                         </Typography>
                       </Box>
 
-                      {checklistGenerationInfo &&
-                        checklistGenerationInfo.todayStats && (
-                          <Box>
-                            <Typography variant="body2" color="textSecondary">
-                              Today's Status:{" "}
-                              {
-                                checklistGenerationInfo.todayStats
-                                  .todayCompleted
-                              }
-                              /{checklistGenerationInfo.todayStats.todayTotal}{" "}
-                              assignments completed
-                            </Typography>
+                      {checklistGenerationInfo && checklistGenerationInfo.todayStats && (
+                        <Box>
+                          <Typography variant="body2" color="textSecondary">
+                            Today's Status: {checklistGenerationInfo.todayStats.todayCompleted}/
+                            {checklistGenerationInfo.todayStats.todayTotal} assignments completed
+                          </Typography>
 
-                            {checklistGenerationInfo.todayStats.todayTotal ===
-                              0 && (
-                              <Typography
-                                variant="caption"
-                                color="info.main"
-                                sx={{ display: "block", mt: 1 }}
-                              >
-                                ℹ️ No assignments yet - employees will get
-                                assignments when they check in
-                              </Typography>
-                            )}
-                          </Box>
-                        )}
+                          {checklistGenerationInfo.todayStats.todayTotal === 0 && (
+                            <Typography
+                              variant="caption"
+                              color="info.main"
+                              sx={{ display: 'block', mt: 1 }}
+                            >
+                              ℹ️ No assignments yet - employees will get assignments when they check
+                              in
+                            </Typography>
+                          )}
+                        </Box>
+                      )}
                     </Box>
 
                     <Box display="flex" gap={2}>
                       <Button
                         variant="outlined"
-                        startIcon={
-                          refreshing ? (
-                            <CircularProgress size={16} />
-                          ) : (
-                            <RefreshIcon />
-                          )
-                        }
+                        startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
                         onClick={loadDashboardData}
                         disabled={refreshing}
                         size="small"
@@ -636,21 +707,13 @@ const DashboardPage = () => {
 
                       <Button
                         variant="contained"
-                        startIcon={
-                          refreshing ? (
-                            <CircularProgress size={16} />
-                          ) : (
-                            <AddIcon />
-                          )
-                        }
+                        startIcon={refreshing ? <CircularProgress size={16} /> : <AddIcon />}
                         onClick={handleManualGeneration}
                         disabled={refreshing}
                         color="primary"
                         size="small"
                       >
-                        {refreshing
-                          ? "Generating..."
-                          : "Generate for Checked-in"}
+                        {refreshing ? 'Generating...' : 'Generate for Checked-in'}
                       </Button>
                     </Box>
                   </Box>
@@ -667,8 +730,8 @@ const DashboardPage = () => {
                   transition: 'all 0.3s',
                   '&:hover': {
                     transform: 'translateY(-4px)',
-                    boxShadow: 4
-                  }
+                    boxShadow: 4,
+                  },
                 }}
                 onClick={() => navigate('/appointments')}
               >
@@ -678,7 +741,7 @@ const DashboardPage = () => {
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'flex-start',
-                      mb: 2
+                      mb: 2,
                     }}
                   >
                     <Box>
@@ -697,7 +760,7 @@ const DashboardPage = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        backgroundColor: alpha('#667eea', 0.1)
+                        backgroundColor: alpha('#667eea', 0.1),
                       }}
                     >
                       <EventIcon sx={{ color: '#667eea', fontSize: 28 }} />
@@ -711,7 +774,7 @@ const DashboardPage = () => {
                       alignItems: 'center',
                       pt: 1.5,
                       borderTop: '1px solid',
-                      borderColor: 'divider'
+                      borderColor: 'divider',
                     }}
                   >
                     <Box display="flex" alignItems="center" gap={0.5}>
@@ -743,18 +806,18 @@ const DashboardPage = () => {
                 <Grid item xs={12} sm={6} lg={4} xl={3} key={index}>
                   <Card
                     sx={{
-                      cursor: "pointer",
-                      transition: "all 0.3s ease",
-                      height: "100%",
-                      border: card.urgent ? `2px solid ${card.color}` : "none",
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      height: '100%',
+                      border: card.urgent ? `2px solid ${card.color}` : 'none',
                       background: card.urgent
-                        ? `linear-gradient(135deg, ${alpha(
+                        ? `linear-gradient(135deg, ${alpha(card.color, 0.05)}, ${alpha(
                             card.color,
-                            0.05
-                          )}, ${alpha(card.color, 0.02)})`
-                        : "none",
-                      "&:hover": {
-                        transform: "translateY(-4px)",
+                            0.02
+                          )})`
+                        : 'none',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
                         boxShadow: 6,
                       },
                     }}
@@ -782,7 +845,7 @@ const DashboardPage = () => {
                             label="Action Required"
                             size="small"
                             color="error"
-                            sx={{ fontSize: "0.625rem" }}
+                            sx={{ fontSize: '0.625rem' }}
                           />
                         )}
                       </Box>
@@ -791,7 +854,7 @@ const DashboardPage = () => {
                         variant="h4"
                         component="h2"
                         fontWeight="bold"
-                        color={card.urgent ? "error.main" : "inherit"}
+                        color={card.urgent ? 'error.main' : 'inherit'}
                         sx={{ mb: 0.5 }}
                       >
                         {card.value}
@@ -806,22 +869,13 @@ const DashboardPage = () => {
                       </Typography>
 
                       {card.subtitle && (
-                        <Typography
-                          variant="caption"
-                          color="textSecondary"
-                          display="block"
-                        >
+                        <Typography variant="caption" color="textSecondary" display="block">
                           {card.subtitle}
                         </Typography>
                       )}
 
                       {card.trend !== undefined && card.trend !== 0 && (
-                        <Box
-                          display="flex"
-                          alignItems="center"
-                          gap={0.5}
-                          mt={1}
-                        >
+                        <Box display="flex" alignItems="center" gap={0.5} mt={1}>
                           {card.trend > 0 ? (
                             <TrendingUpIcon fontSize="small" color="success" />
                           ) : (
@@ -829,9 +883,7 @@ const DashboardPage = () => {
                           )}
                           <Typography
                             variant="caption"
-                            color={
-                              card.trend > 0 ? "success.main" : "error.main"
-                            }
+                            color={card.trend > 0 ? 'success.main' : 'error.main'}
                             fontWeight={600}
                           >
                             {Math.abs(card.trend).toFixed(1)}%
@@ -848,7 +900,7 @@ const DashboardPage = () => {
                               height: 6,
                               borderRadius: 3,
                               backgroundColor: alpha(card.color, 0.1),
-                              "& .MuiLinearProgress-bar": {
+                              '& .MuiLinearProgress-bar': {
                                 backgroundColor: card.color,
                               },
                             }}
@@ -864,105 +916,77 @@ const DashboardPage = () => {
 
           <Grid container spacing={3}>
             <Grid item xs={12} lg={8}>
-              <Card sx={{ height: "100%" }}>
+              <Card sx={{ height: '100%' }}>
                 <CardContent>
                   <Box
                     sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
                       mb: 3,
                     }}
                   >
                     <Typography variant="h6" fontWeight={600}>
                       Recent Sales
                     </Typography>
-                    <Button
-                      size="small"
-                      onClick={() => navigate("/sales/history")}
-                    >
+                    <Button size="small" onClick={() => navigate('/sales/history')}>
                       View All
                     </Button>
                   </Box>
 
                   {dashboardData.recentSales.length > 0 ? (
                     <Box>
-                      {dashboardData.recentSales
-                        .slice(0, 5)
-                        .map((sale, index) => (
-                          <Box
-                            key={sale.id || index}
-                            sx={{
-                              p: 2,
-                              mb: 1,
-                              borderRadius: 1,
-                              border: "1px solid",
-                              borderColor: "divider",
-                              cursor: "pointer",
-                              transition: "all 0.2s",
-                              "&:hover": {
-                                backgroundColor: alpha(
-                                  themeColors.primary,
-                                  0.04
-                                ),
-                                borderColor: themeColors.primary,
-                              },
-                            }}
-                            onClick={() => navigate(`/sales/view/${sale.id}`)}
-                          >
-                            <Box
-                              display="flex"
-                              justifyContent="space-between"
-                              alignItems="center"
-                            >
-                              <Box flex={1}>
-                                <Typography
-                                  variant="subtitle2"
-                                  fontWeight={600}
-                                >
-                                  {sale.customerName || "Unknown Customer"}
-                                </Typography>
-                                <Typography
-                                  variant="caption"
-                                  color="textSecondary"
-                                >
-                                  Invoice #{sale.invoiceNumber} •{" "}
-                                  {formatDate(sale.saleDate || sale.createdAt)}
-                                </Typography>
-                              </Box>
-                              <Box textAlign="right">
-                                <Typography
-                                  variant="subtitle1"
-                                  fontWeight={600}
-                                  color="success.main"
-                                >
-                                  {formatCurrency(
-                                    sale.grandTotal || sale.totalAmount || 0
-                                  )}
-                                </Typography>
-                                <Chip
-                                  label={sale.paymentStatus || "pending"}
-                                  size="small"
-                                  color={
-                                    sale.paymentStatus === "paid"
-                                      ? "success"
-                                      : "warning"
-                                  }
-                                  sx={{ fontSize: "0.625rem", height: 20 }}
-                                />
-                              </Box>
+                      {dashboardData.recentSales.slice(0, 5).map((sale, index) => (
+                        <Box
+                          key={sale.id || index}
+                          sx={{
+                            p: 2,
+                            mb: 1,
+                            borderRadius: 1,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                              backgroundColor: alpha(themeColors.primary, 0.04),
+                              borderColor: themeColors.primary,
+                            },
+                          }}
+                          onClick={() => navigate(`/sales/view/${sale.id}`)}
+                        >
+                          <Box display="flex" justifyContent="space-between" alignItems="center">
+                            <Box flex={1}>
+                              <Typography variant="subtitle2" fontWeight={600}>
+                                {sale.customerName || 'Unknown Customer'}
+                              </Typography>
+                              <Typography variant="caption" color="textSecondary">
+                                Invoice #{sale.invoiceNumber} •{' '}
+                                {formatDate(sale.saleDate || sale.createdAt)}
+                              </Typography>
+                            </Box>
+                            <Box textAlign="right">
+                              <Typography variant="subtitle1" fontWeight={600} color="success.main">
+                                {formatCurrency(sale.grandTotal || sale.totalAmount || 0)}
+                              </Typography>
+                              <Chip
+                                label={sale.paymentStatus || 'pending'}
+                                size="small"
+                                color={sale.paymentStatus === 'paid' ? 'success' : 'warning'}
+                                sx={{ fontSize: '0.625rem', height: 20 }}
+                              />
                             </Box>
                           </Box>
-                        ))}
+                        </Box>
+                      ))}
                     </Box>
                   ) : (
                     <Box
                       sx={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
                         py: 6,
-                        color: "text.secondary",
+                        color: 'text.secondary',
                       }}
                     >
                       <ReceiptIcon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
@@ -975,7 +999,7 @@ const DashboardPage = () => {
                       <Button
                         variant="outlined"
                         startIcon={<AddIcon />}
-                        onClick={() => navigate("/sales/create")}
+                        onClick={() => navigate('/sales/create')}
                       >
                         Create Invoice
                       </Button>
@@ -986,7 +1010,7 @@ const DashboardPage = () => {
             </Grid>
 
             <Grid item xs={12} lg={4}>
-              <Card sx={{ height: "100%" }}>
+              <Card sx={{ height: '100%' }}>
                 <CardContent>
                   <Typography variant="h6" fontWeight={600} gutterBottom>
                     Quick Actions
@@ -998,10 +1022,10 @@ const DashboardPage = () => {
                         fullWidth
                         variant="contained"
                         startIcon={<AddIcon />}
-                        onClick={() => navigate("/customers/add")}
+                        onClick={() => navigate('/customers/add')}
                         sx={{
-                          justifyContent: "flex-start",
-                          textTransform: "none",
+                          justifyContent: 'flex-start',
+                          textTransform: 'none',
                         }}
                       >
                         Add Customer
@@ -1013,10 +1037,10 @@ const DashboardPage = () => {
                         fullWidth
                         variant="contained"
                         startIcon={<ReceiptIcon />}
-                        onClick={() => navigate("/sales/create")}
+                        onClick={() => navigate('/sales/create')}
                         sx={{
-                          justifyContent: "flex-start",
-                          textTransform: "none",
+                          justifyContent: 'flex-start',
+                          textTransform: 'none',
                         }}
                       >
                         Create Invoice
@@ -1030,10 +1054,10 @@ const DashboardPage = () => {
                             fullWidth
                             variant="outlined"
                             startIcon={<BadgeIcon />}
-                            onClick={() => navigate("/employees/add")}
+                            onClick={() => navigate('/employees/add')}
                             sx={{
-                              justifyContent: "flex-start",
-                              textTransform: "none",
+                              justifyContent: 'flex-start',
+                              textTransform: 'none',
                             }}
                           >
                             Add Employee
@@ -1045,10 +1069,10 @@ const DashboardPage = () => {
                             fullWidth
                             variant="outlined"
                             startIcon={<ChecklistIcon />}
-                            onClick={() => navigate("/checklists/create")}
+                            onClick={() => navigate('/checklists/create')}
                             sx={{
-                              justifyContent: "flex-start",
-                              textTransform: "none",
+                              justifyContent: 'flex-start',
+                              textTransform: 'none',
                             }}
                           >
                             Create New Checklist
@@ -1063,14 +1087,12 @@ const DashboardPage = () => {
                             onClick={handleManualGeneration}
                             disabled={refreshing}
                             sx={{
-                              justifyContent: "flex-start",
-                              textTransform: "none",
+                              justifyContent: 'flex-start',
+                              textTransform: 'none',
                             }}
                             color="primary"
                           >
-                            {refreshing
-                              ? "Generating..."
-                              : "Generate for Checked-in"}
+                            {refreshing ? 'Generating...' : 'Generate for Checked-in'}
                           </Button>
                         </Grid>
 
@@ -1079,12 +1101,10 @@ const DashboardPage = () => {
                             fullWidth
                             variant="outlined"
                             startIcon={<AssessmentIcon />}
-                            onClick={() =>
-                              navigate("/analytics/employee-sales")
-                            }
+                            onClick={() => navigate('/analytics/employee-sales')}
                             sx={{
-                              justifyContent: "flex-start",
-                              textTransform: "none",
+                              justifyContent: 'flex-start',
+                              textTransform: 'none',
                             }}
                           >
                             Employee Analytics
@@ -1096,10 +1116,10 @@ const DashboardPage = () => {
                             fullWidth
                             variant="outlined"
                             startIcon={<AssessmentIcon />}
-                            onClick={() => navigate("/reports/employees")}
+                            onClick={() => navigate('/reports/employees')}
                             sx={{
-                              justifyContent: "flex-start",
-                              textTransform: "none",
+                              justifyContent: 'flex-start',
+                              textTransform: 'none',
                             }}
                           >
                             Employee Reports
@@ -1115,10 +1135,10 @@ const DashboardPage = () => {
                             fullWidth
                             variant="outlined"
                             startIcon={<ScheduleIcon />}
-                            onClick={() => navigate("/attendance")}
+                            onClick={() => navigate('/attendance')}
                             sx={{
-                              justifyContent: "flex-start",
-                              textTransform: "none",
+                              justifyContent: 'flex-start',
+                              textTransform: 'none',
                             }}
                           >
                             Check In (Get Checklists)
@@ -1130,10 +1150,10 @@ const DashboardPage = () => {
                             fullWidth
                             variant="outlined"
                             startIcon={<TaskIcon />}
-                            onClick={() => navigate("/my-checklists")}
+                            onClick={() => navigate('/my-checklists')}
                             sx={{
-                              justifyContent: "flex-start",
-                              textTransform: "none",
+                              justifyContent: 'flex-start',
+                              textTransform: 'none',
                             }}
                           >
                             My Checklists
@@ -1147,10 +1167,10 @@ const DashboardPage = () => {
                         fullWidth
                         variant="outlined"
                         startIcon={<HistoryIcon />}
-                        onClick={() => navigate("/sales/history")}
+                        onClick={() => navigate('/sales/history')}
                         sx={{
-                          justifyContent: "flex-start",
-                          textTransform: "none",
+                          justifyContent: 'flex-start',
+                          textTransform: 'none',
                         }}
                       >
                         View Sales
@@ -1166,11 +1186,7 @@ const DashboardPage = () => {
                       borderRadius: 1,
                     }}
                   >
-                    <Typography
-                      variant="subtitle2"
-                      fontWeight={600}
-                      gutterBottom
-                    >
+                    <Typography variant="subtitle2" fontWeight={600} gutterBottom>
                       Business Summary
                     </Typography>
                     <Box display="flex" justifyContent="space-between" mb={1}>
@@ -1193,11 +1209,7 @@ const DashboardPage = () => {
                       <Typography variant="caption" color="textSecondary">
                         Revenue Collected:
                       </Typography>
-                      <Typography
-                        variant="caption"
-                        fontWeight={600}
-                        color="success.main"
-                      >
+                      <Typography variant="caption" fontWeight={600} color="success.main">
                         {formatCurrency(dashboardData.sales.totalAmountPaid)}
                       </Typography>
                     </Box>
@@ -1225,7 +1237,7 @@ const DashboardPage = () => {
         onClose={handleProfileMenuClose}
         onClick={handleProfileMenuClose}
       >
-        <MenuItem onClick={() => navigate("/profile")}>
+        <MenuItem onClick={() => navigate('/profile')}>
           <ListItemIcon>
             <PersonIcon fontSize="small" />
           </ListItemIcon>
@@ -1245,11 +1257,11 @@ const DashboardPage = () => {
           color="primary"
           aria-label="add"
           sx={{
-            position: "fixed",
+            position: 'fixed',
             bottom: 16,
             right: 16,
           }}
-          onClick={() => navigate("/sales/create")}
+          onClick={() => navigate('/sales/create')}
         >
           <AddIcon />
         </Fab>
